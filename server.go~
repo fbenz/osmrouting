@@ -52,7 +52,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	// TODO handle the other parameters
 
 	
-	// create result; TODO do it right ;)
+	// create result, TODO do it right ;)
 	northwest := waypoints[0]
 	southeast := waypoints[1]
 	boundingBox := BoundingBox{northwest, southeast}
