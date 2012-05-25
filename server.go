@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"log"
 	"net/http"
@@ -22,27 +23,35 @@ const (
 	SeparatorWaypoints = "|"
 	SeparatorLatLng = ","
 
-	Port = ":23401"
+	DefaultPort = 23401 // The default port number
 )
 
 var (
 	featureResponse []byte
+	// Command line flags
+	Port int //The flag for the port
 )
 
+func init(){
+	flag.IntVar(&Port,"port",DefaultPort,"the port where the server is running")
+}
+
 func main() {
+	// Call the command line parser
+	flag.Parse()
 	setupErr := setup()
 	if setupErr != nil {
 		log.Fatal("Setup failed:", setupErr)
 		return
 	}
-
+	
 	// map URLs to functions
 	http.HandleFunc("/", root)
-    http.HandleFunc("/routes", routes)
-    http.HandleFunc("/features", features)
+	http.HandleFunc("/routes", routes)
+	http.HandleFunc("/features", features)
 
 	// start the HTTP server
-	err := http.ListenAndServe(Port, nil)
+	err := http.ListenAndServe(":"+strconv.Itoa(Port), nil)
 	if err != nil {
         log.Fatal("ListenAndServe:", err)
     }
@@ -52,13 +61,13 @@ func main() {
 func setup() error {
 	// create the feature response only once (no change at runtime)
 	features := &Features{}
-    var err error
+	var err error
 	featureResponse, err = json.Marshal(features)
 	if err != nil {
-        log.Fatal("Creating feature response:", err)
-        return err
-    }
-    return nil
+		log.Fatal("Creating feature response:", err)
+		return err
+	}
+	return nil
 }
 
 // Just tell that the server is alive
