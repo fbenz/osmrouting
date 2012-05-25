@@ -18,7 +18,7 @@ type Route struct {
 	Duration Duration	`json:"duration"`
 	StartLocation Point	`json:"start_location"`
 	EndLocation Point	`json:"end_location"`
-	Legs Leg			`json:"legs"`
+	Legs []Leg			`json:"legs"`
 }
 
 type Leg struct {
@@ -26,7 +26,7 @@ type Leg struct {
 	Duration Duration	`json:"duration"`
 	StartLocation Point	`json:"start_location"`
 	EndLocation Point	`json:"end_location"`
-	Steps Step			`json:"steps"`
+	Steps []Step		`json:"steps"`
 }
 
 type Step struct {
@@ -34,7 +34,7 @@ type Step struct {
 	Duration Duration	`json:"duration"`
 	StartLocation Point	`json:"start_location"`
 	EndLocation Point	`json:"end_location"`
-	Polyline Polyline	`json:"end_location"`
+	Polyline Polyline	`json:"polyline"`
 	Instruction string	`json:"instruction"`
 }
 
