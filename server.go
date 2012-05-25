@@ -86,24 +86,24 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	// the implementation should not fail for unknown parameters/values
 
 	// hard coded values for the route response
-	var polyline1 = [][]float64{{49.25708,7.045980000000001},{49.257070000000006,7.045960000000001},{49.25652,7.044390000000001},{49.256420000000006,7.0441400000000005},{49.256370000000004,7.04396},{49.25634,7.04384},{49.25632,7.043760000000001},{49.25632,7.04368},{49.25632,7.04361},{49.256310000000006,7.04351},{49.256310000000006,7.043430000000001},{49.256310000000006,7.043290000000001},{49.25632,7.043130000000001},{49.256330000000005,7.042980000000001},{49.25618,7.04302},{49.25573000000001,7.043010000000001}}
-	distance1 := Distance{"0.3 km", 272}
-	duration1 := Duration{"1 min", 43}
+	var polyline1 = [][]float64{{49.25708,7.045980000000001},{49.257070000000006,7.045960000000001},{49.25652,7.044390000000001}}
+	distance1 := Distance{"0.1 km", 131}
+	duration1 := Duration{"2 min", 124}
 	startLocation1 := Point{49.257080, 7.045980000000001}
-	endLocation1 := Point{49.256370, 7.042530}
+	endLocation1 := Point{49.256520, 7.044390000000001}
 	step1 := Step{distance1, duration1, startLocation1, endLocation1, polyline1, ""}
 	
-	var polyline2 = [][]float64{{49.256370000000004,7.04253},{49.256980000000006,7.0424500000000005},{49.25706,7.042440000000001},{49.257250000000006,7.04243}}
-	distance2 := Distance{"0.1 km", 98}
-	duration2 := Duration{"1 min", 20}
-	startLocation2 := Point{49.256370,7.042530}
-	endLocation2 := Point{49.25725000000001,7.042430}
+	var polyline2 = [][]float64{{49.25652,7.044390000000001},{49.25661,7.0444},{49.25668,7.044390000000001},{49.25674,7.044320000000001},{49.25677,7.044300000000001},{49.256800000000005,7.044270000000001},{49.256820000000005,7.044230000000001},{49.256840000000004,7.0442100000000005},{49.256870000000006,7.04419},{49.25688,7.04415},{49.256910000000005,7.0441400000000005},{49.25694000000001,7.044110000000001},{49.256980000000006,7.044060000000001},{49.25703000000001,7.0440000000000005},{49.25706,7.043950000000001},{49.257090000000005,7.043940000000001},{49.25704,7.043310000000001}}
+	distance2 := Distance{"0.1 km", 122}
+	duration2 := Duration{"2 min", 136}
+	startLocation2 := Point{49.256520, 7.044390000000001}
+	endLocation2 := Point{49.257040, 7.043310000000001}
 	step2 := Step{distance2, duration2, startLocation2, endLocation2, polyline2, ""}
 	
-	distanceL := Distance{"0.4 km", 370}
-	durationL := Duration{"1 min", 63}
-	startLocationL := Point{49.257080,7.045980000000001}
-	endLocationL := Point{49.25725000000001, 7.042430}
+	distanceL := Distance{"0.3 km", 253}
+	durationL := Duration{"4 min", 260}
+	startLocationL := Point{49.257080, 7.045980000000001}
+	endLocationL := Point{49.257040, 7.043310000000001}
 	steps := []Step{step1, step2}
 	leg := Leg{distanceL, durationL, startLocationL, endLocationL, steps}
 	
@@ -111,8 +111,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	route := Route{distanceL, durationL, startLocationL, endLocationL, legs}
 	routes := []Route{route}
 	
-	northwest := Point{49.25725000000001, 7.042430}
-	southeast := Point{49.256320, 7.045980000000001}
+	northwest := Point{49.25709000000001, 7.043310000000001}
+	southeast := Point{49.256520, 7.045980000000001}
 	boundingBox := BoundingBox{northwest, southeast}
 	result := &Result{boundingBox, routes}
 	jsonResult, err := json.Marshal(result)
