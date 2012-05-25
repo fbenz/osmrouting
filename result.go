@@ -1,7 +1,7 @@
 
 package main
 
-/* Structure of the JSON object exactly as in the API definition */
+/* The structure of the JSON object for the route response exactly as in the API definition */
 
 type Result struct {
 	BoundingBox BoundingBox `json:"boundingBox"`

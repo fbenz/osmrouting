@@ -1,7 +1,7 @@
 
 package main
 
-/* The HTTP server waiting for route requests */
+/* The HTTP server waiting for requests */
 
 import (
 	"encoding/json"
@@ -15,9 +15,14 @@ import (
 
 const (
 	ParameterWaypoints = "waypoints"
+	ParameterTravelmode = "travelmode"
+	ParameterMetric = "metric"
+	ParameterAvoid = "avoid"
 
 	SeparatorWaypoints = "|"
 	SeparatorLatLng = ","
+
+	Port = ":23401"
 )
 
 var (
@@ -25,45 +30,62 @@ var (
 )
 
 func main() {
+	setupErr := setup()
+	if setupErr != nil {
+		log.Fatal("Setup failed:", setupErr)
+		return
+	}
+
+	// map URLs to functions
 	http.HandleFunc("/", root)
     http.HandleFunc("/routes", routes)
     http.HandleFunc("/features", features)
-    
-    features := &Features{}
-	featureResponse, _ = json.Marshal(features)
-	// TODO
-	// jsonErr
-	/*if jsonErr != nil {
-        log.Fatal("Creating feature response:", jsonErr)
-    }*/
 
-	err := http.ListenAndServe(":8080", nil)
+	// start the HTTP server
+	err := http.ListenAndServe(Port, nil)
 	if err != nil {
         log.Fatal("ListenAndServe:", err)
     }
 }
 
+// Do some stuff when the server is started
+func setup() error {
+	// create the feature response only once (no change at runtime)
+	features := &Features{}
+    var err error
+	featureResponse, err = json.Marshal(features)
+	if err != nil {
+        log.Fatal("Creating feature response:", err)
+        return err
+    }
+    return nil
+}
+
+// Just tell that the server is alive
 func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Server is up and running")
 }
 
+// Computes routes (at the moment only one route is returned statically)
 func routes(w http.ResponseWriter, r *http.Request) {
 	// parse URL and extract parameters
 	urlParameter := r.URL.Query()
 	
-	// handle waypoints
+	// handle waypoints parameter
 	if urlParameter[ParameterWaypoints] == nil || len(urlParameter[ParameterWaypoints]) < 1 {
 		http.Error(w, "no waypoints", http.StatusBadRequest)
 		return
 	}
-	waypoints, err := getWaypoints(urlParameter["waypoints"][0])
+	_, err := getWaypoints(urlParameter["waypoints"][0])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	
-	// TODO handle the other parameters
+	// there is no need to handle the other parameters at the moment as
+	// the implementation should not fail for unknown parameters/values
 
+	// hard coded values for the route response
 	var polyline1 = [][]float64{{49.25708,7.045980000000001},{49.257070000000006,7.045960000000001},{49.25652,7.044390000000001},{49.256420000000006,7.0441400000000005},{49.256370000000004,7.04396},{49.25634,7.04384},{49.25632,7.043760000000001},{49.25632,7.04368},{49.25632,7.04361},{49.256310000000006,7.04351},{49.256310000000006,7.043430000000001},{49.256310000000006,7.043290000000001},{49.25632,7.043130000000001},{49.256330000000005,7.042980000000001},{49.25618,7.04302},{49.25573000000001,7.043010000000001}}
 	distance1 := Distance{"0.3 km", 272}
 	duration1 := Duration{"1 min", 43}
@@ -89,7 +111,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	route := Route{distanceL, durationL, startLocationL, endLocationL, legs}
 	routes := []Route{route}
 	
-	northwest := Point{49.25725000000001, 7.042430 + waypoints[0].Lat - waypoints[0].Lat}
+	northwest := Point{49.25725000000001, 7.042430}
 	southeast := Point{49.256320, 7.045980000000001}
 	boundingBox := BoundingBox{northwest, southeast}
 	result := &Result{boundingBox, routes}
@@ -101,6 +123,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonResult)
 }
 
+// Parses the given waypoints
 func getWaypoints(waypointString string) ([]Point, error) {
 	waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
 	if len(waypointStrings) < 2 {
@@ -126,6 +149,7 @@ func getWaypoints(waypointString string) ([]Point, error) {
 	return points, nil
 }
 
+// Handles feature requests
 func features(w http.ResponseWriter, r *http.Request) {
 	w.Write(featureResponse)
 }
