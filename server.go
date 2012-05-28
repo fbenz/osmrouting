@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,22 +24,26 @@ const (
 	SeparatorWaypoints = "|"
 	SeparatorLatLng = ","
 
-	DefaultPort = 23401 // The default port number
+	DefaultPort = 23401 // the default port number
 )
 
 var (
 	featureResponse []byte
-	// Command line flags
-	Port int //The flag for the port
+
+	// command line flags
+	Port int // the flag for the port
+	Logging bool
 )
 
 func init(){
-	flag.IntVar(&Port,"port",DefaultPort,"the port where the server is running")
+	flag.IntVar(&Port, "port", DefaultPort, "the port where the server is running")
+	flag.BoolVar(&Logging, "logging", false, "enables logging of requests")
 }
 
 func main() {
-	// Call the command line parser
+	// call the command line parser
 	flag.Parse()
+
 	setupErr := setup()
 	if setupErr != nil {
 		log.Fatal("Setup failed:", setupErr)
@@ -59,6 +64,8 @@ func main() {
 
 // Do some stuff when the server is started
 func setup() error {
+	InitLogger()
+
 	// create the feature response only once (no change at runtime)
 	features := &Features{}
 	var err error
@@ -77,6 +84,9 @@ func root(w http.ResponseWriter, r *http.Request) {
 
 // Computes routes (at the moment only one route is returned statically)
 func routes(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	defer LogRequest(r, startTime)
+
 	// parse URL and extract parameters
 	urlParameter := r.URL.Query()
 	
@@ -160,6 +170,9 @@ func getWaypoints(waypointString string) ([]Point, error) {
 
 // Handles feature requests
 func features(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	defer LogRequest(r, startTime)
+
 	w.Write(featureResponse)
 }
 
