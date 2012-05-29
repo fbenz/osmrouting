@@ -74,9 +74,9 @@ func logger() {
  			// write a line for each request
  			writer.WriteString(ri.Time.Format(time.RFC3339 /* "2006-01-02T15:04:05Z07:00" */))
  			writer.WriteString(" ")
- 			durationMs := strconv.FormatInt(ri.Duration.Nanoseconds() / 1000, 10 /* base */)
- 			writer.WriteString(durationMs)
- 			writer.WriteString("ms ")
+ 			durationInMicroseconds := strconv.FormatInt(ri.Duration.Nanoseconds() / 1000, 10 /* base */)
+ 			writer.WriteString(durationInMicroseconds)
+ 			writer.WriteString(" ")
  			writer.WriteString(ri.URL)
  			writer.WriteString("\n")
 		}

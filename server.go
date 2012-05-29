@@ -110,14 +110,16 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	duration1 := Duration{"2 min", 124}
 	startLocation1 := Point{49.257080, 7.045980000000001}
 	endLocation1 := Point{49.256520, 7.044390000000001}
-	step1 := Step{distance1, duration1, startLocation1, endLocation1, polyline1, ""}
+	instruction1 := "Head southwest on Stuhlsatzenhausweg because you are starving"
+	step1 := Step{distance1, duration1, startLocation1, endLocation1, polyline1, instruction1}
 	
 	var polyline2 = [][]float64{{49.25652,7.044390000000001},{49.25661,7.0444},{49.25668,7.044390000000001},{49.25674,7.044320000000001},{49.25677,7.044300000000001},{49.256800000000005,7.044270000000001},{49.256820000000005,7.044230000000001},{49.256840000000004,7.0442100000000005},{49.256870000000006,7.04419},{49.25688,7.04415},{49.256910000000005,7.0441400000000005},{49.25694000000001,7.044110000000001},{49.256980000000006,7.044060000000001},{49.25703000000001,7.0440000000000005},{49.25706,7.043950000000001},{49.257090000000005,7.043940000000001},{49.25704,7.043310000000001}}
 	distance2 := Distance{"0.1 km", 122}
 	duration2 := Duration{"2 min", 136}
 	startLocation2 := Point{49.256520, 7.044390000000001}
 	endLocation2 := Point{49.257040, 7.043310000000001}
-	step2 := Step{distance2, duration2, startLocation2, endLocation2, polyline2, ""}
+	instruction2 := "Turn right, take the stairs and arrive at the temple of culinary delights"
+	step2 := Step{distance2, duration2, startLocation2, endLocation2, polyline2, instruction2}
 	
 	distanceL := Distance{"0.3 km", 253}
 	durationL := Duration{"4 min", 260}
