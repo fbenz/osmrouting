@@ -31,13 +31,13 @@ var (
 	featureResponse []byte
 
 	// command line flags
-	Port int // the flag for the port
-	Logging bool
+	FlagPort int
+	FlagLogging bool
 )
 
 func init(){
-	flag.IntVar(&Port, "port", DefaultPort, "the port where the server is running")
-	flag.BoolVar(&Logging, "logging", false, "enables logging of requests")
+	flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
+	flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
 }
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
 	http.HandleFunc("/features", features)
 
 	// start the HTTP server
-	err := http.ListenAndServe(":"+strconv.Itoa(Port), nil)
+	err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
 	if err != nil {
         log.Fatal("ListenAndServe:", err)
     }

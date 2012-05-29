@@ -27,7 +27,7 @@ type RequestInfo struct {
 }
 
 func InitLogger() {
-	if !Logging {
+	if !FlagLogging {
 		return
 	}
 
@@ -37,7 +37,7 @@ func InitLogger() {
 
 // Non-blocking logging
 func LogRequest(r *http.Request, startTime time.Time) {
-	if !Logging {
+	if !FlagLogging {
 		return
 	}
 
