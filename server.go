@@ -1,105 +1,103 @@
+// The HTTP server processing route and feature requests
 
 package main
 
-/* The HTTP server waiting for requests */
-
 import (
-	"encoding/json"
-	"errors"
-	"flag"
-	"io"
-	"log"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
+    "encoding/json"
+    "errors"
+    "flag"
+    "io"
+    "log"
+    "net/http"
+    "strconv"
+    "strings"
+    "time"
 )
 
 const (
-	ParameterWaypoints = "waypoints"
-	ParameterTravelmode = "travelmode"
-	ParameterMetric = "metric"
-	ParameterAvoid = "avoid"
+    ParameterWaypoints = "waypoints"
+    ParameterTravelmode = "travelmode"
+    ParameterMetric = "metric"
+    ParameterAvoid = "avoid"
 
-	SeparatorWaypoints = "|"
-	SeparatorLatLng = ","
+    SeparatorWaypoints = "|"
+    SeparatorLatLng = ","
 
-	DefaultPort = 23401 // the default port number
+    DefaultPort = 23401 // the default port number
 )
 
 var (
-	featureResponse []byte
+    featureResponse []byte
 
-	// command line flags
-	FlagPort int
-	FlagLogging bool
+    // command line flags
+    FlagPort int
+    FlagLogging bool
 )
 
 func init(){
-	flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
-	flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
+    flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
+    flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
 }
 
 func main() {
-	// call the command line parser
-	flag.Parse()
+    // call the command line parser
+    flag.Parse()
 
-	setupErr := setup()
-	if setupErr != nil {
-		log.Fatal("Setup failed:", setupErr)
-		return
-	}
-	
-	// map URLs to functions
-	http.HandleFunc("/", root)
-	http.HandleFunc("/routes", routes)
-	http.HandleFunc("/features", features)
+    if err := setup(); err != nil {
+        log.Fatal("Setup failed:", err)
+        return
+    }
 
-	// start the HTTP server
-	err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
-	if err != nil {
+    // map URLs to functions
+    http.HandleFunc("/", root)
+    http.HandleFunc("/routes", routes)
+    http.HandleFunc("/features", features)
+
+    // start the HTTP server
+    err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
+    if err != nil {
         log.Fatal("ListenAndServe:", err)
     }
 }
 
-// Do some stuff when the server is started
+// setup does some initialization before the HTTP server starts.
 func setup() error {
-	InitLogger()
+    InitLogger()
 
-	// create the feature response only once (no change at runtime)
-	features := &Features{}
-	var err error
-	featureResponse, err = json.Marshal(features)
-	if err != nil {
-		log.Fatal("Creating feature response:", err)
-		return err
-	}
-	return nil
+    // create the feature response only once (no change at runtime)
+    if fp, err := json.Marshal(&Features{}); err != nil {
+        log.Fatal("Creating feature response:", err)
+        return err
+    } else {
+        // only assign if the creation was successful
+        featureResponse = fp
+    }
+    return nil
 }
 
-// Just tell that the server is alive
+// root just tells that the server is alive.
 func root(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "Server is up and running")
+    io.WriteString(w, "Server is up and running")
 }
 
-// Computes routes (at the moment only one route is returned statically)
+// routes returns routes according to the given parameters. (at the moment only one route is returned statically)
 func routes(w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now()
-	defer LogRequest(r, startTime)
+    startTime := time.Now()
+    defer LogRequest(r, startTime)
 
-	// parse URL and extract parameters
-	urlParameter := r.URL.Query()
-	
-	// handle waypoints parameter
-	if urlParameter[ParameterWaypoints] == nil || len(urlParameter[ParameterWaypoints]) < 1 {
-		http.Error(w, "no waypoints", http.StatusBadRequest)
-		return
-	}
-	_, err := getWaypoints(urlParameter["waypoints"][0])
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+    // parse URL and extract parameters
+    urlParameter := r.URL.Query()
+
+    // handle waypoints parameter
+    if urlParameter[ParameterWaypoints] == nil || len(urlParameter[ParameterWaypoints]) < 1 {
+        http.Error(w, "no waypoints", http.StatusBadRequest)
+        return
+    }
+    _, err := getWaypoints(urlParameter["waypoints"][0])
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
 	
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
@@ -134,47 +132,47 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	
 	northwest := Point{49.25709000000001, 7.043310000000001}
 	southeast := Point{49.256520, 7.045980000000001}
-	boundingBox := BoundingBox{northwest, southeast}
-	result := &Result{boundingBox, routes}
-	jsonResult, err := json.Marshal(result)
-	if err != nil {
-		http.Error(w, "unable to create a proper JSON object", http.StatusInternalServerError)
-		return
-	}
-	w.Write(jsonResult)
+    boundingBox := BoundingBox{northwest, southeast}
+    result := &Result{boundingBox, routes}
+    jsonResult, err := json.Marshal(result)
+    if err != nil {
+        http.Error(w, "unable to create a proper JSON object", http.StatusInternalServerError)
+        return
+    }
+    w.Write(jsonResult)
 }
 
-// Parses the given waypoints
+// getWaypoints parses the given waypoints.
 func getWaypoints(waypointString string) ([]Point, error) {
-	waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
-	if len(waypointStrings) < 2 {
-		return nil, errors.New("too few waypoints. at least 2 waypoints are needed")
-	}
+    waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
+    if len(waypointStrings) < 2 {
+        return nil, errors.New("too few waypoints. at least 2 waypoints are needed")
+    }
 
-	points := make([]Point, len(waypointStrings))
-	for i, v := range waypointStrings {
-		coordinateStrings := strings.Split(v, SeparatorLatLng)
-		if len(coordinateStrings) != 2 {
-			return nil, errors.New("wrong formatted coordinate in waypoint list: " + v)
-		}
-		lat, err := strconv.ParseFloat(coordinateStrings[0], 64 /* bitSize */)
-		if err != nil {
-			return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[0])
-		}
-		lng, err := strconv.ParseFloat(coordinateStrings[1], 64 /* bitSize */)
-		if err != nil {
-			return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[1])
-		}
-		points[i] = Point{lat, lng}
-	}
-	return points, nil
+    points := make([]Point, len(waypointStrings))
+    for i, v := range waypointStrings {
+        coordinateStrings := strings.Split(v, SeparatorLatLng)
+        if len(coordinateStrings) != 2 {
+            return nil, errors.New("wrong formatted coordinate in waypoint list: " + v)
+        }
+        lat, err := strconv.ParseFloat(coordinateStrings[0], 64 /* bitSize */)
+        if err != nil {
+            return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[0])
+        }
+        lng, err := strconv.ParseFloat(coordinateStrings[1], 64 /* bitSize */)
+        if err != nil {
+            return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[1])
+        }
+        points[i] = Point{lat, lng}
+    }
+    return points, nil
 }
 
-// Handles feature requests
+// features handles feature requests.
 func features(w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now()
-	defer LogRequest(r, startTime)
+    startTime := time.Now()
+    defer LogRequest(r, startTime)
 
-	w.Write(featureResponse)
+    w.Write(featureResponse)
 }
 

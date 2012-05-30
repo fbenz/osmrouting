@@ -1,17 +1,16 @@
+// All information provided with a route query
 
 package main
 
-/* All information provided with a route query (not used at the moment) */
-
 type RouteInfo struct {
-	Waypoints []Point
+    Waypoints []Point
 }
 
 func NewPoint(lat, lng float64) *Point {
-	return &Point{lat, lng}
+    return &Point{lat, lng}
 }
 
 func NewRouteInfo(waypoints []Point) *RouteInfo {
-	return &RouteInfo{waypoints}
+    return &RouteInfo{waypoints}
 }
 
