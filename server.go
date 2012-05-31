@@ -52,6 +52,7 @@ func main() {
     http.HandleFunc("/", root)
     http.HandleFunc("/routes", routes)
     http.HandleFunc("/features", features)
+    http.HandleFunc("/test", test)
 
     // start the HTTP server
     err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
