@@ -37,11 +37,6 @@ type Step struct {
     Instruction string  `json:"instruction"`
 }
 
-type Point struct {
-    Lat float64 `json:"lat"`
-    Lng float64 `json:"lng"`
-}
-
 type Distance struct {
     Text string `json:"text"`
     Value int   `json:"value"`
@@ -52,5 +47,7 @@ type Duration struct {
     Value int   `json:"value"`
 }
 
-type Polyline [][]float64
+type Point []float64
+
+type Polyline []Point
 
