@@ -6,6 +6,7 @@ import (
     "encoding/json"
     "errors"
     "flag"
+    "html/template"
     "io"
     "log"
     "net/http"
@@ -32,6 +33,8 @@ var (
     // command line flags
     FlagPort int
     FlagLogging bool
+    
+    startupTime time.Time
 )
 
 func init(){
@@ -52,9 +55,11 @@ func main() {
     http.HandleFunc("/", root)
     http.HandleFunc("/routes", routes)
     http.HandleFunc("/features", features)
-    http.HandleFunc("/test", test)
+    http.HandleFunc("/awesome", test)
+    http.HandleFunc("/status", status)
 
     // start the HTTP server
+    startupTime = time.Now()
     err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
     if err != nil {
         log.Fatal("ListenAndServe:", err)
@@ -176,4 +181,35 @@ func features(w http.ResponseWriter, r *http.Request) {
 
     w.Write(featureResponse)
 }
+
+// status returns an HTML page with some status information about the server
+func status(w http.ResponseWriter, r *http.Request) {
+    statusInfo := make(map[string]string)
+    statusInfo["startupTime"] = startupTime.Format(time.RFC3339 /* "2006-01-02T15:04:05Z07:00" */)
+    uptime := time.Now().Sub(startupTime)
+    hours := int64(uptime.Hours())
+    minutes := int64(uptime.Minutes()) % 60
+    statusInfo["uptimeHours"] = strconv.FormatInt(hours, 10 /* base */)
+    statusInfo["uptimeMinutes"] = strconv.FormatInt(minutes, 10 /* base */)
+
+    if err := statusTemplate.Execute(w, statusInfo); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
+
+var statusTemplate = template.Must(template.New("status").Parse(statusTemplateHTML))
+
+const statusTemplateHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Team FortyTwo Server Status</title>
+</head>
+<body>
+  <h1>Team FortyTwo Server Status</h1>
+  <p>Started: {{ .startupTime }}</p>
+  <p>Uptime: {{ .uptimeHours }} h {{ .uptimeMinutes }} min</p>
+</body>
+</html>
+`
 

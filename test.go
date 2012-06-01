@@ -9,13 +9,14 @@ import (
     "net/http"
 )
 
-var testTemplate = template.Must(template.New("main").Parse(testTemplateHTML))
-
+// status returns an HTML page that can be used to test the routing service
 func test(w http.ResponseWriter, r *http.Request) {
     if err := testTemplate.Execute(w, nil); err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
 }
+
+var testTemplate = template.Must(template.New("test").Parse(testTemplateHTML))
 
 const testTemplateHTML = `
 <!DOCTYPE html>
