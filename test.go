@@ -27,6 +27,7 @@ const testTemplateHTML = `
   <script src="http://tile.cloudmade.com/wml/latest/web-maps-lite.js"></script>
   
   <script type="text/javascript">
+var oldOverlays = [];
 var map;
 function init() {
   map = new CM.Map('map', new CM.Tiles.CloudMade.Web({key: '785cf87085dc4fa08c07a9901126cb49'}));
@@ -38,32 +39,51 @@ function init() {
 <body onload="init()">
   <div id="controls" style="height: 60px">
   Parameters: <input id="testParameters" type="text" name="paramters" size="120" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973" />
-  <input id="testButton" type="button" name="test" value="Test" />
+  <input id="testButton" type="button" name="test" value="Go" style="width: 80px"/>
   </div>
-  <div id="map" style="width: 1024px; height: 600px"></div>
+  <div id="controls" style="width: 200px; margin-right: 10px; float: left">
+    <ol id="routeInfo"></ol>
+  </div>
+  <div id="map" style="width: 800px; height: 600px; float: left"></div>
 
 <script type="text/javascript">
+function cleanUp() {
+  $.each(oldOverlays, function(i, overlay) {
+    map.removeOverlay(overlay);
+  });
+  oldOverlays = [];
+
+  $("#routeInfo").empty();
+}
+
 function routeSuccess(data) {
+  cleanUp();
+
   var se = data.boundingBox.se;
   var nw = data.boundingBox.nw;
   map.zoomToBounds(new CM.LatLngBounds(new CM.LatLng(se[0], nw[1]) /* sw */, new CM.LatLng(nw[0], se[1]) /* ne */));
     
   var leg = data.routes[0].legs[0];
   $.each(leg.steps, function(i, step){
+    $("#routeInfo").append("<li>" + step.instruction + " (" + step.duration.text + ", " + step.distance.text + ")</li>");
+  
     var lineColor = "red";
     if (i % 2 ==  0) {
       lineColor = "blue";
     }
     var line = []
-    $.each(step.polyline, function(i, point){
+    $.each(step.polyline, function(i, point) {
       line[i] = new CM.LatLng(point[0], point[1]);
     });
     var polygon = new CM.Polyline(line, lineColor, 5, 0.7);
     map.addOverlay(polygon);
+    oldOverlays.push(polygon);
   });
 }
 
 function routeError(jqXHR, textStatus, errorThrown) {
+  cleanUp();
+
   var ts = "";
   if (textStatus != null) {
     ts = textStatus;
@@ -90,6 +110,12 @@ function update() {
 
 $(document).ready( function() {
   $("#testButton").click(update);
+  
+  $("#testParameters").keyup(function(event) {
+    if(event.keyCode == 13){
+      $("#testButton").click();
+    }
+});
 });
 </script>
 
