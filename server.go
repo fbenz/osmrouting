@@ -10,6 +10,7 @@ import (
     "io"
     "log"
     "net/http"
+    "runtime"
     "strconv"
     "strings"
     "time"
@@ -43,6 +44,8 @@ func init(){
 }
 
 func main() {
+    runtime.GOMAXPROCS(8)
+
     // call the command line parser
     flag.Parse()
 
