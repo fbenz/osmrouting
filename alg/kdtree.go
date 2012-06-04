@@ -40,8 +40,8 @@ func (t KdTree) getData(i int) NodeData {
 }
 
 func NewKdTree(data NodeDataSlice) KdTree {
-    nodes := make([]int, DataSetSize)
-    for i := 0; i < DataSetSize; i++ {
+    nodes := make([]int, len(data))
+    for i := 0; i < len(data); i++ {
         nodes[i] = i
     }
     t := KdTree{nodes, data}

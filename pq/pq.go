@@ -1,4 +1,4 @@
-// Package pq implements a priority queue.
+// Package pq implements a min-priority queue that grows if needed
 //
 // Example for two elements:
 // 	    pqueue := pq.New(2)
@@ -34,14 +34,17 @@ func (e *Element) Priority() int {
 // A PriorityQueue implements heap.Interface and holds Elements.
 type PriorityQueue []*Element
 
-func New(capacity int) PriorityQueue {
-    return make(PriorityQueue, 0, capacity)
+func New(initialCapacity int) PriorityQueue {
+    return make(PriorityQueue, 0, initialCapacity)
 }
 
 func (pq PriorityQueue) Len() int { return len(pq) }
 
+func (pq PriorityQueue) Empty() bool { return len(pq) == 0 }
+
+// less is built such that a pop returns the element with the lowest priority.
 func (pq PriorityQueue) Less(i, j int) bool {
-    return pq[i].priority > pq[j].priority
+    return pq[i].priority < pq[j].priority
 }
 
 func (pq PriorityQueue) Swap(i, j int) {
@@ -54,14 +57,11 @@ func (pq PriorityQueue) Swap(i, j int) {
 func (pq *PriorityQueue) Push(x interface{}) {
     // Push and Pop use pointer receivers because they modify the slice's length,
     // not just its contents.
-    // To simplify indexing expressions in these methods, we save a copy of the
-    // slice object. We could instead write (*pq)[i].
     a := *pq
     n := len(a)
-    a = a[0 : n+1]
     element := x.(*Element)
     element.index = n
-    a[n] = element
+    a = append(a, element)
     *pq = a
 }
 

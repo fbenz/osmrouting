@@ -2,7 +2,7 @@ package graph
 
 // Edges are abstract now
 type Edge interface{
-	Weight() int // Get the weight of an edge currently uint
+	Weight() int // Get the weight of an edge currently int
 	Startpoint() uint
 	Endpoint() uint
 }
@@ -11,3 +11,4 @@ type Edge interface{
 type Graph interface{	
 	Outgoing(uint) []Edge
 }
+
