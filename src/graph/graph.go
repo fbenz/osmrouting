@@ -21,6 +21,24 @@ type Way interface {
 	Steps() []Step
 }
 
+type Graph interface {
+	NodeCount() int
+	EdgeCount() int
+	Node(uint) Node
+	Edge(uint) Edge
+	Positions() Positions
+}
+
+type Positions interface {
+	Len() int
+	Lat(int) float64
+	Lng(int) float64
+	// bit pattern
+	// 0 (1 bit) + vetex index
+	// 1 (1 bit) + step offset (11 bit) + edge/step index
+	Encoding(int) int64
+}
+
 type Step struct {
 	Lat float64
 	Lng float64

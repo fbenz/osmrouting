@@ -3,26 +3,14 @@
 package alg
 
 import (
-	"../graph"
+	"graph"
 	"sort"
 )
-
-type Positions interface {
-	Len() int
-	Lat(int) float64
-	Lng(int) float64
-	// bit pattern
-	// 0 (1 bit) + vetex index
-	// 1 (1 bit) + step offset (11 bit) + edge/step index
-	Encoding(int) int64
-}
 
 type NodeData struct {
 	Lat float64
 	Lng float64
 }
-
-type NodeDataSlice []NodeData
 
 type Nodes []int
 
