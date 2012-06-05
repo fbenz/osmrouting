@@ -19,8 +19,8 @@ func Dijkstra(g graph.Graph, s, t uint) (int, *list.List) {
 	d[s] = 0
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*pq.Element) // Get the first element
-		curr := currElem.Value.(uint)      // Unbox the id
-		if curr == t {                     // If we remove t from the queue we can stop since dist(x)>=dist(t) for all x in q
+		curr := currElem.Value.(uint) // Unbox the id
+		if curr == t { // If we remove t from the queue we can stop since dist(x)>=dist(t) for all x in q
 			break
 		}
 		currDist := d[curr]
@@ -29,6 +29,7 @@ func Dijkstra(g graph.Graph, s, t uint) (int, *list.List) {
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Weight(); tmpDist < dist {
 					q.ChangePriority(currElem, tmpDist)
+					d[n] = currDist + e.Weight()
 					p[n] = curr
 				}
 			} else {
