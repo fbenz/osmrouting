@@ -1,5 +1,0 @@
-# Compile
-go build -o server
-
-# Run
-./server
