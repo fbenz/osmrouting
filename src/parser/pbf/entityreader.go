@@ -3,8 +3,7 @@ package pbf
 import (
 	"code.google.com/p/goprotobuf/proto"
 	"io"
-	//"log"
-	"../OSMPBF"
+	"parser/OSMPBF"
 )
 
 type Node struct {

@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"./pbf"
+	"parser/pbf"
 )
 
 type NodeInspector struct {}

@@ -19,7 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"../OSMPBF"
+	"parser/OSMPBF"
 )
 
 type BlockType int
