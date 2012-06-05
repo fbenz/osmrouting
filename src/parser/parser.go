@@ -8,7 +8,19 @@ import (
 	"parser/pbf"
 )
 
-type NodeInspector struct {}
+func traverseGraph(file *os.File, visitor pbf.Visitor) error {
+	_, err := file.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	pbf.VisitRoutes(file, visitor)
+	return nil
+}
+
+// Debugging
+
+type NodeInspector struct{}
 
 func (*NodeInspector) VisitNode(node pbf.Node) {
 	fmt.Printf("Node %d:\n", node.Id)
@@ -41,61 +53,13 @@ func (c *NodeCounter) VisitWay(way pbf.Way) {
 	c.wayCount++
 }
 
-type SubgraphNodes map[int64] bool
-
-func (s SubgraphNodes) VisitNode(node pbf.Node) {
-}
-
-func (s SubgraphNodes) VisitWay(way pbf.Way) {
-	if len(way.Nodes) > 0 {
-		s[way.Nodes[0]] = true
-		s[way.Nodes[len(way.Nodes) - 1]] = true
-	}
-}
-
-type SubgraphFilter struct {
-	nodes  SubgraphNodes
-	client pbf.Visitor
-}
-
-func (s *SubgraphFilter) VisitNode(node pbf.Node) {
-	if s.nodes[node.Id] {
-		s.client.VisitNode(node)
-	}
-}
-
-func (s *SubgraphFilter) VisitWay(way pbf.Way) {
-	s.client.VisitWay(way)
-}
-
-func visitSubgraph(file *os.File, client pbf.Visitor) {
-	var focus SubgraphNodes = SubgraphNodes(map[int64] bool {})
-	pbf.VisitRoutes(file, focus)
-	file.Seek(0, 0)
-	
-	var filter *SubgraphFilter = &SubgraphFilter{focus, client}
-	pbf.VisitRoutes(file, filter)
-}
-
-// Implementation
-
-func traverseGraph(file *os.File, visitor pbf.Visitor) error {
-	_, err := file.Seek(0, 0)
-	if err != nil {
-		return err
-	}
-	
-	pbf.VisitRoutes(file, visitor)
-	return nil
-}
-
 // PASS 1
 
-type subgraphNodes map[int64] uint64
+type subgraphNodes map[int64]uint32
 
 type subgraph struct {
 	indices subgraphNodes
-	high uint64
+	high    uint32
 }
 
 func (s *subgraph) VisitNode(node pbf.Node) {
@@ -104,7 +68,7 @@ func (s *subgraph) VisitNode(node pbf.Node) {
 func (s *subgraph) VisitWay(way pbf.Way) {
 	if len(way.Nodes) > 1 {
 		i := way.Nodes[0]
-		j := way.Nodes[len(way.Nodes) - 1]
+		j := way.Nodes[len(way.Nodes)-1]
 		if _, ok := s.indices[i]; !ok {
 			s.indices[i] = s.high
 			s.high++
@@ -117,7 +81,7 @@ func (s *subgraph) VisitWay(way pbf.Way) {
 }
 
 func subgraphInduction(file *os.File) (*subgraph, error) {
-	var nodes subgraphNodes = subgraphNodes(map[int64] uint64 {})
+	var nodes subgraphNodes = subgraphNodes(map[int64]uint32{})
 	var graph *subgraph = &subgraph{nodes, 0}
 	err := traverseGraph(file, graph)
 	if err != nil {
@@ -130,15 +94,15 @@ func subgraphInduction(file *os.File) (*subgraph, error) {
 // Pass 2
 
 type nodeAttributes struct {
-	graph *subgraph
+	graph     *subgraph
 	degrees   []uint32
 	positions []float64
 }
 
 func (v *nodeAttributes) VisitNode(node pbf.Node) {
 	if i, ok := v.graph.indices[node.Id]; ok {
-		v.positions[2 * i]     = node.Lat
-		v.positions[2 * i + 1] = node.Lon
+		v.positions[2*i] = node.Lat
+		v.positions[2*i+1] = node.Lon
 	}
 }
 
@@ -158,36 +122,36 @@ func (v *nodeAttributes) VisitWay(way pbf.Way) {
 	}
 }
 
-func nodeAttribution(file *os.File, graph *subgraph) error {
-	positions := make([]float64, 2 * graph.high)
-	degrees   := make([]uint32,  graph.high + 1)
+func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
+	positions := make([]float64, 2*graph.high)
+	degrees := make([]uint32, graph.high+1)
 	for i, _ := range degrees {
 		degrees[i] = 0
 	}
 	filter := &nodeAttributes{graph, degrees, positions}
 	err := traverseGraph(file, filter)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	
+
 	println("Writing node positions")
-	
+
 	// Write node attributes
 	output, err := os.Create("positions.ftf")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	binary.Write(output, binary.LittleEndian, positions)
 	output.Close()
-	
+
 	println("Writing node edge pointers")
-	
+
 	// Write node -> edge start pointers
 	vertices, err := os.Create("vertices.ftf")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var current   uint32 = 0
+	var current uint32 = 0
 	var minDegree uint32 = degrees[0]
 	var maxDegree uint32 = degrees[0]
 	for i, d := range degrees {
@@ -207,13 +171,176 @@ func nodeAttribution(file *os.File, graph *subgraph) error {
 	}
 	fmt.Printf("Edge count: %d\n", current)
 	fmt.Printf("Node count: %d\n", graph.high)
-	fmt.Printf("Average degree: %.4f\n", float64(current) / float64(graph.high))
+	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(graph.high))
 	fmt.Printf("Minimum degree: %d\n", minDegree)
 	fmt.Printf("Maximum degree: %d\n", maxDegree)
 	//fmt.Printf("Degrees: %v\n", degrees)
 	binary.Write(vertices, binary.LittleEndian, degrees)
 	vertices.Close()
 	println("Success.")
+	return degrees, nil
+}
+
+// Pass 3
+
+type step struct {
+	lat float64
+	lon float64
+}
+
+type edgeAttributes struct {
+	// focus on the street graph
+	graph *subgraph
+	// node locations
+	locations map[int64]step
+	// vertex -> edge index maps
+	current []uint32
+	// edge -> vertex index map
+	edges []uint32
+	// edge -> edge index map
+	reverse []uint32
+	// edge -> distance
+	distance []float64
+	// edge -> steps
+	steps [][]step
+}
+
+func distance(from, to step) float64 {
+	return 1.0
+}
+
+func edgeLength(steps []step) float64 {
+	if len(steps) < 2 {
+		return 0.0
+	}
+
+	prev := steps[0]
+	total := 0.0
+	for _, step := range steps[1:] {
+		total += distance(prev, step)
+		prev = step
+	}
+	return total
+}
+
+func (v *edgeAttributes) VisitNode(node pbf.Node) {
+	v.locations[node.Id] = step{node.Lat, node.Lon}
+}
+
+func (v *edgeAttributes) VisitWay(way pbf.Way) {
+	isOneway := way.Attributes["oneway"] == "true"
+	segmentStart := 0
+	segmentIndex := v.graph.indices[way.Nodes[0]]
+	for i, nodeId := range way.Nodes[1:] {
+		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
+			// Record a new edge from vertex segmentStart to nodeIndex
+			edge := v.current[segmentStart]
+			v.edges[edge] = nodeIndex
+			v.current[segmentStart]++
+
+			// If this is a bidirectional road, also record the reverse edge
+			rev_edge := edge
+			if !isOneway {
+				rev_edge = v.current[nodeIndex]
+				v.edges[rev_edge] = segmentIndex
+				v.current[nodeIndex]++
+				v.reverse[edge] = rev_edge
+				v.reverse[rev_edge] = edge
+			} else {
+				v.reverse[edge] = edge
+			}
+
+			// Calculate all steps on the way
+			edgeSteps := make([]step, i-segmentStart+1)
+			for j, stepId := range way.Nodes[segmentStart:i] {
+				edgeSteps[j] = v.locations[stepId]
+			}
+
+			// Calculate the length of the current edge
+			dist := edgeLength(edgeSteps)
+			v.distance[edge] = dist
+			if !isOneway {
+				v.distance[rev_edge] = dist
+			}
+
+			// Finally, record the intermediate steps
+			if len(edgeSteps) > 2 {
+				v.steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
+			} else {
+				v.steps[edge] = make([]step, 0)
+			}
+
+			if !isOneway {
+				// This is always implicit and we do not save it
+				v.steps[rev_edge] = nil
+			}
+		}
+	}
+}
+
+func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
+	// Allocate space for the edge attributes
+	numEdges := vertices[len(vertices)-1]
+	attributes := &edgeAttributes{
+		graph:     graph,
+		locations: map[int64]step{},
+		current:   vertices,
+		edges:     make([]uint32, numEdges),
+		reverse:   make([]uint32, numEdges),
+		distance:  make([]float64, numEdges),
+		steps:     make([][]step, numEdges),
+	}
+
+	// Perform the actual graph traversal
+	traverseGraph(file, attributes)
+
+	// Write all edge attributes to disk
+	output, err := os.Create("edges.ftf")
+	if err != nil {
+		return err
+	}
+	binary.Write(output, binary.LittleEndian, attributes.edges)
+	output.Close()
+
+	output, err = os.Create("rev_edges.ftf")
+	if err != nil {
+		return err
+	}
+	binary.Write(output, binary.LittleEndian, attributes.reverse)
+	output.Close()
+
+	output, err = os.Create("distances.ftf")
+	if err != nil {
+		return err
+	}
+	binary.Write(output, binary.LittleEndian, attributes.distance)
+	output.Close()
+
+	// Index the step arrays
+	stepIndices := make([]uint32, numEdges+1)
+	var current uint32 = 0
+	for i, steps := range attributes.steps {
+		stepIndices[i] = current
+		current += uint32(len(steps))
+	}
+	stepIndices[numEdges] = current // <- sentinel
+
+	output, err = os.Create("steps.ftf")
+	if err != nil {
+		return err
+	}
+	binary.Write(output, binary.LittleEndian, stepIndices)
+	output.Close()
+
+	output, err = os.Create("step_positions.ftf")
+	if err != nil {
+		return err
+	}
+	for _, steps := range attributes.steps {
+		binary.Write(output, binary.LittleEndian, steps)
+	}
+	output.Close()
+
 	return nil
 }
 
@@ -227,50 +354,28 @@ func main() {
 		println("Unable to open file:", err.Error())
 		os.Exit(1)
 	}
-	
+
 	println("Pass 1")
-	
+
 	graph, err := subgraphInduction(file)
 	if err != nil {
 		println("Error during pass1:", err.Error())
 		os.Exit(2)
 	}
-	
+
 	println("Pass 2")
-	
-	err = nodeAttribution(file, graph)
+
+	vertices, err := nodeAttribution(file, graph)
 	if err != nil {
 		println("Error during pass2:", err.Error())
 		os.Exit(3)
 	}
 
-/*
-	blockCount := 0
-	for {
-		block, err := pbf.ReadBlock(file)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			panic(err)
-		}
-		
-		if block.Kind == pbf.OSMHeader {
-			print("Header Block")
-		} else {
-			print("Data Block")
-		}
-		fmt.Printf(" - Size: %d\n", len(block.Data))
-		blockCount++
+	println("Pass 3")
+
+	err = edgeAttribution(file, graph, vertices)
+	if err != nil {
+		println("Error during pass3:", err.Error())
+		os.Exit(4)
 	}
-	fmt.Printf("# of blocks: %d\n", blockCount)
-*/
-	//visitor := &NodeInspector{}
-	//visitor := &NodeCounter{0,0}
-	//err = pbf.VisitGraph(file, visitor)
-	//err = pbf.VisitRoutes(file, visitor)
-	//visitSubgraph(file, visitor)
-	//fmt.Printf("Visited %d nodes and %d ways\n", visitor.nodeCount, visitor.wayCount)
-	//if err != nil {
-	//	panic(err)
-	//}
 }

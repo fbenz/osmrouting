@@ -1,4 +1,3 @@
-
 package pbf
 
 import "io"
@@ -12,7 +11,7 @@ func (f RoutingFilter) VisitNode(node Node) {
 }
 
 func reverse(nodes []int64) {
-	for i, j := 0, len(nodes) - 1; i < j; i, j = i + 1, j - 1 {
+	for i, j := 0, len(nodes)-1; i < j; i, j = i+1, j-1 {
 		nodes[i], nodes[j] = nodes[j], nodes[i]
 	}
 }
@@ -29,7 +28,7 @@ func normalizeOneway(way Way) {
 		way.Attributes["oneway"] = "true"
 		return
 	}
-	
+
 	// Secondly, there are a few special cases which imply 'oneway'
 	if way.Attributes["junction"] == "roundabout" {
 		way.Attributes["oneway"] = "true"
@@ -41,15 +40,15 @@ func normalizeOneway(way Way) {
 		way.Attributes["oneway"] = "true"
 		return
 	}
-	
+
 	// Finally... there are some cases which are just wrong.
 	/*
-	switch {
-	case way.Attributes["oneway"] != "no",
-		 way.Attributes["oneway"] != "0",
-		 way.Attributes["oneway"] != "false":
-		way.Attributes["oneway"] = "true"
-	}
+		switch {
+		case way.Attributes["oneway"] != "no",
+			 way.Attributes["oneway"] != "0",
+			 way.Attributes["oneway"] != "false":
+			way.Attributes["oneway"] = "true"
+		}
 	*/
 }
 
