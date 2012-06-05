@@ -12,7 +12,7 @@
 // TODO index is only used in changePriority in the case that the element is already in the queue,
 //      but that never happens in the current Dijkstra. So we can probably get rid of it.
 
-package pq
+package alg
 
 import (
 	"container/heap"

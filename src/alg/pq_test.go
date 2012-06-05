@@ -1,4 +1,4 @@
-package pq
+package alg
 
 import (
 	"container/heap"
