@@ -29,7 +29,7 @@ func Dijkstra(g graph.Graph, s, t uint) (int, *list.List) {
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Weight(); tmpDist < dist {
 					q.ChangePriority(currElem, tmpDist)
-					d[n] = currDist + e.Weight()
+					d[n] = tmpDist
 					p[n] = curr
 				}
 			} else {
