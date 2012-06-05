@@ -1,7 +1,7 @@
 package alg
 
 import (
-	"../graph"
+	"graph"
 	"testing"
 )
 
