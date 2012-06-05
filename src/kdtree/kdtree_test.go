@@ -1,4 +1,6 @@
-package alg
+// TODO test the new implementation
+
+package kdtree
 
 import (
 	"math/rand"

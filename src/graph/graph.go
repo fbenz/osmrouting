@@ -33,10 +33,8 @@ type Positions interface {
 	Len() int
 	Lat(int) float64
 	Lng(int) float64
-	// bit pattern
-	// 0 (1 bit) + vetex index
-	// 1 (1 bit) + step offset (11 bit) + edge/step index
-	Encoding(int) int64
+	Step(int) Step
+	Ways(int, bool) []Way // index, forward (i.e. looking at the edge in forward or in backward order)
 }
 
 type Step struct {
