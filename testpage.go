@@ -5,15 +5,15 @@
 package main
 
 import (
-    "html/template"
-    "net/http"
+	"html/template"
+	"net/http"
 )
 
 // status returns an HTML page that can be used to test the routing service
 func test(w http.ResponseWriter, r *http.Request) {
-    if err := testTemplate.Execute(w, nil); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
+	if err := testTemplate.Execute(w, nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 var testTemplate = template.Must(template.New("test").Parse(testTemplateHTML))
@@ -177,4 +177,3 @@ $(document).ready( function() {
 </body>
 </html>
 `
-

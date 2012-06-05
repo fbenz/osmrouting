@@ -3,10 +3,9 @@
 package main
 
 type RouteInfo struct {
-    Waypoints []Point
+	Waypoints []Point
 }
 
 func NewRouteInfo(waypoints []Point) *RouteInfo {
-    return &RouteInfo{waypoints}
+	return &RouteInfo{waypoints}
 }
-
