@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"parser/pbf"
+	"math"
 )
 
 func traverseGraph(file *os.File, visitor pbf.Visitor) error {
@@ -206,7 +207,18 @@ type edgeAttributes struct {
 }
 
 func distance(from, to step) float64 {
-	return 1.0
+	// Great circle distance - probably overkill,
+	// a euclidean approximation would do...
+	fromLat := from.lat * math.Pi / 180.0
+	fromLng := from.lon * math.Pi / 180.0
+	toLat   := to.lat   * math.Pi / 180.0
+	toLng   := to.lon   * math.Pi / 180.0
+	deltaLat1 := math.Sin((toLat - fromLat) / 2.0)
+	deltaLng1 := math.Sin((toLng - fromLng) / 2.0)
+	deltaLat2 := deltaLat1 * deltaLat1
+	deltaLng2 := deltaLng1 * deltaLng1
+	delta := math.Sqrt(deltaLat2 + math.Cos(fromLat) * math.Cos(fromLng) * deltaLng2)
+	return 6378.388 * 2 * math.Asin(delta)
 }
 
 func edgeLength(steps []step) float64 {

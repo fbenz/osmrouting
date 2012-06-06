@@ -7,6 +7,7 @@ import (
 	"sort"
 	"syscall"
 	"unsafe"
+	"math"
 )
 
 type Node interface {
@@ -271,7 +272,7 @@ func (ref edgeReference) Steps() []Step {
 // Positions
 
 func (g *graphFile) Len() int {
-	return g.NodeCount() + len(g.stepPositions)
+	return g.NodeCount() + len(g.stepPositions) / 2
 }
 
 func (g *graphFile) Lat(i int) float64 {
@@ -298,7 +299,18 @@ func (g *graphFile) Step(i int) Step {
 }
 
 func distance(from, to Step) float64 {
-	return 1.0
+	// Great circle distance - probably overkill,
+	// a euclidean approximation would do...
+	fromLat := from.Lat * math.Pi / 180.0
+	fromLng := from.Lng * math.Pi / 180.0
+	toLat   := to.Lat   * math.Pi / 180.0
+	toLng   := to.Lng   * math.Pi / 180.0
+	deltaLat1 := math.Sin((toLat - fromLat) / 2.0)
+	deltaLng1 := math.Sin((toLng - fromLng) / 2.0)
+	deltaLat2 := deltaLat1 * deltaLat1
+	deltaLng2 := deltaLng1 * deltaLng1
+	delta := math.Sqrt(deltaLat2 + math.Cos(fromLat) * math.Cos(fromLng) * deltaLng2)
+	return 6378.388 * 2 * math.Asin(delta)
 }
 
 func wayLength(steps []Step) float64 {
