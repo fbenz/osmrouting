@@ -53,12 +53,13 @@ func normalizeOneway(way Way) {
 }
 
 func (f RoutingFilter) VisitWay(way Way) {
-	hw, ok1 := way.Attributes["highway"]
+	/*hw*/_, ok1 := way.Attributes["highway"]
 	_,  ok2 := way.Attributes["junction"]
 	if !ok1 && !ok2 {
 		return
 	}
 	
+	/*
 	if ok1 {
 		// There are some highway types which are only
 		// accessible to pedestrians
@@ -67,6 +68,7 @@ func (f RoutingFilter) VisitWay(way Way) {
 			return
 		}
 	}
+	*/
 	
 	normalizeOneway(way)
 	f.client.VisitWay(way)

@@ -89,7 +89,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 		}
 	}
 	var start bool
-	for start,startway = isInList(s, curr);start; {
+	for start,startway = isInList(s, curr);!start;start,startway=isInList(s,curr) {
 		path.PushFront(curr)
 		curr = p[curr]
 		edges.PushFront(ep[curr])
