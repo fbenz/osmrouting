@@ -83,7 +83,7 @@ func setup() error {
 		osmGraph = g
 	}
 	
-	if err := alg.LoadKdTree(osmGraph); err != nil {
+	if err := alg.LoadKdTree(osmGraph.(graph.Positions)); err != nil {
 		log.Fatal("Loading k-d tree:", err)
 		return err
 	}
@@ -130,6 +130,11 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	
 	startStep, startWays := alg.NearestNeighbor(waypoints[0][0], waypoints[0][1], true /* forward */)
 	endStep, endWays := alg.NearestNeighbor(waypoints[1][0], waypoints[1][1], false /* forward */)
+	
+	log.Printf("%v %v %v %v", startStep, startWays, endStep, endWays)
+	
+	//alg.Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List)
+	alg.Dijkstra(startWays, endWays)
 	
 	// TODO call Dijkstra
 	// TODO call something that turns the result of Dijkstra into our result struct

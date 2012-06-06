@@ -1,6 +1,8 @@
 // Package for creating and storing a k-d tree
 // It is actually a 2-d tree for the dimensions latitude and longitude.
 
+// TODO check castings
+
 package kdtree
 
 import (
@@ -14,7 +16,7 @@ const (
 	FilenameKdTree = "kdtree.ftf"
 )
 
-type Nodes []int
+type Nodes []uint32
 
 type KdTree struct {
 	Nodes Nodes
@@ -29,27 +31,27 @@ type byLat struct {
 	tree *KdTree
 }
 
-func (x byLat) Less(i, j int) bool { return x.tree.Positions.Lat(x.Nodes[i]) < x.tree.Positions.Lat(x.Nodes[j]) }
+func (x byLat) Less(i, j int) bool { return x.tree.Positions.Lat(int(x.Nodes[i])) < x.tree.Positions.Lat(int(x.Nodes[j])) }
 
 type byLng struct {
 	Nodes
 	tree *KdTree
 }
 
-func (x byLng) Less(i, j int) bool { return x.tree.Positions.Lng(x.Nodes[i]) < x.tree.Positions.Lng(x.Nodes[j]) }
+func (x byLng) Less(i, j int) bool { return x.tree.Positions.Lng(int(x.Nodes[i])) < x.tree.Positions.Lng(int(x.Nodes[j])) }
 
 func (t KdTree) Lat(i int) float64 {
-	return t.Positions.Lat(t.Nodes[i])
+	return t.Positions.Lat(int(t.Nodes[i]))
 }
 
 func (t KdTree) Lng(i int) float64 {
-	return t.Positions.Lng(t.Nodes[i])
+	return t.Positions.Lng(int(t.Nodes[i]))
 }
 
 func newkdTree(positions graph.Positions) KdTree {
 	nodes := make(Nodes, positions.Len())
 	for i := 0; i < positions.Len(); i++ {
-		nodes[i] = i
+		nodes[i] = uint32(i)
 	}
 	t := KdTree{nodes, positions}
 	t.create(t.Nodes, true)
@@ -73,11 +75,14 @@ func (t KdTree) create(nodes Nodes, compareLat bool) {
 // writeToFile stores the permitation created by the k-d tree
 func (t KdTree) writeToFile(filename string) error {
 	output, err := os.Create(filename)
+	defer output.Close()
 	if err != nil {
 		return err
 	}
-	binary.Write(output, binary.LittleEndian, t.Nodes)
-	output.Close()
+	writeErr := binary.Write(output, binary.LittleEndian, t.Nodes)
+	if writeErr != nil {
+		return writeErr
+	}
 	return nil
 }
 
