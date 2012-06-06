@@ -24,10 +24,10 @@ type Edge interface {
 }
 
 // "partial edge" is returned by the k-d tree
-type Way interface {
-	Length() float64
-	Node() Node // StartPoint or EndPoint
-	Steps() []Step
+type Way struct {
+	Length float64
+	Node   Node // StartPoint or EndPoint
+	Steps  []Step
 }
 
 type Graph interface {
@@ -297,7 +297,77 @@ func (g *graphFile) Step(i int) Step {
 	return Step{g.stepPositions[2*index], g.stepPositions[2*index+1]}
 }
 
+func distance(from, to Step) float64 {
+	return 1.0
+}
+
+func wayLength(steps []Step) float64 {
+	if len(steps) == 0 {
+		return 0.0
+	}
+	total := 0.0
+	prev  := steps[0]
+	for _, step := range steps {
+		total += distance(prev, step)
+		prev = step
+	}
+	return total
+}
+
+func reverse(steps []Step) {
+	for i, j := 0, len(steps)-1; i < j; i, j = i+1, j-1 {
+		steps[i], steps[j] = steps[j], steps[i]
+	}
+}
+
 func (g *graphFile) Ways(i int, forward bool) []Way {
-	// IMPLEMENTME
-	return nil
+    if i < g.NodeCount() {
+        w := make([]Way, 1)
+		w[0] = Way{Length: 0, Node: g.Node(uint(i)), Steps: nil}
+        return w
+    }
+    i -= g.NodeCount()
+    // find the (edge, offset) pair for step i
+	edgeIndex := sort.Search(len(g.steps),
+		func(i int) bool { return uint(g.steps[i]) > uint(i) }) - 1
+	offset := uint32(i) - g.steps[edgeIndex]
+	edge   := g.Edge(uint(edgeIndex))
+	// now we can allocate the way corresponding to (edge,offset),
+	// but there are three cases to consider:
+	// - if the way is bidirectional we have to compute both directions,
+	//   if forward == true the from the offset two both endpoints,
+	//   and the reverse otherwise
+	// - if the way is unidirectional then we have to compute the way
+	//   from the StartPoint to offset if forward == false
+	// - otherwise we have to compute the way from offset to the EndPoint
+	// Strictly speaking only the second case needs an additional binary
+	// search in the form of edge.StartPoint, but let's keep this simple
+	// for now.
+	steps := edge.Steps()
+	b1 := steps[:offset + 1]
+	b2 := steps[offset:]
+	l1 := wayLength(b1)
+	l2 := wayLength(b2)
+	t1 := edge.StartPoint()
+	t2 := edge.EndPoint()
+	
+	if !forward {
+		reverse(b1)
+		reverse(b2)
+	}
+	
+	var w []Way
+	if _, ok := edge.ReverseEdge(); ok {
+		w = make([]Way, 2) // bidirectional
+		w[0] = Way{Length: l1, Node: t1, Steps: b1}
+		w[1] = Way{Length: l2, Node: t2, Steps: b2}
+	} else {
+		w = make([]Way, 1) // one way
+		if forward {
+			w[0] = Way{Length: l2, Node: t2, Steps: b2}
+		} else {
+			w[0] = Way{Length: l1, Node: t1, Steps: b1}
+		}
+	}
+	return w
 }
