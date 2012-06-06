@@ -29,7 +29,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	}
 	for _, str := range s {
 		priority := str.Length
-		x := NewElement(str.Node, int(priority)) // TODO check this cast
+		x := NewElement(str.Node, priority) // TODO check this cast
 		heap.Push(&q, x)
 		d[str.Node] = priority
 	}
@@ -51,7 +51,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 			n := e.EndPoint()
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Length(); tmpDist < dist {
-					q.ChangePriority(currElem, int(tmpDist)) // TODO again check cast
+					q.ChangePriority(currElem, tmpDist) // TODO again check cast
 					d[n] = tmpDist
 					p[n] = curr
 					ep[n]=e
@@ -59,7 +59,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 			} else {
 				d[n] = currDist + e.Length()
 				p[n] = curr
-				elem := NewElement(n, int(currDist))  // TODO again check cast
+				elem := NewElement(n, currDist)  // TODO again check cast
 				heap.Push(&q, elem)
 			}
 		}
@@ -90,5 +90,5 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	}
 	path.PushFront(p[curr])
 	// TODO fix, t[0] is not necessarily optimal
-	return d[t[0].Node], path, edges
+	return currdist, path, edges
 }
