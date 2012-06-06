@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"graph"
 	"kdtree"
+	"math"
 	"os"
 )
 
@@ -25,6 +26,9 @@ func LoadKdTree(positions graph.Positions) error {
 
 func NearestNeighbor(lat, lng float64, forward bool) (graph.Step, []graph.Way) {
 	index := search(lat, lng, true)
+	if index >= uint32(kdTree.Positions.Len()) {
+		panic("nearestNeighbor found index is too large")
+	}
 	return kdTree.Positions.Step(int(index)), kdTree.Positions.Ways(int(index), forward)
 }
 
@@ -83,11 +87,28 @@ func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) (uint32
 	return uint32(middle + 1) + index, linearSearch
 }
 
+func distance(x1, x2, y1, y2 float64) float64 {
+	return math.Sqrt(math.Pow(x1-x2, 2.0) + math.Pow(y1-y2, 2.0))
+}
+
 func linearSearch(lat, lng float64) uint32 {
+	minDistance := distance(lat, kdTree.Positions.Lat(0), lng, kdTree.Positions.Lng(0))
+	minPos := 0
+	for i := range kdTree.Nodes {
+		dist := distance(lat, kdTree.Positions.Lat(i), lng, kdTree.Positions.Lng(i))
+		if dist < minDistance {
+			minDistance = dist
+			minPos = i
+		}
+	}
+	return uint32(minPos)
+}
+
+/*func linearSearch(lat, lng float64) uint32 {
 	for i := range kdTree.Nodes {
 		if lat == kdTree.Positions.Lat(i) && lng == kdTree.Positions.Lng(i) {
 			return uint32(i)
 		}
 	}
 	panic("nearestNeighbor.linearSearch")
-}
+}*/
