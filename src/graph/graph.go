@@ -7,7 +7,7 @@ import (
 	"sort"
 	"syscall"
 	"unsafe"
-	"math"
+	"ellipsoid"
 )
 
 type Node interface {
@@ -69,6 +69,8 @@ type Step struct {
 // Implementation
 
 type graphFile struct {
+	// ellipsoid for distance calculations
+	geo ellipsoid.Ellipsoid
 	// vertices maps a vertex index to the index of its first out edge
 	vertices []uint32
 	// edges maps edge indices to the index of the vertex endpoint
@@ -298,29 +300,15 @@ func (g *graphFile) Step(i int) Step {
 	return Step{g.stepPositions[2*index], g.stepPositions[2*index+1]}
 }
 
-func distance(from, to Step) float64 {
-	// Great circle distance - probably overkill,
-	// a euclidean approximation would do...
-	fromLat := from.Lat * math.Pi / 180.0
-	fromLng := from.Lng * math.Pi / 180.0
-	toLat   := to.Lat   * math.Pi / 180.0
-	toLng   := to.Lng   * math.Pi / 180.0
-	deltaLat1 := math.Sin((toLat - fromLat) / 2.0)
-	deltaLng1 := math.Sin((toLng - fromLng) / 2.0)
-	deltaLat2 := deltaLat1 * deltaLat1
-	deltaLng2 := deltaLng1 * deltaLng1
-	delta := math.Sqrt(deltaLat2 + math.Cos(fromLat) * math.Cos(fromLng) * deltaLng2)
-	return 6378.388 * 2 * math.Asin(delta)
-}
-
-func wayLength(steps []Step) float64 {
+func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 	if len(steps) == 0 {
 		return 0.0
 	}
 	total := 0.0
 	prev  := steps[0]
 	for _, step := range steps {
-		total += distance(prev, step)
+		distance, _ := geo.To(prev.Lat, prev.Lng, step.Lat, step.Lng)
+		total += distance
 		prev = step
 	}
 	return total
@@ -358,8 +346,8 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	steps := edge.Steps()
 	b1 := steps[:offset + 1]
 	b2 := steps[offset:]
-	l1 := wayLength(b1)
-	l2 := wayLength(b2)
+	l1 := wayLength(b1, g.geo)
+	l2 := wayLength(b2, g.geo)
 	t1 := edge.StartPoint()
 	t2 := edge.EndPoint()
 	

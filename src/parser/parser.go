@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/binary"
+	"ellipsoid"
 	"flag"
 	"fmt"
 	"os"
 	"parser/pbf"
-	"math"
 )
 
 func traverseGraph(file *os.File, visitor pbf.Visitor) error {
@@ -156,9 +156,9 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	var minDegree uint32 = degrees[0]
 	var maxDegree uint32 = degrees[0]
 	for i, d := range degrees {
-		if d == 0 {
-			fmt.Printf("Degree 0 vertex: %d\n", i)
-		}
+		//if d == 0 {
+		//	fmt.Printf("Degree 0 vertex: %d\n", i)
+		//}
 		degrees[i] = current
 		current += d
 		if i < int(graph.high) {
@@ -190,6 +190,8 @@ type step struct {
 }
 
 type edgeAttributes struct {
+	// ellipsoid for distance calculations
+	geo ellipsoid.Ellipsoid
 	// focus on the street graph
 	graph *subgraph
 	// node locations
@@ -206,30 +208,18 @@ type edgeAttributes struct {
 	steps [][]step
 }
 
-func distance(from, to step) float64 {
-	// Great circle distance - probably overkill,
-	// a euclidean approximation would do...
-	fromLat := from.lat * math.Pi / 180.0
-	fromLng := from.lon * math.Pi / 180.0
-	toLat   := to.lat   * math.Pi / 180.0
-	toLng   := to.lon   * math.Pi / 180.0
-	deltaLat1 := math.Sin((toLat - fromLat) / 2.0)
-	deltaLng1 := math.Sin((toLng - fromLng) / 2.0)
-	deltaLat2 := deltaLat1 * deltaLat1
-	deltaLng2 := deltaLng1 * deltaLng1
-	delta := math.Sqrt(deltaLat2 + math.Cos(fromLat) * math.Cos(fromLng) * deltaLng2)
-	return 6378.388 * 2 * math.Asin(delta)
-}
-
-func edgeLength(steps []step) float64 {
+func edgeLength(steps []step, geo ellipsoid.Ellipsoid) float64 {
 	if len(steps) < 2 {
+		fmt.Printf("%v\n", steps)
+		panic("Missing steps")
 		return 0.0
 	}
 
 	prev := steps[0]
 	total := 0.0
 	for _, step := range steps[1:] {
-		total += distance(prev, step)
+		distance, _ := geo.To(prev.lat, prev.lon, step.lat, step.lon)
+		total += distance
 		prev = step
 	}
 	return total
@@ -243,7 +233,10 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 	isOneway := way.Attributes["oneway"] == "true"
 	segmentStart := 0
 	segmentIndex := v.graph.indices[way.Nodes[0]]
-	for i, nodeId := range way.Nodes[1:] {
+	for i, nodeId := range way.Nodes {
+		if i == 0 {
+			continue
+		}
 		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
 			// Record a new edge from vertex segmentStart to nodeIndex
 			edge := v.current[segmentStart]
@@ -264,12 +257,12 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 
 			// Calculate all steps on the way
 			edgeSteps := make([]step, i-segmentStart+1)
-			for j, stepId := range way.Nodes[segmentStart:i] {
+			for j, stepId := range way.Nodes[segmentStart:i+1] {
 				edgeSteps[j] = v.locations[stepId]
 			}
 
 			// Calculate the length of the current edge
-			dist := edgeLength(edgeSteps)
+			dist := edgeLength(edgeSteps, v.geo)
 			v.distance[edge] = dist
 			if !isOneway {
 				v.distance[rev_edge] = dist
@@ -302,6 +295,10 @@ func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
 		distance:  make([]float64, numEdges),
 		steps:     make([][]step, numEdges),
 	}
+	
+	// We need to compute some distances in this pass
+	attributes.geo = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
+		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
 
 	// Perform the actual graph traversal
 	traverseGraph(file, attributes)
