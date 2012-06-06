@@ -6,9 +6,9 @@ import (
 	"container/list"
 )
 
-func isInList(w []Way,s Node) bool {
-	for _,node:=range w {
-		if s==w {
+func isInList(w []graph.Way, s graph.Node) bool {
+	for _, way := range w {
+		if s == way.Node() {
 			return true
 		}
 	}
@@ -18,29 +18,29 @@ func isInList(w []Way,s Node) bool {
 // A slightly optimized version of dijkstras algorithm
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
-func Dijkstra(s, t []Way) (float64, *list.List, *list.List) {
-	d := make(map[Node]float64)                // I assume distance is an integer
-	p := make(map[Node]Node)               // Predecessor list
-	ep := make(map[Node]Edge) // Edge Predecessors
-	q := pq.New(100 /* initialCapacity */) // 100 is just a first guess
-	final := make(map[Node]bool)
-	for _,tar := range t {
-		final[t]=false
+func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
+	d := make(map[graph.Node]float64)                // I assume distance is an integer
+	p := make(map[graph.Node]graph.Node)               // Predecessor list
+	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
+	q := NewPriorityQueue(100 /* initialCapacity */) // 100 is just a first guess
+	final := make(map[graph.Node]bool)
+	for _, tar := range t {
+		final[tar.Node()] = false
 	}
-	for _,str := range s {
+	for _, str := range s {
 		priority := str.Length()
-		x := heap.NewElement(str.Node(),priority)
-		heap.Push(q,x)
-		d[str]=priority
+		x := NewElement(str.Node(), int(priority)) // TODO check this cast
+		heap.Push(&q, x)
+		d[str.Node()] = priority
 	}
 	for !q.Empty() {
-		currElem := (heap.Pop(&q)).(*pq.Element) // Get the first element
-		curr := currElem.Value.(uint)            // Unbox the id
-		if isfinal,val:=final[curr];isfinal {                    
-			final[curr]=true
-			finished:=true
-			for _,node := range final {
-				finished &= node
+		currElem := (heap.Pop(&q)).(*Element) // Get the first element
+		curr := currElem.Value.(graph.Node)            // Unbox the node
+		if isfinal, _ := final[curr]; isfinal {                    
+			final[curr] = true
+			finished := true
+			for _, node := range final {
+				finished = finished && node
 			}
 			if !finished {
 				break
@@ -51,7 +51,7 @@ func Dijkstra(s, t []Way) (float64, *list.List, *list.List) {
 			n := e.EndPoint()
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Length(); tmpDist < dist {
-					q.ChangePriority(currElem, tmpDist)
+					q.ChangePriority(currElem, int(tmpDist)) // TODO again check cast
 					d[n] = tmpDist
 					p[n] = curr
 					ep[n]=e
@@ -59,7 +59,7 @@ func Dijkstra(s, t []Way) (float64, *list.List, *list.List) {
 			} else {
 				d[n] = currDist + e.Length()
 				p[n] = curr
-				elem := pq.NewElement(n, currDist)
+				elem := NewElement(n, int(currDist))  // TODO again check cast
 				heap.Push(&q, elem)
 			}
 		}
@@ -68,28 +68,27 @@ func Dijkstra(s, t []Way) (float64, *list.List, *list.List) {
 	edges := list.New()
 	// Construct the list by moving from t to s
 	first := true
-	var curr Node
+	var curr graph.Node
 	var currdist float64
-	for _,targetnode := range t {
+	for _, targetnode := range t {
 		tmpnode := targetnode.Node()
 		tmpdist := d[tmpnode] + targetnode.Length()
 		if first {
 			curr = tmpnode
 			currdist = tmpdist
-		}
-		else {
+		} else {
 			if tmpdist<currdist {
 				curr = tmpnode
 				currdist = tmpdist
 			}
-
 		}
 	}
-	for isInList(curr,s) {
+	for isInList(s, curr) {
 		path.PushFront(curr)
 		curr = p[curr]
 		edges.PushFront(p[curr])
 	}
 	path.PushFront(p[curr])
-	return d[t], path,edges
+	// TODO fix, t[0] is not necessarily optimal
+	return d[t[0].Node()], path, edges
 }

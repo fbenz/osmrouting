@@ -37,7 +37,7 @@ func (e *Element) Priority() int {
 // A PriorityQueue implements heap.Interface and holds Elements.
 type PriorityQueue []*Element
 
-func New(initialCapacity int) PriorityQueue {
+func NewPriorityQueue(initialCapacity int) PriorityQueue {
 	return make(PriorityQueue, 0, initialCapacity)
 }
 
