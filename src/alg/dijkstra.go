@@ -92,9 +92,9 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	for start,startway = isInList(s, curr);start; {
 		path.PushFront(curr)
 		curr = p[curr]
-		edges.PushFront(p[curr])
+		edges.PushFront(ep[curr])
 	}
-	path.PushFront(p[curr])
+	path.PushFront(curr)
 	// TODO fix, t[0] is not necessarily optimal
 	return currdist, path, edges,startway,endway
 }
