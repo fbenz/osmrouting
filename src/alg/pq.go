@@ -19,18 +19,18 @@ import (
 )
 
 type Element struct {
-	priority int
+	priority float64
 	// The index is needed by ChangePriority and is maintained by the heap.Interface methods.
 	index int // The index of the element in the heap.
 
 	Value interface{}
 }
 
-func NewElement(value interface{}, priority int) *Element {
+func NewElement(value interface{}, priority float64) *Element {
 	return &Element{priority, -1, value}
 }
 
-func (e *Element) Priority() int {
+func (e *Element) Priority() float64 {
 	return e.priority
 }
 
@@ -78,7 +78,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return element
 }
 
-func (pq *PriorityQueue) ChangePriority(element *Element, priority int) {
+func (pq *PriorityQueue) ChangePriority(element *Element, priority float64) {
 	if element.index >= 0 && element.index < (*pq).Len() {
 		heap.Remove(pq, element.index)
 	}

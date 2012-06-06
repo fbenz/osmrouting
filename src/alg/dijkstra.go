@@ -8,7 +8,7 @@ import (
 
 func isInList(w []graph.Way, s graph.Node) bool {
 	for _, way := range w {
-		if s == way.Node() {
+		if s == way.Node {
 			return true
 		}
 	}
@@ -25,13 +25,13 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	q := NewPriorityQueue(100 /* initialCapacity */) // 100 is just a first guess
 	final := make(map[graph.Node]bool)
 	for _, tar := range t {
-		final[tar.Node()] = false
+		final[tar.Node] = false
 	}
 	for _, str := range s {
-		priority := str.Length()
-		x := NewElement(str.Node(), int(priority)) // TODO check this cast
+		priority := str.Length
+		x := NewElement(str.Node, priority) // TODO check this cast
 		heap.Push(&q, x)
-		d[str.Node()] = priority
+		d[str.Node] = priority
 	}
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
@@ -51,7 +51,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 			n := e.EndPoint()
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Length(); tmpDist < dist {
-					q.ChangePriority(currElem, int(tmpDist)) // TODO again check cast
+					q.ChangePriority(currElem, tmpDist) // TODO again check cast
 					d[n] = tmpDist
 					p[n] = curr
 					ep[n]=e
@@ -59,7 +59,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 			} else {
 				d[n] = currDist + e.Length()
 				p[n] = curr
-				elem := NewElement(n, int(currDist))  // TODO again check cast
+				elem := NewElement(n, currDist)  // TODO again check cast
 				heap.Push(&q, elem)
 			}
 		}
@@ -71,8 +71,8 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	var curr graph.Node
 	var currdist float64
 	for _, targetnode := range t {
-		tmpnode := targetnode.Node()
-		tmpdist := d[tmpnode] + targetnode.Length()
+		tmpnode := targetnode.Node
+		tmpdist := d[tmpnode] + targetnode.Length
 		if first {
 			curr = tmpnode
 			currdist = tmpdist
@@ -90,5 +90,5 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	}
 	path.PushFront(p[curr])
 	// TODO fix, t[0] is not necessarily optimal
-	return d[t[0].Node()], path, edges
+	return currdist, path, edges
 }
