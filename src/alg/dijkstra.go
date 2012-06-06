@@ -43,7 +43,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			for _, node := range final {
 				finished = finished && node
 			}
-			if !finished {
+			if finished {
 				break
 			}
 		}
@@ -60,6 +60,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			} else {
 				d[n] = currDist + e.Length()
 				p[n] = curr
+				ep[n]=e
 				elem := NewElement(n, currDist)  // TODO again check cast
 				heap.Push(&q, elem)
 			}
@@ -80,6 +81,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			curr = tmpnode
 			currdist = tmpdist
 			endway = targetnode
+			first = false
 		} else {
 			if tmpdist<currdist {
 				curr = tmpnode
