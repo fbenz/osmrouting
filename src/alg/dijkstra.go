@@ -6,19 +6,20 @@ import (
 	"container/list"
 )
 
-func isInList(w []graph.Way, s graph.Node) bool {
+func isInList(w []graph.Way, s graph.Node) (bool,graph.Way) {
+	var resultway graph.Way
 	for _, way := range w {
 		if s == way.Node {
-			return true
+			return true,way
 		}
 	}
-	return false
+	return false,resultway
 }
 
 // A slightly optimized version of dijkstras algorithm
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
-func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
+func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph.Way) {
 	d := make(map[graph.Node]float64)                // I assume distance is an integer
 	p := make(map[graph.Node]graph.Node)               // Predecessor list
 	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
@@ -70,25 +71,30 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List) {
 	first := true
 	var curr graph.Node
 	var currdist float64
+	var endway graph.Way
+	var startway graph.Way
 	for _, targetnode := range t {
 		tmpnode := targetnode.Node
 		tmpdist := d[tmpnode] + targetnode.Length
 		if first {
 			curr = tmpnode
 			currdist = tmpdist
+			endway = targetnode
 		} else {
 			if tmpdist<currdist {
 				curr = tmpnode
 				currdist = tmpdist
+				endway = targetnode
 			}
 		}
 	}
-	for isInList(s, curr) {
+	var start bool
+	for start,startway = isInList(s, curr);start; {
 		path.PushFront(curr)
 		curr = p[curr]
 		edges.PushFront(p[curr])
 	}
 	path.PushFront(p[curr])
 	// TODO fix, t[0] is not necessarily optimal
-	return currdist, path, edges
+	return currdist, path, edges,startway,endway
 }
