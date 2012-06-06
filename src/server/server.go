@@ -140,15 +140,14 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	
 	//alg.Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List)
 	dist,vertices,edges,start,end:=alg.Dijkstra(startWays, endWays)
-	resultleg := make([]Leg,1)
-	resultleg[0]= PathToLeg(dist,vertices,edges,start,end)
+	resultleg := []Leg{PathToLeg(dist,vertices,edges,start,end)}
 	resultroute := Route{resultleg[0].Distance,resultleg[0].Duration,resultleg[0].StartLocation,resultleg[0].EndLocation,resultleg}
 	// TODO call Dijkstra
 	// TODO call something that turns the result of Dijkstra into our result struct
 
 	// TODO remove if the above TODOs are done
 	// hard coded values for the route response
-	var polyline1 = []Point{{49.25708, 7.045980000000001}, {49.257070000000006, 7.045960000000001}, {49.25652, 7.044390000000001}}
+	/*var polyline1 = []Point{{49.25708, 7.045980000000001}, {49.257070000000006, 7.045960000000001}, {49.25652, 7.044390000000001}}
 	distance1 := Distance{"0.1 km", 131}
 	duration1 := Duration{"2 min", 124}
 	startLocation1 := Point{49.257080, 7.045980000000001}
@@ -172,9 +171,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	leg := Leg{distanceL, durationL, startLocationL, endLocationL, steps}
 
 	legs := []Leg{leg}
-	route := Route{distanceL, durationL, startLocationL, endLocationL, legs}
-	routes := []Route{route}
-
+	route := Route{distanceL, durationL, startLocationL, endLocationL, legs} */
+	routes := []Route{resultroute}
 	northwest := Point{49.25709000000001, 7.043310000000001}
 	southeast := Point{49.256520, 7.045980000000001}
 	boundingBox := BoundingBox{northwest, southeast}
