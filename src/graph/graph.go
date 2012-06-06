@@ -135,6 +135,9 @@ func mapFileFloat64(base, name string) ([]float64, error) {
 func Open(base string) (Graph, error) {
 	graph := graphFile{}
 
+	graph.geo = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
+		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
+
 	var err error
 	graph.vertices, err = mapFileUint32(base, "vertices.ftf")
 	if err != nil {
