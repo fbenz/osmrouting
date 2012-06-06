@@ -51,8 +51,8 @@ func decodeLocation(rawlat int64, rawlon int64, block *OSMPBF.PrimitiveBlock) (f
 	latOffset := proto.GetInt64(block.LatOffset)
 	granularity := int64(proto.GetInt32(block.Granularity))
 
-	lon := .000000001 * float64(lonOffset+(granularity*rawlon))
-	lat := .000000001 * float64(latOffset+(granularity*rawlat))
+	lon := float64(lonOffset+(granularity*rawlon)) / 1000000000.0
+	lat := float64(latOffset+(granularity*rawlat)) / 1000000000.0
 	return lat, lon
 }
 
