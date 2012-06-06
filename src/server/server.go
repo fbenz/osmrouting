@@ -3,9 +3,11 @@
 package main
 
 import (
+	"alg"
 	"encoding/json"
 	"errors"
 	"flag"
+	"graph"
 	"html/template"
 	"io"
 	"log"
@@ -36,6 +38,8 @@ var (
 	FlagLogging bool
 
 	startupTime time.Time
+	
+	osmGraph graph.Graph
 )
 
 func init() {
@@ -71,6 +75,19 @@ func main() {
 
 // setup does some initialization before the HTTP server starts.
 func setup() error {
+	// at the moment all files have to be in the same folder as the server executable
+	if g, err := graph.Open("" /* base */); err != nil {
+		log.Fatal("Loading graph:", err)
+		return err
+	} else {
+		osmGraph = g
+	}
+	
+	if err := alg.LoadKdTree(osmGraph); err != nil {
+		log.Fatal("Loading k-d tree:", err)
+		return err
+	}
+
 	InitLogger()
 
 	// create the feature response only once (no change at runtime)
@@ -102,15 +119,22 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no waypoints", http.StatusBadRequest)
 		return
 	}
-	_, err := getWaypoints(urlParameter["waypoints"][0])
+	waypoints, err := getWaypoints(urlParameter["waypoints"][0])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+	
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
+	
+	startStep, startWays := alg.NearestNeighbor(waypoints[0][0], waypoints[0][1], true /* forward */)
+	endStep, endWays := alg.NearestNeighbor(waypoints[1][0], waypoints[1][1], false /* forward */)
+	
+	// TODO call Dijkstra
+	// TODO call something that turns the result of Dijkstra into our result struct
 
+	// TODO remove if the above TODOs are done
 	// hard coded values for the route response
 	var polyline1 = []Point{{49.25708, 7.045980000000001}, {49.257070000000006, 7.045960000000001}, {49.25652, 7.044390000000001}}
 	distance1 := Distance{"0.1 km", 131}
