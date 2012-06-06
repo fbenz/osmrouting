@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"unsafe"
 	"ellipsoid"
-	"fmt"
 )
 
 type Node interface {
@@ -297,8 +296,12 @@ func (g *graphFile) Lng(i int) float64 {
 }
 
 func (g *graphFile) Step(i int) Step {
-	index := g.steps[i]
-	return Step{g.stepPositions[2*index], g.stepPositions[2*index+1]}
+	if i < g.NodeCount() {
+		lat, lng := g.Node(uint(i)).LatLng()
+		return Step{lat, lng}
+	}
+	i -= g.NodeCount()
+	return Step{g.stepPositions[2*i], g.stepPositions[2*i+1]}
 }
 
 func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
@@ -331,10 +334,7 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
     // find the (edge, offset) pair for step i
 	edgeIndex := sort.Search(len(g.steps),
 		func(j int) bool { return uint(g.steps[j]) > uint(i) }) - 1
-	
-	fmt.Printf("Edge: %v\n", edgeIndex)
 	offset := uint32(i) - g.steps[edgeIndex]
-	fmt.Printf("Offset: %v\n", offset)
 	edge   := g.Edge(uint(edgeIndex))
 	// now we can allocate the way corresponding to (edge,offset),
 	// but there are three cases to consider:
@@ -348,7 +348,6 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	// search in the form of edge.StartPoint, but let's keep this simple
 	// for now.
 	steps := edge.Steps()
-	fmt.Printf("Steps: %v\n", steps)
 	b1 := steps[:offset + 1]
 	b2 := steps[offset:]
 	l1 := wayLength(b1, g.geo)
