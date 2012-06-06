@@ -139,8 +139,10 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Number of end points: %d\n", len(endWays))
 	
 	//alg.Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List)
-	alg.Dijkstra(startWays, endWays)
-	
+	dist,vertices,edges,start,end:=alg.Dijkstra(startWays, endWays)
+	resultleg := make([]Leg,1)
+	resultleg[0]= PathToLeg(dist,vertices,edges,start,end)
+	resultroute := Route{resultleg[0].Distance,resultleg[0].Duration,resultleg[0].StartLocation,resultleg[0].EndLocation,resultleg}
 	// TODO call Dijkstra
 	// TODO call something that turns the result of Dijkstra into our result struct
 
