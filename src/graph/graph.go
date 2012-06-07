@@ -29,6 +29,8 @@ type Way struct {
 	Length float64
 	Node   Node // StartPoint or EndPoint
 	Steps  []Step
+	Target  Step
+	Forward bool
 }
 
 type Graph interface {
@@ -250,8 +252,8 @@ func (ref edgeReference) Length() float64 {
 
 func (ref edgeReference) StartPoint() Node {
 	i := sort.Search(len(ref.g.vertices),
-		func(i int) bool { return uint(ref.g.vertices[i]) > ref.index })
-	return nodeReference{ref.g, uint(i - 1)}
+		func(i int) bool { return uint(ref.g.vertices[i]) > ref.index }) - 1
+	return nodeReference{ref.g, uint(i)}
 }
 
 func (ref edgeReference) EndPoint() Node {
@@ -341,8 +343,12 @@ func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 
 func (g *graphFile) Ways(i int, forward bool) []Way {
     if i < g.NodeCount() {
+		// The easy case, where we hit some node exactly.
         w := make([]Way, 1)
-		w[0] = Way{Length: 0, Node: g.Node(uint(i)), Steps: nil}
+		n := g.Node(uint(i))
+		lat, lng := n.LatLng()
+		target := Step{lat, lng}
+		w[0] = Way{Length: 0, Node: n, Steps: nil, Target: target}
         return w
     }
     i -= g.NodeCount()
@@ -369,23 +375,25 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	l2 := wayLength(b2, g.geo)
 	t1 := edge.StartPoint()
 	t2 := edge.EndPoint()
+	target := steps[offset]
 	
 	if !forward {
-		reverse(b1)
 		reverse(b2)
+	} else {
+		reverse(b1)
 	}
 	
 	var w []Way
 	if _, ok := edge.ReverseEdge(); ok {
 		w = make([]Way, 2) // bidirectional
-		w[0] = Way{Length: l1, Node: t1, Steps: b1}
-		w[1] = Way{Length: l2, Node: t2, Steps: b2}
+		w[0] = Way{Length: l1, Node: t1, Steps: b1, Forward: forward, Target: target}
+		w[1] = Way{Length: l2, Node: t2, Steps: b2, Forward: forward, Target: target}
 	} else {
 		w = make([]Way, 1) // one way
 		if forward {
-			w[0] = Way{Length: l2, Node: t2, Steps: b2}
+			w[0] = Way{Length: l2, Node: t2, Steps: b2, Forward: forward, Target: target}
 		} else {
-			w[0] = Way{Length: l1, Node: t1, Steps: b1}
+			w[0] = Way{Length: l1, Node: t1, Steps: b1, Forward: forward, Target: target}
 		}
 	}
 	return w
