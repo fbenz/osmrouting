@@ -93,6 +93,9 @@ function routeSuccess(data) {
       if (i % 2 ==  0) {
         lineColor = "blue";
       }
+      if (i == 0) {
+      	lineColor = "olive"
+      }
       var line = []
       $.each(step.polyline, function(i, point) {
         line[i] = new CM.LatLng(point[0], point[1]);
