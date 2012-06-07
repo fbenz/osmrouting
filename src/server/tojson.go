@@ -92,6 +92,7 @@ func EdgeToStep(edge graph.Edge, u, v graph.Node) Step {
 	return PartwayToStep(edge.Steps(), NodeToStep(u), NodeToStep(v), edge.Length())
 }
 
+// Convert a single path as returned by Dijkstra to a json Leg.
 func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.Way) Leg {
 	// Determine the number of steps on this path.
 	totalSteps := edges.Len()
