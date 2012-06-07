@@ -49,6 +49,7 @@ func init() {
 
 func main() {
 	runtime.GOMAXPROCS(8)
+	log.Println("Starting...")
 
 	// call the command line parser
 	flag.Parse()
@@ -66,6 +67,7 @@ func main() {
 	http.HandleFunc("/status", status)
 
 	// start the HTTP server
+	log.Println("Serving...")
 	startupTime = time.Now()
 	err := http.ListenAndServe(":"+strconv.Itoa(FlagPort), nil)
 	if err != nil {

@@ -54,11 +54,13 @@ func newkdTree(positions graph.Positions) KdTree {
 		nodes[i] = uint32(i)
 	}
 	t := KdTree{nodes, positions}
-	t.create(t.Nodes, true)
+	ready := make(chan int, 1)
+	go t.create(ready, t.Nodes, true)
+	<- ready
 	return t
 }
 
-func (t KdTree) create(nodes Nodes, compareLat bool) {
+func (t KdTree) create(ready chan<- int, nodes Nodes, compareLat bool) {
 	if len(nodes) <= 1 {
 		return
 	}
@@ -68,8 +70,32 @@ func (t KdTree) create(nodes Nodes, compareLat bool) {
 		sort.Sort(byLng{nodes, &t})
 	}
 	middle := len(nodes) / 2
-	t.create(nodes[:middle], !compareLat) // correct without -1 as the upper bound is equal to the length
-	t.create(nodes[middle+1:], !compareLat)
+	// the cut off where we stop to start new goroutines
+	if len(nodes) < (len(t.Nodes) / 4) {
+		t.createSeq(nodes[:middle], !compareLat) // correct without -1 as the upper bound is equal to the length
+		t.createSeq(nodes[middle+1:], !compareLat)
+	} else {
+		childsReady := make(chan int, 2)
+		go t.create(childsReady, nodes[:middle], !compareLat) // correct without -1 as the upper bound is equal to the length
+		go t.create(childsReady, nodes[middle+1:], !compareLat)
+		<- childsReady
+		<- childsReady
+	}
+	ready <- 1
+}
+
+func (t KdTree) createSeq(nodes Nodes, compareLat bool) {
+	if len(nodes) <= 1 {
+		return
+	}
+	if compareLat {
+		sort.Sort(byLat{nodes, &t})
+	} else {
+		sort.Sort(byLng{nodes, &t})
+	}
+	middle := len(nodes) / 2
+	t.createSeq(nodes[:middle], !compareLat) // correct without -1 as the upper bound is equal to the length
+	t.createSeq(nodes[middle+1:], !compareLat)
 }
 
 // writeToFile stores the permitation created by the k-d tree
