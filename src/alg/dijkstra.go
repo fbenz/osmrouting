@@ -24,7 +24,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	d := make(map[graph.Node]float64)                // I assume distance is an integer
 	p := make(map[graph.Node]graph.Node)               // Predecessor list
 	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
-	q := NewPriorityQueue(100 /* initialCapacity */) // 100 is just a first guess
+	q := NewPriorityQueue(2048)
 	final := make(map[graph.Node]bool)
 	for _, tar := range t {
 		final[tar.Node] = true
@@ -38,9 +38,19 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.Value.(graph.Node)            // Unbox the node
-		if isfinal, _ := final[curr]; isfinal {
-			//fmt.Printf("Found a final node: %v\n", curr)
-			break
+		if final[curr] {
+			// We're done as soon as we hit the last final node
+			final[curr] = false
+			finished := true
+			for _, tar := range t {
+				if final[tar.Node] {
+					finished = false
+					break
+				}
+			}
+			if finished {
+				break
+			}
 		}
 		currDist := d[curr]
 		for _, e := range curr.Edges() {
@@ -88,6 +98,9 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 				endway = targetnode
 			}
 		}
+	}
+	if curr == nil {
+		panic("Dijkstra did not find a path.")
 	}
 	//fmt.Printf("target: %v\n", curr)
 	var start bool

@@ -133,13 +133,15 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	distance := 0.0
 	duration := 0.0
 	for i := 0; i < len(waypoints) - 1; i++ {
-		startStep, startWays := alg.NearestNeighbor(waypoints[i][0], waypoints[i][1], true /* forward */)
-		endStep, endWays := alg.NearestNeighbor(waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
+		/*startStep*/_, startWays := alg.NearestNeighbor(waypoints[i][0], waypoints[i][1], true /* forward */)
+		/*endStep*/_, endWays := alg.NearestNeighbor(waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
 		
+		/*
 		log.Printf("Start: %v\n", startStep)
 		log.Printf("End:   %v\n", endStep)
 		log.Printf("Number of start points: %d\n", len(startWays))
 		log.Printf("Number of end points: %d\n", len(endWays))
+		*/
 		
 		dist, vertices, edges, start, end := alg.Dijkstra(startWays, endWays)
 		legs[i] = PathToLeg(dist,vertices,edges,start,end)

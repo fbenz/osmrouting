@@ -1,3 +1,19 @@
+// TODO:
+// - Make the debugging stuff optional again...
+// - Split this file and cleanup the individual passes.
+// - Add missing features:
+//   * We need to parse relations, since these are used to encode
+//     access restrictions between different roads.
+//     Look at the university main entrance for a nice example.
+//   * Obviously, we need max_speed information. However, this
+//     is simply ridiculously convoluted.
+//     max_speed is implicit for many roads and depends both
+//     on the country and on whether or not the road lies
+//     in a residential area. This means that we will have to
+//     parse the corresponding relations and then do a few point
+//     in polygon tests for any road without max_speed...
+//   * Access restrictions. Your car can't climb stairs.
+
 package main
 
 import (
@@ -55,11 +71,18 @@ func (c *NodeCounter) VisitWay(way pbf.Way) {
 }
 
 // PASS 1
+// We want to find all nodes which are relevant for the street-graph.
+// In particular we need to find all nodes which are either endpoints of
+// highways/junctions *or* intersection points of different highways/junctions.
+// The latter part makes this expensive. Basically, we need to flag all interior
+// nodes we see and add every node we see more than once to the subgraph.
+// Corner points are always part of the street graph.
 
 type subgraphNodes map[int64]uint32
 
 type subgraph struct {
 	indices subgraphNodes
+	visited map[int64] bool
 	high    uint32
 }
 
@@ -79,11 +102,29 @@ func (s *subgraph) VisitWay(way pbf.Way) {
 			s.high++
 		}
 	}
+	
+	// Flag interior nodes
+	if len(way.Nodes) > 2 {
+		for _, nodeIndex := range way.Nodes[1:len(way.Nodes)-1] {
+			if s.visited[nodeIndex] {
+				// Intersection node, add it to the graph
+				// (unless it's already in the graph)
+				if _, ok := s.indices[nodeIndex]; !ok {
+					s.indices[nodeIndex] = s.high
+					s.high++
+				}
+			} else {
+				// Flag the node
+				s.visited[nodeIndex] = true
+			}
+		}
+	}
 }
 
 func subgraphInduction(file *os.File) (*subgraph, error) {
 	var nodes subgraphNodes = subgraphNodes(map[int64]uint32{})
-	var graph *subgraph = &subgraph{nodes, 0}
+	var visited map[int64]bool = map[int64]bool {}
+	var graph *subgraph = &subgraph{nodes, visited, 0}
 	err := traverseGraph(file, graph)
 	if err != nil {
 		return nil, err
@@ -98,12 +139,17 @@ type nodeAttributes struct {
 	graph     *subgraph
 	degrees   []uint32
 	positions []float64
+	reverseIndex map[int] int64
+	count int
 }
 
 func (v *nodeAttributes) VisitNode(node pbf.Node) {
 	if i, ok := v.graph.indices[node.Id]; ok {
-		v.positions[2*i] = node.Lat
+		v.positions[2*i]   = node.Lat
 		v.positions[2*i+1] = node.Lon
+		//fmt.Printf("Visit: %d\n", i)
+		v.reverseIndex[int(i)] = node.Id
+		v.count++
 	}
 }
 
@@ -131,16 +177,16 @@ func (v *nodeAttributes) VisitWay(way pbf.Way) {
 	}
 }
 
-func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
+func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, []float64, error) {
 	positions := make([]float64, 2*graph.high)
 	degrees := make([]uint32, graph.high+1)
 	for i, _ := range degrees {
 		degrees[i] = 0
 	}
-	filter := &nodeAttributes{graph, degrees, positions}
+	filter := &nodeAttributes{graph, degrees, positions, map[int]int64 {}, 0}
 	err := traverseGraph(file, filter)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	println("Writing node positions")
@@ -148,7 +194,7 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	// Write node attributes
 	output, err := os.Create("positions.ftf")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	binary.Write(output, binary.LittleEndian, positions)
 	output.Close()
@@ -158,29 +204,44 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	// Write node -> edge start pointers
 	vertices, err := os.Create("vertices.ftf")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var current uint32 = 0
 	var minDegree uint32 = degrees[0]
 	var maxDegree uint32 = degrees[0]
 	histogram := map[uint32] int {}
+	missing := 0
+	zeros   := 0
 	for i, d := range degrees {
-		if _, ok := histogram[d]; !ok {
-			histogram[d] = 1
-		} else {
-			histogram[d]++
+		// The last "vertex" is a sentinel and should not appear in the
+		// statistics...
+		if uint32(i) < graph.high {
+			if _, ok := filter.reverseIndex[i]; !ok {
+				missing++
+			} else if d == 0 {
+				fmt.Printf("Degree 0 node: %d\n", filter.reverseIndex[i])
+				zeros++
+			}
+			if _, ok := histogram[d]; !ok {
+				histogram[d] = 1
+			} else {
+				histogram[d]++
+			}
+			if i < int(graph.high) {
+				if d < minDegree {
+					minDegree = d
+				}
+				if d > maxDegree {
+					maxDegree = d
+				}
+			}
 		}
 		degrees[i] = current
 		current += d
-		if i < int(graph.high) {
-			if d < minDegree {
-				minDegree = d
-			}
-			if d > maxDegree {
-				maxDegree = d
-			}
-		}
 	}
+	fmt.Printf("Visited %d nodes\n", filter.count)
+	fmt.Printf("Missing nodes: %d\n", missing)
+	fmt.Printf("Degress 0 nodes: %d\n", zeros)
 	fmt.Printf("Edge count: %d\n", current)
 	fmt.Printf("Node count: %d\n", graph.high)
 	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(graph.high))
@@ -191,7 +252,7 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	binary.Write(vertices, binary.LittleEndian, degrees)
 	vertices.Close()
 	println("Success.")
-	return degrees, nil
+	return degrees, positions, nil
 }
 
 // Pass 3
@@ -204,6 +265,7 @@ type step struct {
 type edgeAttributes struct {
 	// ellipsoid for distance calculations
 	geo ellipsoid.Ellipsoid
+	nodePositions []float64
 	// focus on the street graph
 	graph *subgraph
 	// node locations
@@ -272,12 +334,48 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 			for j, stepId := range way.Nodes[segmentStart:i+1] {
 				edgeSteps[j] = v.locations[stepId]
 			}
+			
+			nlat := v.nodePositions[2 * segmentIndex]
+			nlon := v.nodePositions[2 * segmentIndex + 1]
+			vlat := v.locations[way.Nodes[segmentStart]].lat
+			vlon := v.locations[way.Nodes[segmentStart]].lon
+			if nlat != vlat || nlon != vlon {
+				fmt.Printf("Node Positions are wrong:\n")
+				fmt.Printf(" - should: (%.2f, %.2f)\n", nlat, nlon)
+				fmt.Printf(" - is:     (%.2f, %.2f)\n", vlat, vlon)
+				fmt.Printf(" - node id: %d\n", segmentIndex)
+				fmt.Printf(" - osm id:  %d\n", way.Nodes[segmentStart])
+				panic("No point in continuing.")
+			}
 
 			// Calculate the length of the current edge
 			dist := edgeLength(edgeSteps, v.geo)
 			v.distance[edge] = dist
 			if !isOneway {
 				v.distance[rev_edge] = dist
+			}
+			
+			// Sanity check
+			tlat := v.nodePositions[2 * nodeIndex]
+			tlon := v.nodePositions[2 * nodeIndex + 1]
+			dlat := v.locations[nodeId].lat
+			dlon := v.locations[nodeId].lon
+			if tlat != dlat || tlon != dlon {
+				fmt.Printf("Node Positions are wrong:\n")
+				fmt.Printf(" - should: (%.2f, %.2f)\n", tlat, tlon)
+				fmt.Printf(" - is:     (%.2f, %.2f)\n", dlat, dlon)
+				fmt.Printf(" - node id: %d\n", nodeIndex)
+				fmt.Printf(" - osm id:  %d\n", nodeId)
+				panic("No point in continuing.")
+			}
+			line, _ := v.geo.To(nlat, nlon, dlat, dlon)
+			if line > dist + 0.1 {
+				fmt.Printf("Wormhole\n")
+				fmt.Printf(" - from: (%.2f, %.2f)\n", nlat, nlon)
+				fmt.Printf(" - to:   (%.2f, %.2f)\n", dlat, dlon)
+				fmt.Printf(" - dist: %.4f\n", dist)
+				fmt.Printf(" - line: %.4f\n", line)
+				panic("No point in continuing.")
 			}
 
 			// Finally, record the intermediate steps
@@ -298,13 +396,42 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 	}
 }
 
-func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
+func TestDistances(attributes *edgeAttributes, vertices []uint32) {
+	
+	nodeCount := len(vertices) - 1
+	//edgeCount := vertices[nodeCount]
+	
+	for i := 0; i < nodeCount; i++ {
+		nodeLat := attributes.nodePositions[2 * i]
+		nodeLng := attributes.nodePositions[2 * i + 1]
+		start := vertices[i]
+		stop  := vertices[i + 1]
+		for edgeIndex := start; edgeIndex < stop; edgeIndex++ {
+			tip := attributes.edges[edgeIndex]
+			tipLat := attributes.nodePositions[2 * tip]
+			tipLng := attributes.nodePositions[2 * tip + 1]
+			dist   := attributes.distance[edgeIndex]
+			line, _ := attributes.geo.To(nodeLat, nodeLng, tipLat, tipLng)
+			if line > dist + 0.01 {
+				fmt.Printf("Wormhole:\n")
+				fmt.Printf(" - from: %.4f, %.4f\n", nodeLat, nodeLng)
+				fmt.Printf(" - to:   %.4f, %.4f\n", tipLat, tipLng)
+				fmt.Printf(" - in distance: %.2f m\n", dist)
+				fmt.Printf(" - line dist:   %.2f m\n", line)
+				panic("Something is really wrong.")
+			}
+		}
+	}
+}
+
+func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32, positions []float64) error {
 	// Allocate space for the edge attributes
 	numEdges := vertices[len(vertices)-1]
 	highPointers := make([]uint32, len(vertices) - 1)
 	copy(highPointers, vertices)
 	attributes := &edgeAttributes{
 		graph:     graph,
+		nodePositions: positions,
 		locations: map[int64]step{},
 		current:   highPointers,
 		edges:     make([]uint32, numEdges),
@@ -328,6 +455,9 @@ func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
 			fmt.Printf("       is:        %d\n", highPointers[i] - vertices[i])
 		}
 	}
+	
+	// Check that the distances make sense
+	TestDistances(attributes, vertices)
 
 	// Write all edge attributes to disk
 	output, err := os.Create("edges.ftf")
@@ -400,7 +530,7 @@ func main() {
 
 	println("Pass 2")
 
-	vertices, err := nodeAttribution(file, graph)
+	vertices, positions, err := nodeAttribution(file, graph)
 	if err != nil {
 		println("Error during pass2:", err.Error())
 		os.Exit(3)
@@ -408,7 +538,7 @@ func main() {
 
 	println("Pass 3")
 
-	err = edgeAttribution(file, graph, vertices)
+	err = edgeAttribution(file, graph, vertices, positions)
 	if err != nil {
 		println("Error during pass3:", err.Error())
 		os.Exit(4)
