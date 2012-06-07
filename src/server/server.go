@@ -129,54 +129,39 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
+	legs := make([]Leg, len(waypoints) - 1)
+	distance := 0.0
+	duration := 0.0
+	for i := 0; i < len(waypoints) - 1; i++ {
+		startStep, startWays := alg.NearestNeighbor(waypoints[i][0], waypoints[i][1], true /* forward */)
+		endStep, endWays := alg.NearestNeighbor(waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
+		
+		log.Printf("Start: %v\n", startStep)
+		log.Printf("End:   %v\n", endStep)
+		log.Printf("Number of start points: %d\n", len(startWays))
+		log.Printf("Number of end points: %d\n", len(endWays))
+		
+		dist, vertices, edges, start, end := alg.Dijkstra(startWays, endWays)
+		legs[i] = PathToLeg(dist,vertices,edges,start,end)
+		distance += float64(legs[i].Distance.Value)
+		duration += float64(legs[i].Duration.Value)
+	}
 	
-	startStep, startWays := alg.NearestNeighbor(waypoints[0][0], waypoints[0][1], true /* forward */)
-	endStep, endWays := alg.NearestNeighbor(waypoints[1][0], waypoints[1][1], false /* forward */)
+	route := Route{
+		Distance: FormatDistance(distance),
+		Duration: FormatDuration(duration),
+		StartLocation: legs[0].StartLocation,
+		EndLocation: legs[len(legs)-1].EndLocation,
+		Legs: legs,
+	}
 	
-	log.Printf("Start: %v\n", startStep)
-	log.Printf("End:   %v\n", endStep)
-	log.Printf("Number of start points: %d\n", len(startWays))
-	log.Printf("Number of end points: %d\n", len(endWays))
-	
-	//alg.Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List)
-	dist,vertices,edges,start,end:=alg.Dijkstra(startWays, endWays)
-	resultleg := []Leg{PathToLeg(dist,vertices,edges,start,end)}
-	resultroute := Route{resultleg[0].Distance,resultleg[0].Duration,resultleg[0].StartLocation,resultleg[0].EndLocation,resultleg}
-	// TODO call Dijkstra
-	// TODO call something that turns the result of Dijkstra into our result struct
-
-	// TODO remove if the above TODOs are done
-	// hard coded values for the route response
-	/*var polyline1 = []Point{{49.25708, 7.045980000000001}, {49.257070000000006, 7.045960000000001}, {49.25652, 7.044390000000001}}
-	distance1 := Distance{"0.1 km", 131}
-	duration1 := Duration{"2 min", 124}
-	startLocation1 := Point{49.257080, 7.045980000000001}
-	endLocation1 := Point{49.256520, 7.044390000000001}
-	instruction1 := "Head southwest on Stuhlsatzenhausweg because you are starving"
-	step1 := Step{distance1, duration1, startLocation1, endLocation1, polyline1, instruction1}
-
-	var polyline2 = []Point{{49.25652, 7.044390000000001}, {49.25661, 7.0444}, {49.25668, 7.044390000000001}, {49.25674, 7.044320000000001}, {49.25677, 7.044300000000001}, {49.256800000000005, 7.044270000000001}, {49.256820000000005, 7.044230000000001}, {49.256840000000004, 7.0442100000000005}, {49.256870000000006, 7.04419}, {49.25688, 7.04415}, {49.256910000000005, 7.0441400000000005}, {49.25694000000001, 7.044110000000001}, {49.256980000000006, 7.044060000000001}, {49.25703000000001, 7.0440000000000005}, {49.25706, 7.043950000000001}, {49.257090000000005, 7.043940000000001}, {49.25704, 7.043310000000001}}
-	distance2 := Distance{"0.1 km", 122}
-	duration2 := Duration{"2 min", 136}
-	startLocation2 := Point{49.256520, 7.044390000000001}
-	endLocation2 := Point{49.257040, 7.043310000000001}
-	instruction2 := "Turn right, take the stairs and arrive at the temple of culinary delights"
-	step2 := Step{distance2, duration2, startLocation2, endLocation2, polyline2, instruction2}
-
-	distanceL := Distance{"0.3 km", 253}
-	durationL := Duration{"4 min", 260}
-	startLocationL := Point{49.257080, 7.045980000000001}
-	endLocationL := Point{49.257040, 7.043310000000001}
-	steps := []Step{step1, step2}
-	leg := Leg{distanceL, durationL, startLocationL, endLocationL, steps}
-
-	legs := []Leg{leg}
-	route := Route{distanceL, durationL, startLocationL, endLocationL, legs} */
-	routes := []Route{resultroute}
 	northwest := Point{49.25709000000001, 7.043310000000001}
 	southeast := Point{49.256520, 7.045980000000001}
-	boundingBox := BoundingBox{northwest, southeast}
-	result := &Result{boundingBox, routes}
+	result := &Result{
+		BoundingBox: BoundingBox{northwest, southeast},
+		Routes:      []Route{route},
+	}
+	
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
 		http.Error(w, "unable to create a proper JSON object", http.StatusInternalServerError)
