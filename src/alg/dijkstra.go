@@ -96,8 +96,8 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 		fmt.Printf("p:    %v\n", p[curr])
 		fmt.Printf("ep:   %v\n", ep[curr])
 		path.PushFront(curr)
-		curr = p[curr]
 		edges.PushFront(ep[curr])
+		curr = p[curr]
 	}
 	path.PushFront(curr)
 	fmt.Printf("path: %v\n", path)
