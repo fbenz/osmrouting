@@ -177,6 +177,12 @@ func Open(base string) (Graph, error) {
 	return &graph, nil
 }
 
+func reverse(steps []Step) {
+	for i, j := 0, len(steps)-1; i < j; i, j = i+1, j-1 {
+		steps[i], steps[j] = steps[j], steps[i]
+	}
+}
+
 // Interface Implementation
 
 type nodeReference struct {
@@ -262,14 +268,26 @@ func (ref edgeReference) ReverseEdge() (Edge, bool) {
 }
 
 func (ref edgeReference) Steps() []Step {
-	start := ref.g.steps[ref.index]
-	stop := ref.g.steps[ref.index+1]
+	start  := ref.g.steps[ref.index]
+	stop   := ref.g.steps[ref.index+1]
+	revert := false
+	if start == stop {
+		revIndex := ref.g.revEdges[ref.index]
+		if uint(revIndex) != ref.index {
+			start  = ref.g.steps[revIndex]
+			stop   = ref.g.steps[revIndex + 1]
+			revert = true
+		}
+	}
 	size := stop - start
 	steps := make([]Step, size)
 	for i, _ := range steps {
 		lat := ref.g.stepPositions[2*(int(start)+i)]
 		lng := ref.g.stepPositions[2*(int(start)+i)+1]
 		steps[i] = Step{lat, lng}
+	}
+	if revert {
+		reverse(steps)
 	}
 	return steps
 }
@@ -319,12 +337,6 @@ func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 		prev = step
 	}
 	return total
-}
-
-func reverse(steps []Step) {
-	for i, j := 0, len(steps)-1; i < j; i, j = i+1, j-1 {
-		steps[i], steps[j] = steps[j], steps[i]
-	}
 }
 
 func (g *graphFile) Ways(i int, forward bool) []Way {

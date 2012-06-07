@@ -3,6 +3,7 @@ package main
 import (
 	"graph"
 	"container/list"
+	"fmt"
 )
 
 func StepToPolyline (steps []graph.Step,u ,v graph.Node) (Polyline){
@@ -65,6 +66,9 @@ func PathToLeg (dist float64, vertex, edge *list.List,startway,endway graph.Way)
 	startvertex := vertex.Front().Value.(graph.Node)
 	steps[0]=WayToStep(startway,startway.Node,startvertex)
 	for v,e,i:=vertex.Front(),edge.Front(),1;e!=edge.Back();v,e,i=v.Next(),e.Next(),i+1 {
+		fmt.Printf("v: %v\n", v)
+		fmt.Printf("e: %v\n", e)
+		fmt.Printf("i: %v\n", i)
 		ue:=e.Value.(graph.Edge)
 		uv:=v.Value.(graph.Node)
 		nuv:=v.Next().Value.(graph.Node)

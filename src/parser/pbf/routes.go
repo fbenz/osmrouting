@@ -70,8 +70,10 @@ func (f RoutingFilter) VisitWay(way Way) {
 	}
 	*/
 	
-	normalizeOneway(way)
-	f.client.VisitWay(way)
+	if len(way.Nodes) > 1 {
+		normalizeOneway(way)
+		f.client.VisitWay(way)
+	}
 }
 
 func VisitRoutes(stream io.Reader, client Visitor) error {
