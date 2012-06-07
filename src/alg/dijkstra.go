@@ -38,9 +38,6 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.Value.(graph.Node)            // Unbox the node
-		//fmt.Printf("curr: %v\n", curr)
-		//fmt.Printf("d: %v\n", d[curr])
-		//fmt.Printf("p: %v\n", p[curr])
 		if isfinal, _ := final[curr]; isfinal {
 			fmt.Printf("Found a final node: %v\n", curr)
 			break
@@ -83,6 +80,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			curr = tmpnode
 			currdist = tmpdist
 			endway = targetnode
+			first = false
 		} else {
 			if tmpdist<currdist {
 				curr = tmpnode
