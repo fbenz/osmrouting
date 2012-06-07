@@ -62,18 +62,30 @@ func EdgeToStep (e graph.Edge,u,v graph.Node) (Step){
 func PathToLeg (dist float64, vertex, edge *list.List,startway,endway graph.Way) (Leg) {
 	distance := Distance{fmt.Sprintf("%.2f m", dist),int(dist)}
 	dur := Duration{"? s",42}
-	steps:=make([]Step,edge.Len()+2)
+	
+	totalSteps := edge.Len() - 1
+	if len(startway.Steps) > 0 {
+		totalSteps++
+	}
+	if len(endway.Steps) > 0 {
+		totalSteps++
+	}
+	steps:=make([]Step,totalSteps)
+	
 	startvertex := vertex.Front().Value.(graph.Node)
-	steps[0]=WayToStep(startway,startway.Node,startvertex)
-	for v,e,i:=vertex.Front(),edge.Front(),1;e!=edge.Back();v,e,i=v.Next(),e.Next(),i+1 {
-		fmt.Printf("v: %v\n", v)
-		fmt.Printf("e: %v\n", e)
-		fmt.Printf("i: %v\n", i)
+	i := 0
+	if len(startway.Steps) > 0 {
+		steps[0]=WayToStep(startway,startway.Node,startvertex)
+		i++
+	}
+	for v,e:=vertex.Front(),edge.Front();e!=edge.Back();v,e,i=v.Next(),e.Next(),i+1 {
 		ue:=e.Value.(graph.Edge)
 		uv:=v.Value.(graph.Node)
 		nuv:=v.Next().Value.(graph.Node)
 		steps[i]=EdgeToStep(ue,uv,nuv)
 	}
-	steps[len(steps)-1]=WayToStep(endway,vertex.Back().Value.(graph.Node),endway.Node)
+	if len(endway.Steps) > 0 {
+		steps[i]=WayToStep(endway,vertex.Back().Value.(graph.Node),endway.Node)
+	}
 	return Leg{distance,dur,steps[0].StartLocation,steps[len(steps)-1].EndLocation,steps}
 }
