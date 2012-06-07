@@ -5,9 +5,12 @@ import (
 	"graph"
 	"kdtree"
 	"log"
+	"runtime"
 )
 
 func main() {
+	runtime.GOMAXPROCS(8)
+
 	// just for know
 	g, err := graph.Open("")
 	if err != nil {
