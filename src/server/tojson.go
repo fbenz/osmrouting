@@ -63,7 +63,7 @@ func PathToLeg (dist float64, vertex, edge *list.List,startway,endway graph.Way)
 	distance := Distance{fmt.Sprintf("%.2f m", dist),int(dist)}
 	dur := Duration{"? s",42}
 	
-	totalSteps := edge.Len() - 1
+	totalSteps := edge.Len()
 	if len(startway.Steps) > 0 {
 		totalSteps++
 	}
@@ -84,6 +84,11 @@ func PathToLeg (dist float64, vertex, edge *list.List,startway,endway graph.Way)
 		nuv:=v.Next().Value.(graph.Node)
 		steps[i]=EdgeToStep(ue,uv,nuv)
 	}
+	ue:=edge.Back().Value.(graph.Edge)
+	uv:=vertex.Back().Prev().Value.(graph.Node)
+	nuv:=vertex.Back().Value.(graph.Node)
+	steps[i]=EdgeToStep(ue,uv,nuv)
+	i++
 	if len(endway.Steps) > 0 {
 		steps[i]=WayToStep(endway,vertex.Back().Value.(graph.Node),endway.Node)
 	}
