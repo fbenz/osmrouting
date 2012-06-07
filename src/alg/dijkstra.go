@@ -1,30 +1,31 @@
 package alg
 
 import (
-	"graph"
 	"container/heap"
 	"container/list"
+	"log"
 	//"fmt"
+	"graph"
 )
 
-func isInList(w []graph.Way, s graph.Node) (bool,graph.Way) {
+func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
 	var resultway graph.Way
 	for _, way := range w {
 		if s == way.Node {
-			return true,way
+			return true, way
 		}
 	}
-	return false,resultway
+	return false, resultway
 }
 
 // A slightly optimized version of dijkstras algorithm
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
-func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph.Way) {
-	d := make(map[graph.Node]float64)                // I assume distance is an integer
-	p := make(map[graph.Node]graph.Node)               // Predecessor list
+func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, graph.Way) {
+	d := make(map[graph.Node]float64)
+	p := make(map[graph.Node]graph.Node)  // Predecessor list
 	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
-	q := NewPriorityQueue(2048)
+	q := NewPriorityQueue(1024)
 	final := make(map[graph.Node]bool)
 	for _, tar := range t {
 		final[tar.Node] = true
@@ -61,16 +62,17 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 					q.ChangePriority(elem, tmpDist) // TODO again check cast
 					d[n] = tmpDist
 					p[n] = curr
-					ep[n]=e
+					ep[n] = e
 				}
 			} else {
-				d[n]  = currDist + e.Length()
-				p[n]  = curr
+				d[n] = currDist + e.Length()
+				p[n] = curr
 				ep[n] = e
 				heap.Push(&q, elem)
 			}
 		}
 	}
+
 	path := list.New()
 	edges := list.New()
 	// Construct the list by moving from t to s
@@ -92,19 +94,22 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			endway = targetnode
 			first = false
 		} else {
-			if tmpdist<currdist {
+			if tmpdist < currdist {
 				curr = tmpnode
 				currdist = tmpdist
 				endway = targetnode
 			}
 		}
 	}
-	if curr == nil {
-		panic("Dijkstra did not find a path.")
-	}
 	//fmt.Printf("target: %v\n", curr)
 	var start bool
 	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
+		// In case no path was found or something goes wrong here
+		if curr == nil {
+			log.Printf("WARNING: curr = nil\n")
+			break
+		}
+
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
@@ -119,5 +124,5 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	//fmt.Printf("startway: %v\n", startway)
 	//fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
-	return currdist, path, edges,startway,endway
+	return currdist, path, edges, startway, endway
 }
