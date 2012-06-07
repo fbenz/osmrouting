@@ -231,7 +231,7 @@ func (ref nodeReference) Edges() []Edge {
 	degree := stop - start
 	edges := make([]Edge, degree)
 	for i, _ := range edges {
-		edges[i] = edgeReference{ref.g, uint(ref.g.edges[int(start)+i])}
+		edges[i] = edgeReference{ref.g, uint(start+uint32(i))}
 	}
 	return edges
 }

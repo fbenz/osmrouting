@@ -46,7 +46,7 @@ func readPrimitiveBlock(stream io.Reader) (*OSMPBF.PrimitiveBlock, error) {
 	return primitive, nil
 }
 
-func decodeLocation(rawlat int64, rawlon int64, block *OSMPBF.PrimitiveBlock) (float64, float64) {
+func decodeLocation(rawlat, rawlon int64, block *OSMPBF.PrimitiveBlock) (float64, float64) {
 	lonOffset := proto.GetInt64(block.LonOffset)
 	latOffset := proto.GetInt64(block.LatOffset)
 	granularity := int64(proto.GetInt32(block.Granularity))
