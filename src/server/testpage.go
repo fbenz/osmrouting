@@ -84,21 +84,23 @@ function routeSuccess(data) {
   
   $("#routeOverview").append("Total: " + data.routes[0].duration.text + ", " + data.routes[0].distance.text);
     
-  var leg = data.routes[0].legs[0];
-  $.each(leg.steps, function(i, step){
-    $("#routeInfo").append("<li>" + step.instruction + " (" + step.duration.text + ", " + step.distance.text + ")</li>");
+  var route = data.routes[0];
+  $.each(route.legs, function(i, leg){
+    $.each(leg.steps, function(i, step){
+      $("#routeInfo").append("<li>" + step.instruction + " (" + step.duration.text + ", " + step.distance.text + ")</li>");
   
-    var lineColor = "red";
-    if (i % 2 ==  0) {
-      lineColor = "blue";
-    }
-    var line = []
-    $.each(step.polyline, function(i, point) {
-      line[i] = new CM.LatLng(point[0], point[1]);
+      var lineColor = "red";
+      if (i % 2 ==  0) {
+        lineColor = "blue";
+      }
+      var line = []
+      $.each(step.polyline, function(i, point) {
+        line[i] = new CM.LatLng(point[0], point[1]);
+      });
+      var polygon = new CM.Polyline(line, lineColor, 5, 0.7);
+      map.addOverlay(polygon);
+      oldOverlays.push(polygon);
     });
-    var polygon = new CM.Polyline(line, lineColor, 5, 0.7);
-    map.addOverlay(polygon);
-    oldOverlays.push(polygon);
   });
 }
 
