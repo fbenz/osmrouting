@@ -4,7 +4,7 @@ import (
 	"graph"
 	"container/heap"
 	"container/list"
-	"fmt"
+	//"fmt"
 )
 
 func isInList(w []graph.Way, s graph.Node) (bool,graph.Way) {
@@ -39,7 +39,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.Value.(graph.Node)            // Unbox the node
 		if isfinal, _ := final[curr]; isfinal {
-			fmt.Printf("Found a final node: %v\n", curr)
+			//fmt.Printf("Found a final node: %v\n", curr)
 			break
 		}
 		currDist := d[curr]
@@ -89,22 +89,22 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			}
 		}
 	}
-	fmt.Printf("target: %v\n", curr)
+	//fmt.Printf("target: %v\n", curr)
 	var start bool
 	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
-		fmt.Printf("curr: %v\n", curr)
-		fmt.Printf("p:    %v\n", p[curr])
-		fmt.Printf("ep:   %v\n", ep[curr])
+		//fmt.Printf("curr: %v\n", curr)
+		//fmt.Printf("p:    %v\n", p[curr])
+		//fmt.Printf("ep:   %v\n", ep[curr])
 		path.PushFront(curr)
 		edges.PushFront(ep[curr])
 		curr = p[curr]
 	}
 	path.PushFront(curr)
-	fmt.Printf("path: %v\n", path)
-	fmt.Printf("dist: %v\n", currdist)
-	fmt.Printf("edges: %v\n", edges)
-	fmt.Printf("startway: %v\n", startway)
-	fmt.Printf("endway: %v\n", endway)
+	//fmt.Printf("path: %v\n", path)
+	//fmt.Printf("dist: %v\n", currdist)
+	//fmt.Printf("edges: %v\n", edges)
+	//fmt.Printf("startway: %v\n", startway)
+	//fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
 	return currdist, path, edges,startway,endway
 }
