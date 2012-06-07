@@ -4,6 +4,7 @@ import (
 	"graph"
 	"container/heap"
 	"container/list"
+	"fmt"
 )
 
 func isInList(w []graph.Way, s graph.Node) (bool,graph.Way) {
@@ -26,7 +27,7 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	q := NewPriorityQueue(100 /* initialCapacity */) // 100 is just a first guess
 	final := make(map[graph.Node]bool)
 	for _, tar := range t {
-		final[tar.Node] = false
+		final[tar.Node] = true
 	}
 	for _, str := range s {
 		priority := str.Length
@@ -37,31 +38,25 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.Value.(graph.Node)            // Unbox the node
-		if isfinal, _ := final[curr]; isfinal {                    
-			final[curr] = true
-			finished := true
-			for _, node := range final {
-				finished = finished && node
-			}
-			if finished {
-				break
-			}
+		if isfinal, _ := final[curr]; isfinal {
+			fmt.Printf("Found a final node: %v\n", curr)
+			break
 		}
 		currDist := d[curr]
 		for _, e := range curr.Edges() {
 			n := e.EndPoint()
+			elem := NewElement(n, currDist)
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Length(); tmpDist < dist {
-					q.ChangePriority(currElem, tmpDist) // TODO again check cast
+					q.ChangePriority(elem, tmpDist) // TODO again check cast
 					d[n] = tmpDist
 					p[n] = curr
 					ep[n]=e
 				}
 			} else {
-				d[n] = currDist + e.Length()
-				p[n] = curr
-				ep[n]=e
-				elem := NewElement(n, currDist)  // TODO again check cast
+				d[n]  = currDist + e.Length()
+				p[n]  = curr
+				ep[n] = e
 				heap.Push(&q, elem)
 			}
 		}
@@ -76,7 +71,11 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 	var startway graph.Way
 	for _, targetnode := range t {
 		tmpnode := targetnode.Node
-		tmpdist := d[tmpnode] + targetnode.Length
+		dist, ok := d[tmpnode]
+		if !ok {
+			continue
+		}
+		tmpdist := dist + targetnode.Length
 		if first {
 			curr = tmpnode
 			currdist = tmpdist
@@ -90,13 +89,22 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List,graph.Way,graph
 			}
 		}
 	}
+	fmt.Printf("target: %v\n", curr)
 	var start bool
-	for start,startway = isInList(s, curr);!start;start,startway=isInList(s,curr) {
+	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
+		fmt.Printf("curr: %v\n", curr)
+		fmt.Printf("p:    %v\n", p[curr])
+		fmt.Printf("ep:   %v\n", ep[curr])
 		path.PushFront(curr)
 		curr = p[curr]
 		edges.PushFront(ep[curr])
 	}
 	path.PushFront(curr)
+	fmt.Printf("path: %v\n", path)
+	fmt.Printf("dist: %v\n", currdist)
+	fmt.Printf("edges: %v\n", edges)
+	fmt.Printf("startway: %v\n", startway)
+	fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
 	return currdist, path, edges,startway,endway
 }

@@ -110,9 +110,14 @@ func (v *nodeAttributes) VisitNode(node pbf.Node) {
 func (v *nodeAttributes) VisitWay(way pbf.Way) {
 	isOneway := way.Attributes["oneway"] == "true"
 	//segmentStart := 0
-	segmentIndex := v.graph.indices[way.Nodes[0]]
+	segmentIndex, ok := v.graph.indices[way.Nodes[0]]
+	if !ok {
+		panic("First vertex of a path is not in the graph!?")
+	}
+	borked := true
 	for _, nodeId := range way.Nodes[1:] {
 		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
+			borked = false
 			v.degrees[segmentIndex]++
 			if !isOneway {
 				v.degrees[nodeIndex]++
@@ -120,6 +125,9 @@ func (v *nodeAttributes) VisitWay(way pbf.Way) {
 			segmentIndex = nodeIndex
 			//segmentStart = i
 		}
+	}
+	if borked {
+		fmt.Printf("Visited an edge without vertices: %v.\n", way)
 	}
 }
 
@@ -155,10 +163,13 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	var current uint32 = 0
 	var minDegree uint32 = degrees[0]
 	var maxDegree uint32 = degrees[0]
+	histogram := map[uint32] int {}
 	for i, d := range degrees {
-		//if d == 0 {
-		//	fmt.Printf("Degree 0 vertex: %d\n", i)
-		//}
+		if _, ok := histogram[d]; !ok {
+			histogram[d] = 1
+		} else {
+			histogram[d]++
+		}
 		degrees[i] = current
 		current += d
 		if i < int(graph.high) {
@@ -175,6 +186,7 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, error) {
 	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(graph.high))
 	fmt.Printf("Minimum degree: %d\n", minDegree)
 	fmt.Printf("Maximum degree: %d\n", maxDegree)
+	fmt.Printf("Degree histogram: %d\n", histogram)
 	//fmt.Printf("Degrees: %v\n", degrees)
 	binary.Write(vertices, binary.LittleEndian, degrees)
 	vertices.Close()
@@ -238,10 +250,10 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 			continue
 		}
 		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
-			// Record a new edge from vertex segmentStart to nodeIndex
-			edge := v.current[segmentStart]
+			// Record a new edge from vertex segmentIndex to nodeIndex
+			edge := v.current[segmentIndex]
 			v.edges[edge] = nodeIndex
-			v.current[segmentStart]++
+			v.current[segmentIndex]++
 
 			// If this is a bidirectional road, also record the reverse edge
 			rev_edge := edge
@@ -272,13 +284,16 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 			if len(edgeSteps) > 2 {
 				v.steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
 			} else {
-				v.steps[edge] = make([]step, 0)
+				v.steps[edge] = []step {}
 			}
 
 			if !isOneway {
 				// This is always implicit and we do not save it
-				v.steps[rev_edge] = nil
+				v.steps[rev_edge] = []step {}
 			}
+			
+			segmentStart = i
+			segmentIndex = nodeIndex
 		}
 	}
 }
@@ -286,10 +301,12 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
 	// Allocate space for the edge attributes
 	numEdges := vertices[len(vertices)-1]
+	highPointers := make([]uint32, len(vertices) - 1)
+	copy(highPointers, vertices)
 	attributes := &edgeAttributes{
 		graph:     graph,
 		locations: map[int64]step{},
-		current:   vertices,
+		current:   highPointers,
 		edges:     make([]uint32, numEdges),
 		reverse:   make([]uint32, numEdges),
 		distance:  make([]float64, numEdges),
@@ -302,6 +319,15 @@ func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32) error {
 
 	// Perform the actual graph traversal
 	traverseGraph(file, attributes)
+	
+	// Check that we hit all the edges
+	for i, high := range highPointers {
+		if high != vertices[i + 1] {
+			fmt.Printf("Missed a vertex at index %d\n", i)
+			fmt.Printf("Degree should be: %d\n", vertices[i + 1] - vertices[i])
+			fmt.Printf("       is:        %d\n", highPointers[i] - vertices[i])
+		}
+	}
 
 	// Write all edge attributes to disk
 	output, err := os.Create("edges.ftf")
