@@ -28,8 +28,8 @@ func StepToPolyline (steps []graph.Step, u, v graph.Node) Polyline {
 }
 
 func WayToStep(w graph.Way,u,v graph.Node) (Step){
-	dist := Distance{"TODO",int(w.Length)}
-	dur := Duration{"TODO",42}
+	dist := Distance{fmt.Sprintf("%.2f m", w.Length),int(w.Length)}
+	dur := Duration{"? s",42}
 	start:=make([]float64,2)
 	lat1,long1:=u.LatLng()
 	start[0]=lat1
@@ -45,7 +45,7 @@ func WayToStep(w graph.Way,u,v graph.Node) (Step){
 
 func EdgeToStep (e graph.Edge,u,v graph.Node) (Step){
 	dist := Distance{fmt.Sprintf("%.2f m", e.Length()),int(e.Length())}
-	dur := Duration{"Time",42}
+	dur := Duration{"? s",42}
 	start:=make([]float64,2)
 	lat1,long1:=u.LatLng()
 	start[0]=lat1
@@ -60,8 +60,8 @@ func EdgeToStep (e graph.Edge,u,v graph.Node) (Step){
 }
 
 func PathToLeg (dist float64, vertex, edge *list.List,startway,endway graph.Way) (Leg) {
-	distance := Distance{"TODO",int(dist)}
-	dur := Duration{"TODO",42}
+	distance := Distance{fmt.Sprintf("%.2f m", dist),int(dist)}
+	dur := Duration{"? s",42}
 	steps:=make([]Step,edge.Len()+2)
 	startvertex := vertex.Front().Value.(graph.Node)
 	steps[0]=WayToStep(startway,startway.Node,startvertex)
