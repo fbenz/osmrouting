@@ -155,10 +155,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		Legs: legs,
 	}
 	
-	northwest := Point{49.25709000000001, 7.043310000000001}
-	southeast := Point{49.256520, 7.045980000000001}
 	result := &Result{
-		BoundingBox: BoundingBox{northwest, southeast},
+		BoundingBox: ComputeBounds(route),
 		Routes:      []Route{route},
 	}
 	

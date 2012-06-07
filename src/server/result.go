@@ -8,7 +8,7 @@ type Result struct {
 }
 
 type BoundingBox struct {
-	Nortwest  Point `json:"nw"`
+	Northwest Point `json:"nw"`
 	Southeast Point `json:"se"`
 }
 
