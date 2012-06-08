@@ -369,8 +369,10 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	// search in the form of edge.StartPoint, but let's keep this simple
 	// for now.
 	steps := edge.Steps()
-	b1 := steps[:offset + 1]
-	b2 := steps[offset:]
+	b1 := make([]Step, len(steps[:offset]))
+	b2 := make([]Step, len(steps[offset+1:]))
+	copy(b1, steps[:offset])
+	copy(b2, steps[offset+1:])
 	l1 := wayLength(b1, g.geo)
 	l2 := wayLength(b2, g.geo)
 	t1 := edge.StartPoint()
