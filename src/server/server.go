@@ -208,6 +208,11 @@ func features(w http.ResponseWriter, r *http.Request) {
 
 // stop The server can be terminated with a request.
 func stop(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	LogRequest(r, startTime)
+	// wait 5 seconds so that the logger has time to write the request to file
+	time.Sleep(5 * time.Second)
+
 	os.Exit(1)
 }
 
