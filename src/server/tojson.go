@@ -97,17 +97,17 @@ func EdgeToStep(edge graph.Edge, u, v graph.Node) Step {
 func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.Way) Leg {
 	// Determine the number of steps on this path.
 	totalSteps := edges.Len()
-	if len(start.Steps) > 0 {
+	if start.Length > 1e-7 {
 		totalSteps++
 	}
-	if len(stop.Steps) > 0 {
+	if stop.Length > 1e-7 {
 		totalSteps++
 	}
 	steps:=make([]Step,totalSteps)
 	
 	// Add the initial step, if present
 	i := 0
-	if len(start.Steps) > 0 {
+	if start.Length > 1e-7 {
 		next := vertices.Front().Value.(graph.Node)
 		steps[0] = WayToStep(start, start.Target, NodeToStep(next))
 		i++
@@ -127,7 +127,7 @@ func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.W
 	}
 	
 	// Add the final step, if present
-	if len(stop.Steps) > 0 {
+	if stop.Length > 1e-7 {
 		prev := vertices.Back().Value.(graph.Node)
 		steps[i] = WayToStep(stop, NodeToStep(prev), stop.Target)
 	}

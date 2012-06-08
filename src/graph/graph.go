@@ -373,10 +373,16 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	b2 := make([]Step, len(steps[offset+1:]))
 	copy(b1, steps[:offset])
 	copy(b2, steps[offset+1:])
-	l1 := wayLength(b1, g.geo)
-	l2 := wayLength(b2, g.geo)
+	l1 := wayLength(steps[:offset+1], g.geo)
+	l2 := wayLength(steps[offset:],   g.geo)
 	t1 := edge.StartPoint()
 	t2 := edge.EndPoint()
+	t1Lat, t1Lng := t1.LatLng()
+	t2Lat, t2Lng := t2.LatLng()
+	d1, _ := g.geo.To(t1Lat, t1Lng, steps[0].Lat, steps[0].Lng)
+	d2, _ := g.geo.To(t2Lat, t2Lng, steps[len(steps)-1].Lat, steps[len(steps)-1].Lng)
+	l1 += d1
+	l2 += d2
 	target := steps[offset]
 	
 	if !forward {

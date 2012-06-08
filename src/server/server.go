@@ -143,9 +143,56 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		log.Printf("End:   %v\n", endStep)
 		log.Printf("Number of start points: %d\n", len(startWays))
 		log.Printf("Number of end points: %d\n", len(endWays))
+		log.Printf("StartWays:\n")
+		for i, way := range startWays {
+			log.Printf(" Way [%d]:\n", i)
+			log.Printf(" - Length: %.2f\n", way.Length)
+			log.Printf(" - Source: (%.7f, %.7f)\n", way.Target.Lat, way.Target.Lng)
+			for j, step := range way.Steps {
+				log.Printf(" - Step[%d]: (%.7f, %.7f)\n", j, step.Lat, step.Lng)
+			}
+			lat, lng := way.Node.LatLng()
+			log.Printf(" - Node/Target: (%.7f, %.7f)\n", lat, lng)
+			log.Printf(" - Forward: %v\n", way.Forward)
+		}
+		log.Printf("EndWays:\n")
+		for i, way := range endWays {
+			log.Printf(" Way [%d]:\n", i)
+			log.Printf(" - Length: %.2f\n", way.Length)
+			lat, lng := way.Node.LatLng()
+			log.Printf(" - Node/Source: (%.7f, %.7f)\n", lat, lng)
+			for j, step := range way.Steps {
+				log.Printf(" - Step[%d]: (%.7f, %.7f)\n", j, step.Lat, step.Lng)
+			}
+			log.Printf(" - Target: (%.7f, %.7f)\n", way.Target.Lat, way.Target.Lng)
+			log.Printf(" - Forward: %v\n", way.Forward)
+		}
 		*/
 		
 		dist, vertices, edges, start, end := alg.Dijkstra(startWays, endWays)
+		
+		/*
+		log.Printf("Dijkstra found a path of length %.2f m\n", dist)
+		log.Printf("StartWay:\n")
+		log.Printf(" - Length: %.2f\n", start.Length)
+		log.Printf(" - Source: (%.7f, %.7f)\n", start.Target.Lat, start.Target.Lng)
+		for j, step := range start.Steps {
+			log.Printf(" - Step[%d]: (%.7f, %.7f)\n", j, step.Lat, step.Lng)
+		}
+		lat, lng := start.Node.LatLng()
+		log.Printf(" - Node/Target: (%.7f, %.7f)\n", lat, lng)
+		log.Printf(" - Forward: %v\n", start.Forward)
+		log.Printf("EndWay:\n")
+		log.Printf(" - Length: %.2f\n", end.Length)
+		lat, lng = end.Node.LatLng()
+		log.Printf(" - Node/Source: (%.7f, %.7f)\n", lat, lng)
+		for j, step := range end.Steps {
+			log.Printf(" - Step[%d]: (%.7f, %.7f)\n", j, step.Lat, step.Lng)
+		}
+		log.Printf(" - Target: (%.7f, %.7f)\n", end.Target.Lat, end.Target.Lng)
+		log.Printf(" - Forward: %v\n", end.Forward)
+		*/
+		
 		legs[i] = PathToLeg(dist,vertices,edges,start,end)
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
