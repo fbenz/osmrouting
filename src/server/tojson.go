@@ -26,13 +26,13 @@ func FormatDistance(distance float64) Distance {
 func FormatDuration(seconds float64) Duration {
 	switch {
 	case seconds < 30.0:
-		t := fmt.Sprintf("%.2f s", seconds)
+		t := fmt.Sprintf("%.2f secs", seconds)
 		return Duration{t, int(seconds)}
 	case seconds < 1800.0:
-		t := fmt.Sprintf("%.2f m", seconds / 60.0)
+		t := fmt.Sprintf("%.2f mins", seconds / 60.0)
 		return Duration{t, int(seconds)}
 	}
-	t := fmt.Sprintf("%.2f h", seconds / 3600.0)
+	t := fmt.Sprintf("%.2f hours", seconds / 3600.0)
 	return Duration{t, int(seconds)}
 }
 
