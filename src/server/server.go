@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -65,6 +66,7 @@ func main() {
 	http.HandleFunc("/features", features)
 	http.HandleFunc("/awesome", test)
 	http.HandleFunc("/status", status)
+	http.HandleFunc("/stop6bbw753i08wn1ca", stop)
 
 	// start the HTTP server
 	log.Println("Serving...")
@@ -202,6 +204,16 @@ func features(w http.ResponseWriter, r *http.Request) {
 	defer LogRequest(r, startTime)
 
 	w.Write(featureResponse)
+}
+
+// stop The server can be terminated with a request.
+func stop(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	LogRequest(r, startTime)
+	// wait 5 seconds so that the logger has time to write the request to file
+	time.Sleep(5 * time.Second)
+
+	os.Exit(1)
 }
 
 // status returns an HTML page with some status information about the server
