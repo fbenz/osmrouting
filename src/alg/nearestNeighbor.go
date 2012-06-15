@@ -2,9 +2,9 @@ package alg
 
 import (
 	"encoding/binary"
+	"geo"
 	"graph"
 	"kdtree"
-	"math"
 	"os"
 )
 
@@ -101,7 +101,7 @@ func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 
 	return recIndex
 }
 
-// TODO replace
-func distance(x1, y1, x2, y2 float64) float64 {
-	return math.Sqrt(math.Pow(x1-x2, 2.0) + math.Pow(y1-y2, 2.0))
+// TODO remove this function if everything uses geo.Coordinate
+func distance(lat1, lng1, lat2, lng2 float64) float64 {
+	return geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
 }
