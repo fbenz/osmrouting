@@ -126,7 +126,7 @@ func defaultAccessMask(way Way) AccessType {
 		return AccessMotorcar
 	case "path", "track":
 		return AccessBicycle | AccessFoot
-	case "footway", "pedestrian", "stairs":
+	case "footway", "pedestrian", "stairs", "service":
 		return AccessFoot
 	case "cycleway":
 		return AccessBicycle
