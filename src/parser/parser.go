@@ -25,16 +25,6 @@ import (
 	"parser/pbf"
 )
 
-func traverseGraph(file *os.File, visitor pbf.Visitor) error {
-	_, err := file.Seek(0, 0)
-	if err != nil {
-		return err
-	}
-
-	pbf.VisitRoutes(file, visitor)
-	return nil
-}
-
 // Debugging
 
 type NodeInspector struct{}
@@ -121,16 +111,16 @@ func (s *subgraph) VisitWay(way pbf.Way) {
 	}
 }
 
-func subgraphInduction(file *os.File) (*subgraph, error) {
+func subgraphInduction(graph pbf.Graph) (*subgraph, error) {
 	var nodes subgraphNodes = subgraphNodes(map[int64]uint32{})
 	var visited map[int64]bool = map[int64]bool {}
-	var graph *subgraph = &subgraph{nodes, visited, 0}
-	err := traverseGraph(file, graph)
+	var subgraph *subgraph = &subgraph{nodes, visited, 0}
+	err := graph.Traverse(subgraph)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Found a street-graph with %d nodes.\n", graph.high)
-	return graph, nil
+	fmt.Printf("Found a street-graph with %d nodes.\n", subgraph.high)
+	return subgraph, nil
 }
 
 // Pass 2
@@ -177,14 +167,14 @@ func (v *nodeAttributes) VisitWay(way pbf.Way) {
 	}
 }
 
-func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, []float64, error) {
-	positions := make([]float64, 2*graph.high)
-	degrees := make([]uint32, graph.high+1)
+func nodeAttribution(graph pbf.Graph, subgraph *subgraph) ([]uint32, []float64, error) {
+	positions := make([]float64, 2*subgraph.high)
+	degrees := make([]uint32, subgraph.high+1)
 	for i, _ := range degrees {
 		degrees[i] = 0
 	}
-	filter := &nodeAttributes{graph, degrees, positions, map[int]int64 {}, 0}
-	err := traverseGraph(file, filter)
+	filter := &nodeAttributes{subgraph, degrees, positions, map[int]int64 {}, 0}
+	err := graph.Traverse(filter)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,7 +205,7 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, []float64, error
 	for i, d := range degrees {
 		// The last "vertex" is a sentinel and should not appear in the
 		// statistics...
-		if uint32(i) < graph.high {
+		if uint32(i) < subgraph.high {
 			if _, ok := filter.reverseIndex[i]; !ok {
 				missing++
 			} else if d == 0 {
@@ -227,7 +217,7 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, []float64, error
 			} else {
 				histogram[d]++
 			}
-			if i < int(graph.high) {
+			if i < int(subgraph.high) {
 				if d < minDegree {
 					minDegree = d
 				}
@@ -243,8 +233,8 @@ func nodeAttribution(file *os.File, graph *subgraph) ([]uint32, []float64, error
 	fmt.Printf("Missing nodes: %d\n", missing)
 	fmt.Printf("Degress 0 nodes: %d\n", zeros)
 	fmt.Printf("Edge count: %d\n", current)
-	fmt.Printf("Node count: %d\n", graph.high)
-	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(graph.high))
+	fmt.Printf("Node count: %d\n", subgraph.high)
+	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(subgraph.high))
 	fmt.Printf("Minimum degree: %d\n", minDegree)
 	fmt.Printf("Maximum degree: %d\n", maxDegree)
 	fmt.Printf("Degree histogram: %d\n", histogram)
@@ -397,10 +387,7 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 }
 
 func TestDistances(attributes *edgeAttributes, vertices []uint32) {
-	
 	nodeCount := len(vertices) - 1
-	//edgeCount := vertices[nodeCount]
-	
 	for i := 0; i < nodeCount; i++ {
 		nodeLat := attributes.nodePositions[2 * i]
 		nodeLng := attributes.nodePositions[2 * i + 1]
@@ -424,13 +411,13 @@ func TestDistances(attributes *edgeAttributes, vertices []uint32) {
 	}
 }
 
-func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32, positions []float64) error {
+func edgeAttribution(graph pbf.Graph, subgraph *subgraph, vertices []uint32, positions []float64) error {
 	// Allocate space for the edge attributes
 	numEdges := vertices[len(vertices)-1]
 	highPointers := make([]uint32, len(vertices) - 1)
 	copy(highPointers, vertices)
 	attributes := &edgeAttributes{
-		graph:     graph,
+		graph:     subgraph,
 		nodePositions: positions,
 		locations: map[int64]step{},
 		current:   highPointers,
@@ -445,8 +432,8 @@ func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32, position
 		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
 
 	// Perform the actual graph traversal
-	traverseGraph(file, attributes)
-	
+	graph.Traverse(attributes)
+		
 	// Check that we hit all the edges
 	for i, high := range highPointers {
 		if high != vertices[i + 1] {
@@ -510,7 +497,8 @@ func edgeAttribution(file *os.File, graph *subgraph, vertices []uint32, position
 }
 
 func main() {
-	inputFile := flag.String("i", "input.osm.pbf", "input OSM PBF file")
+	inputFile  := flag.String("i", "input.osm.pbf", "input OSM PBF file")
+	accessType := flag.String("f", "car", "access type (car, bike, foot)")
 	//outputFile := flag.String("o", "output.map", "output graph map file")
 	flag.Parse()
 
@@ -519,28 +507,42 @@ func main() {
 		println("Unable to open file:", err.Error())
 		os.Exit(1)
 	}
+	
+	var access pbf.AccessType
+	switch *accessType {
+	case "car":
+		access = pbf.AccessMotorcar
+	case "bike":
+		access = pbf.AccessBicycle
+	case "foot":
+		access = pbf.AccessFoot
+	default:
+		println("Unrecognized access type:", access)
+		os.Exit(2)
+	}
+	graph := pbf.NewGraph(file, access)
 
 	println("Pass 1")
 
-	graph, err := subgraphInduction(file)
+	subgraph, err := subgraphInduction(graph)
 	if err != nil {
 		println("Error during pass1:", err.Error())
-		os.Exit(2)
+		os.Exit(3)
 	}
 
 	println("Pass 2")
 
-	vertices, positions, err := nodeAttribution(file, graph)
+	vertices, positions, err := nodeAttribution(graph, subgraph)
 	if err != nil {
 		println("Error during pass2:", err.Error())
-		os.Exit(3)
+		os.Exit(4)
 	}
 
 	println("Pass 3")
 
-	err = edgeAttribution(file, graph, vertices, positions)
+	err = edgeAttribution(graph, subgraph, vertices, positions)
 	if err != nil {
 		println("Error during pass3:", err.Error())
-		os.Exit(4)
+		os.Exit(5)
 	}
 }
