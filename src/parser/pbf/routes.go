@@ -126,7 +126,7 @@ func defaultAccessMask(way Way) AccessType {
 		return AccessMotorcar
 	case "path", "track":
 		return AccessBicycle | AccessFoot
-	case "footway", "pedestrian", "stairs", "service":
+	case "footway", "pedestrian", "steps", "service":
 		return AccessFoot
 	case "cycleway":
 		return AccessBicycle
@@ -138,14 +138,12 @@ func defaultAccessMask(way Way) AccessType {
 
 // Compute the access mask for a given way.
 func accessMask(way Way) AccessType {
-	var mask AccessType = 0
-	individualTag := false
+	mask := defaultAccessMask(way)
 	
 	// The designated access tags are hirachical.
 	// This means that more specific tags override higher levels.
 	for _, data := range AccessTable {
 		if _, ok := way.Attributes[data.Key]; ok {
-			individualTag = true
 			if parseBoolean(way, data.Key) {
 				mask |= data.Mask
 			} else {
@@ -154,10 +152,6 @@ func accessMask(way Way) AccessType {
 		}
 	}
 	
-	// If this way was not individually tagged, return the default evaluation.
-	if !individualTag {
-		return defaultAccessMask(way)
-	}
 	return mask
 }
 
