@@ -17,7 +17,7 @@ func TestOrderOfReturnedElements(t *testing.T) {
 	elem3 := NewElement(3 /* value */, 2 /* priority */)
 	elem4 := NewElement(4 /* value */, 4 /* priority */)
 
-	q := New(4 /* initialCapacity */)
+	q := NewPriorityQueue(4 /* initialCapacity */)
 	heap.Push(&q, elem1)
 	heap.Push(&q, elem2)
 	heap.Push(&q, elem3)
@@ -32,7 +32,7 @@ func TestIncreaseSize(t *testing.T) {
 	initialCapacity := 4
 	n := 100
 
-	q := New(initialCapacity)
+	q := NewPriorityQueue(initialCapacity)
 	for i := 0; i < n; i++ {
 		heap.Push(&q, NewElement(1 /* value */, 0 /* priority */))
 	}
