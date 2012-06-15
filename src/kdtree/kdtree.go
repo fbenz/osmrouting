@@ -1,14 +1,13 @@
 // Package for creating and storing a k-d tree
 // It is actually a 2-d tree for the dimensions latitude and longitude.
 
-// TODO check castings
-
 package kdtree
 
 import (
 	"encoding/binary"
 	"graph"
 	"os"
+	"path"
 	"sort"
 )
 
@@ -16,6 +15,7 @@ const (
 	FilenameKdTree = "kdtree.ftf"
 )
 
+// TODO check whether this keeps uint32 or the graph interface changes
 type Nodes []uint32
 
 type KdTree struct {
@@ -99,8 +99,8 @@ func (t KdTree) createSeq(nodes Nodes, compareLat bool) {
 }
 
 // writeToFile stores the permitation created by the k-d tree
-func (t KdTree) writeToFile(filename string) error {
-	output, err := os.Create(filename)
+func (t KdTree) writeToFile(baseDir, filename string) error {
+	output, err := os.Create(path.Join(baseDir, filename))
 	defer output.Close()
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (t KdTree) writeToFile(filename string) error {
 }
 
 // WriteKdTree creates and stores the k-d tree for the given positions
-func WriteKdTree(positions graph.Positions) error {
+func WriteKdTree(baseDir string, positions graph.Positions) error {
 	t := newkdTree(positions)
-	return t.writeToFile(FilenameKdTree)
+	return t.writeToFile(baseDir, FilenameKdTree)
 }
