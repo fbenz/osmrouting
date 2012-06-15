@@ -33,6 +33,7 @@ var oldOverlays = [];
 var refOverlays = [];
 var map;
 var directionsService = new google.maps.DirectionsService();
+var floats = [];
 function init() {
   map = new CM.Map('map', new CM.Tiles.CloudMade.Web({key: '785cf87085dc4fa08c07a9901126cb49'}));
   map.setCenter(new CM.LatLng(49.25709000000001, 7.045980000000001), 16);
@@ -45,8 +46,8 @@ function init() {
   Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973" />
   <input id="testButton" type="button" name="test" value="Go" style="width: 100px"/>
   <br />
-  <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>: <input id="refParameters" type="text" name="paramters" size="122" value="not working yet..." />
-  <input id="refButton" type="button" name="test" value="Get reference" style="width: 100px"/>
+  Reference route: 
+  <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>
   </div>
   <div id="controls" style="width: 200px; margin-right: 10px; float: left">
     <p id="routeOverview"></p>
@@ -105,6 +106,15 @@ function routeSuccess(data) {
       oldOverlays.push(polygon);
     });
   });
+  
+  var start = new CM.LatLng(floats[0], floats[1]);
+  var startMarker = new CM.Marker(start);
+  var end = new CM.LatLng(floats[2], floats[3]);
+  var endMarker = new CM.Marker(end);
+  map.addOverlay(startMarker);
+  oldOverlays.push(startMarker);
+  map.addOverlay(endMarker);
+  oldOverlays.push(endMarker);
 }
 
 function routeError(jqXHR, textStatus, errorThrown) {
@@ -125,21 +135,49 @@ function routeError(jqXHR, textStatus, errorThrown) {
   alert(ts + ": " + et + ": " + rt);
 }
 
+function getParam(params, name) {
+  var ret = null;
+  $.each(params, function(i, param){
+  	if (param.indexOf(name) >= 0) {
+      var j = param.indexOf(name);
+      var start = j + name.length;
+      ret = param.substring(start, param.length);
+      return false;
+  	}
+  });
+  return ret;
+}
+
+function extractWaypoints(w) {
+	var points = w.split("|");
+	floats = [];
+	$.each(points, function(i, point){
+		var p = point.split(",");
+		floats[2*i] = parseFloat(p[0]);
+		floats[2*i+1] = parseFloat(p[1]);
+	});
+}
+
 function update() {
+  var urlParam = $("#testParameters").val();
+  var params = urlParam.split("&");
+  extractWaypoints(getParam(params, "waypoints="));
+
   $.ajax({
     url: "/routes?" + $("#testParameters").val(),
     dataType: 'json',
     success: routeSuccess,
     error: routeError
   });
+  refUpdate();
 }
 
 function refUpdate() {
   refCleanUp();
   var request = {
-    origin: new google.maps.LatLng(49.2572069321567, 7.04588517266191), 
-    destination: new google.maps.LatLng(49.2574019507051, 7.04324261219973),
-    travelMode: google.maps.DirectionsTravelMode.DRIVING,
+    origin: new google.maps.LatLng(floats[0], floats[1]), 
+    destination: new google.maps.LatLng(floats[2], floats[3]),
+    travelMode: google.maps.DirectionsTravelMode.WALKING, // DRIVING
     unitSystem: google.maps.UnitSystem.METRIC
   };
   directionsService.route(request, function(response, status) {
@@ -154,7 +192,7 @@ function refUpdate() {
         $.each(polyline, function(i, point) {
           line[i] = new CM.LatLng(point.lat(), point.lng());
         });
-        var polygon = new CM.Polyline(line, "green", 5, 0.7);
+        var polygon = new CM.Polyline(line, "green", 5, 0.5);
         map.addOverlay(polygon);
         refOverlays.push(polygon);
       });
