@@ -29,6 +29,9 @@ const (
 	SeparatorLatLng    = ","
 
 	DefaultPort = 23401 // the default port number
+
+	Car = "driving"  // Travelmode driving
+	Foot = "walking" // Travelmode walking
 )
 
 var (
@@ -128,7 +131,18 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
+	// travel mode, using strings as constant
+	travelmode:=Car // Per default driving
+	if urlParameter[ParameterTravelmode] != nil{
+		if urlParameter[ParameterTravelmode][0] == Car || urlParameter[ParameterTravelmode][0] == Foot {
+			travelmode = urlParameter[ParameterTravelmode][0]
+		} else {
+			http.Error(w, "wrong travelmode", http.StatusBadRequest)
+			return
+		}
+	}
+	_ = travelmode // TODO remove if travelmode is used
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
 	legs := make([]Leg, len(waypoints) - 1)
