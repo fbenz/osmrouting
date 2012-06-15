@@ -6,33 +6,31 @@ import (
 	"graph"
 	"kdtree"
 	"os"
+	"path"
 )
 
-var kdTree kdtree.KdTree
-
-func LoadKdTree(positions graph.Positions) error {
+func LoadKdTree(base string, positions graph.Positions) (*kdtree.KdTree, error) {
 	kdTreePermutation := make(kdtree.Nodes, positions.Len())
-	input, err := os.Open(kdtree.FilenameKdTree)
+	input, err := os.Open(path.Join(base, kdtree.FilenameKdTree))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = binary.Read(input, binary.LittleEndian, kdTreePermutation)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	kdTree = kdtree.KdTree{kdTreePermutation, positions}
-	return nil
+ 	return &kdtree.KdTree{kdTreePermutation, positions}, nil
 }
 
-func NearestNeighbor(lat, lng float64, forward bool) (graph.Step, []graph.Way) {
-	index := binarySearch(kdTree.Nodes, lat, lng, true /* compareLat */)
+func NearestNeighbor(kdTree *kdtree.KdTree, lat, lng float64, forward bool) (graph.Step, []graph.Way) {
+	index := binarySearch(kdTree, kdTree.Nodes, lat, lng, true /* compareLat */)
 	if index >= uint32(kdTree.Positions.Len()) {
 		panic("nearestNeighbor found index is too large")
 	}
 	return kdTree.Positions.Step(int(index)), kdTree.Positions.Ways(int(index), forward)
 }
 
-func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 {
+func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 {
 	if len(nodes) == 0 {
 		panic("nearestNeighbor.binarySearch")
 	} else if len(nodes) == 1 {
@@ -48,8 +46,8 @@ func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 
 	// corner case where the nearest point can be on both sides of the middle
 	if (compareLat && lat == kdTree.Positions.Lat(int(nodes[middle]))) || (!compareLat && lng == kdTree.Positions.Lng(int(nodes[middle]))) {
 		// recursion on both halfs
-		leftRecIndex := binarySearch(nodes[:middle], lat, lng, !compareLat)
-		rightRecIndex := binarySearch(nodes[middle+1:], lat, lng, !compareLat)
+		leftRecIndex := binarySearch(kdTree, nodes[:middle], lat, lng, !compareLat)
+		rightRecIndex := binarySearch(kdTree, nodes[middle+1:], lat, lng, !compareLat)
 		distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
 		distRecursionLeft := distance(lat, lng, kdTree.Positions.Lat(int(leftRecIndex)), kdTree.Positions.Lng(int(leftRecIndex)))
 		distRecursionRight := distance(lat, lng, kdTree.Positions.Lat(int(rightRecIndex)), kdTree.Positions.Lng(int(rightRecIndex)))
@@ -77,7 +75,7 @@ func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 
 			return nodes[middle]
 		}
 		// recursion on the left half
-		recIndex := binarySearch(nodes[:middle], lat, lng, !compareLat)
+		recIndex := binarySearch(kdTree, nodes[:middle], lat, lng, !compareLat)
 		// compare middle and result from the left
 		distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
 		distRecursion := distance(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
@@ -91,7 +89,7 @@ func binarySearch(nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 
 		return nodes[middle]
 	}
 	// recursion on the right half
-	recIndex := binarySearch(nodes[middle+1:], lat, lng, !compareLat)
+	recIndex := binarySearch(kdTree, nodes[middle+1:], lat, lng, !compareLat)
 	// compare middle and result from the right
 	distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
 	distRecursion := distance(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
