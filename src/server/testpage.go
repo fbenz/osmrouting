@@ -44,13 +44,16 @@ function init() {
 
 </head>
 <body onload="init()">
-  <div id="controls" style="height: 60px">
+  <div id="controls" style="height: 80px">
   Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973&travelmode=walking" />
   <input id="testButton" type="button" name="test" value="Go" style="width: 100px"/>
   <br />
   Reference route: 
   <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>
   (support for the first two waypoints and the travel mode)
+  <br />
+  <input id="testPortCheck" type="checkbox" name="portcheck" value="" />Alternative port: 
+  <input id="testPort" type="text" name="port" size="30" value="23401" />
   </div>
   <div id="controls" style="width: 200px; margin-right: 10px; float: left">
     <p id="routeOverview"></p>
@@ -179,9 +182,14 @@ function update() {
   var params = urlParam.split("&");
   extractWaypoints(getParam(params, "waypoints="));
   extractTravelmode(getParam(params, "travelmode="));
+  
+  var url = "/routes?" + $("#testParameters").val();
+  if ($("#testPortCheck").is(':checked')) {
+  	 url = "/forward?port=" + $("#testPort").val() + "&" + $("#testParameters").val()
+  };
 
   $.ajax({
-    url: "/routes?" + $("#testParameters").val(),
+    url: url,
     dataType: 'json',
     success: routeSuccess,
     error: routeError

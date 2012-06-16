@@ -9,6 +9,9 @@ type Features struct {
 }
 
 type TravelMode struct {
+	Driving bool	`json:"driving"`
+	Walking bool	`json:"walking"`
+	Bicycling bool	`json:"bicycling"`
 }
 
 type Metric struct {

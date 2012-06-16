@@ -31,8 +31,9 @@ const (
 
 	DefaultPort = 23401 // the default port number
 
-	Car = "driving"  // Travelmode driving
-	Foot = "walking" // Travelmode walking
+	TravelmodeCar = "driving"
+	TravelmodeFoot = "walking"
+	TravelmodeBike = "bicycling"
 )
 
 type RoutingData struct {
@@ -75,6 +76,7 @@ func main() {
 	http.HandleFunc("/features", features)
 	http.HandleFunc("/awesome", test)
 	http.HandleFunc("/status", status)
+	http.HandleFunc("/forward", forward)
 	http.HandleFunc("/stop6bbw753i08wn1ca", stop)
 
 	// start the HTTP server
@@ -125,7 +127,9 @@ func setup() error {
 	InitLogger()
 
 	// create the feature response only once (no change at runtime)
-	if fp, err := json.Marshal(&Features{}); err != nil {
+	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
+	supportedFeatures := &Features{TravelMode: supportedTravelmodes}
+	if fp, err := json.Marshal(supportedFeatures); err != nil {
 		log.Fatal("Creating feature response:", err)
 		return err
 	} else {
@@ -160,9 +164,11 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// travel mode, using strings as constant
-	travelmode:=Car // Per default driving
-	if urlParameter[ParameterTravelmode] != nil{
-		if urlParameter[ParameterTravelmode][0] == Car || urlParameter[ParameterTravelmode][0] == Foot {
+	travelmode := TravelmodeCar // Per default driving
+	if urlParameter[ParameterTravelmode] != nil {
+		if urlParameter[ParameterTravelmode][0] == TravelmodeCar ||
+			urlParameter[ParameterTravelmode][0] == TravelmodeFoot ||
+			urlParameter[ParameterTravelmode][0] == TravelmodeBike {
 			travelmode = urlParameter[ParameterTravelmode][0]
 		} else {
 			http.Error(w, "wrong travelmode", http.StatusBadRequest)
@@ -250,6 +256,42 @@ func stop(w http.ResponseWriter, r *http.Request) {
 	time.Sleep(5 * time.Second)
 
 	os.Exit(1)
+}
+
+// forward redirects the routing request to another port
+func forward(w http.ResponseWriter, r *http.Request) {
+	// only extract the "port" parameter
+	urlParameter := r.URL.Query()
+	if urlParameter["port"] == nil || len(urlParameter["port"]) < 1 {
+		http.Error(w, "no port", http.StatusBadRequest)
+		return
+	}
+	port := urlParameter["port"][0]
+	
+	forwardParameter := ""
+	for k, v := range urlParameter {
+		if k != "port" {
+			forwardParameter += "&" + k + "=" + v[0]
+		}
+	}
+	// remove first &
+	forwardParameter = forwardParameter[1:]
+	resp, err := http.Get("http://urania.mpi-inf.mpg.de:" + port + "/routes?" + forwardParameter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	body := make([]byte, 1024)
+	length := 1
+	var readErr error
+	for length > 0 {
+		length, readErr = resp.Body.Read(body)
+		if length != 0 && readErr != nil {
+			http.Error(w, "error while reading response from remote server: " + readErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(body[:length])
+	}
 }
 
 // status returns an HTML page with some status information about the server
