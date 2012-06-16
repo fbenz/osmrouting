@@ -34,6 +34,8 @@ var refOverlays = [];
 var map;
 var directionsService = new google.maps.DirectionsService();
 var floats = [];
+var travelmode = travelmode = google.maps.DirectionsTravelMode.DRIVING;
+
 function init() {
   map = new CM.Map('map', new CM.Tiles.CloudMade.Web({key: '785cf87085dc4fa08c07a9901126cb49'}));
   map.setCenter(new CM.LatLng(49.25709000000001, 7.045980000000001), 16);
@@ -43,11 +45,12 @@ function init() {
 </head>
 <body onload="init()">
   <div id="controls" style="height: 60px">
-  Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973" />
+  Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973&travelmode=walking" />
   <input id="testButton" type="button" name="test" value="Go" style="width: 100px"/>
   <br />
   Reference route: 
   <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>
+  (support for the first two waypoints and the travel mode)
   </div>
   <div id="controls" style="width: 200px; margin-right: 10px; float: left">
     <p id="routeOverview"></p>
@@ -158,10 +161,24 @@ function extractWaypoints(w) {
 	});
 }
 
+function extractTravelmode(mode) {
+	travelmode = google.maps.DirectionsTravelMode.DRIVING;
+	if (mode == null) {
+		return;
+	}
+	mode = mode.toLowerCase();
+	if (mode == "walking") {
+		travelmode = google.maps.DirectionsTravelMode.WALKING;
+	} else if (mode == "bicycling") {
+		travelmode = google.maps.DirectionsTravelMode.BICYCLING;
+	}
+}
+
 function update() {
   var urlParam = $("#testParameters").val();
   var params = urlParam.split("&");
   extractWaypoints(getParam(params, "waypoints="));
+  extractTravelmode(getParam(params, "travelmode="));
 
   $.ajax({
     url: "/routes?" + $("#testParameters").val(),
@@ -174,10 +191,11 @@ function update() {
 
 function refUpdate() {
   refCleanUp();
+
   var request = {
     origin: new google.maps.LatLng(floats[0], floats[1]), 
     destination: new google.maps.LatLng(floats[2], floats[3]),
-    travelMode: google.maps.DirectionsTravelMode.WALKING, // DRIVING
+    travelMode: travelmode,
     unitSystem: google.maps.UnitSystem.METRIC
   };
   directionsService.route(request, function(response, status) {
