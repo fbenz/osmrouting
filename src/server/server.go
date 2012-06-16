@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -45,8 +46,9 @@ var (
 	featureResponse []byte
 
 	// command line flags
-	FlagPort    int
-	FlagLogging bool
+	FlagPort    	int
+	FlagLogging 	bool
+	FlagCpuProfile 	string
 
 	startupTime time.Time
 	
@@ -56,6 +58,7 @@ var (
 func init() {
 	flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
 	flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
+	flag.StringVar(&FlagCpuProfile, "cpuprofile", "", "enables CPU profiling")
 }
 
 func main() {
@@ -82,21 +85,21 @@ func main() {
 	// start the HTTP server
 	log.Println("Serving...")
 	startupTime = time.Now()
-	err := http.ListenAndServe(":"+strconv.Itoa(FlagPort), nil)
+	err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
 	if err != nil {
-		log.Fatal("ListenAndServe:", err)
+		log.Fatal("ListenAndServe: ", err)
 	}
 }
 
 func loadFiles(base string) (*RoutingData, error) {
 	g, err := graph.Open(base)
 	if err != nil {
-		log.Fatal("Loading graph:", err)
+		log.Fatal("Loading graph: ", err)
 		return nil, err
 	}
 	t, err := alg.LoadKdTree(base, g.Positions());
 	if  err != nil {
-		log.Fatal("Loading k-d tree:", err)
+		log.Fatal("Loading k-d tree: ", err)
 		return nil, err
 	}
 	return &RoutingData{g, t}, nil
@@ -130,7 +133,7 @@ func setup() error {
 	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
 	supportedFeatures := &Features{TravelMode: supportedTravelmodes}
 	if fp, err := json.Marshal(supportedFeatures); err != nil {
-		log.Fatal("Creating feature response:", err)
+		log.Fatal("Creating feature response: ", err)
 		return err
 	} else {
 		// only assign if the creation was successful
@@ -148,6 +151,16 @@ func root(w http.ResponseWriter, r *http.Request) {
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	defer LogRequest(r, startTime)
+	
+	// profiling if enabled
+	if FlagCpuProfile != "" {
+        f, err := os.Create(FlagCpuProfile)
+        if err != nil {
+            log.Fatal("Creating profile: ", err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
 
 	// parse URL and extract parameters
 	urlParameter := r.URL.Query()
