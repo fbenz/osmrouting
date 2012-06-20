@@ -90,7 +90,7 @@ func WayToStep(steps graph.Way, start, stop graph.Step) Step {
 
 // Convert an Edge (u,v) into a json Step
 func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
-	return PartwayToStep(edge.Steps(), NodeToStep(g, u), NodeToStep(g, v), edge.Length())
+	return PartwayToStep(g.EdgeSteps(edge), NodeToStep(g, u), NodeToStep(g, v), g.EdgeLength(edge))
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.

@@ -11,15 +11,7 @@ import (
 )
 
 type Node uint // TODO uint or something else?
-
-type Edge interface {
-	Length() float64
-	StartPoint() Node // e.g. via binary search on the node array
-	EndPoint() Node
-	ReverseEdge() (Edge, bool)
-	Steps() []Step
-	// Label() string
-}
+type Edge uint
 
 // "partial edge" is returned by the k-d tree
 type Way struct {
@@ -33,12 +25,16 @@ type Way struct {
 type Graph interface {
 	NodeCount() int
 	EdgeCount() int
-	//Node(Node) Node
-	Edge(uint) Edge
 	Positions() Positions
 	
-	NodeEdges(Node) []Edge
+	NodeEdges(Node) (Edge, Edge)
 	NodeLatLng(Node) (float64, float64)
+	
+	EdgeLength(Edge) float64
+	EdgeStartPoint(Edge) Node
+	EdgeEndPoint(Edge) Node
+	EdgeReverse(Edge) (Edge, bool)
+	EdgeSteps(Edge) []Step
 }
 
 // Implementation sketch (wrapper around graph):
@@ -187,11 +183,6 @@ func reverse(steps []Step) {
 
 // Interface Implementation
 
-type edgeReference struct {
-	g     *graphFile
-	index uint
-}
-
 // Graph
 
 func (g *graphFile) NodeCount() int {
@@ -202,33 +193,21 @@ func (g *graphFile) EdgeCount() int {
 	return len(g.edges)
 }
 
-func (g *graphFile) Edge(i uint) Edge {
-	if i >= uint(g.EdgeCount()) {
-		panic("Edge access out of bounds.")
-	}
-	return edgeReference{g, i}
-}
-
 func (g *graphFile) Positions() Positions {
 	return g
 }
 
 // Node
 
-func (g *graphFile) NodeEdges(i Node) []Edge {
+func (g *graphFile) NodeEdges(i Node) (Edge, Edge) {
 	// The check is done anyway when accessing g.vertices
 	/*if i >= Node(g.NodeCount()) {
 		panic("Node access out of bounds.")
 	}*/
 
 	start := g.vertices[i]
-	stop := g.vertices[i+1]
-	degree := stop - start
-	edges := make([]Edge, degree)
-	for j, _ := range edges {
-		edges[j] = edgeReference{g, uint(start+uint32(j))}
-	}
-	return edges
+	end := g.vertices[i+1] - 1
+	return Edge(start), Edge(end)
 }
 
 func (g *graphFile) NodeLatLng(i Node) (float64, float64) {
@@ -239,47 +218,47 @@ func (g *graphFile) NodeLatLng(i Node) (float64, float64) {
 
 // Edge
 
-func (ref edgeReference) Length() float64 {
-	return ref.g.distances[ref.index]
+func (g *graphFile) EdgeLength(i Edge) float64 {
+	return g.distances[i]
 }
 
-func (ref edgeReference) StartPoint() Node {
-	i := sort.Search(len(ref.g.vertices),
-		func(i int) bool { return uint(ref.g.vertices[i]) > ref.index }) - 1
-	return Node(i)
+func (g *graphFile) EdgeStartPoint(i Edge) Node {
+	j := sort.Search(len(g.vertices),
+		func(k int) bool { return Edge(g.vertices[k]) > i }) - 1
+	return Node(j)
 }
 
-func (ref edgeReference) EndPoint() Node {
-	index := ref.g.edges[ref.index]
+func (g *graphFile) EdgeEndPoint(i Edge) Node {
+	index := g.edges[i]
 	return Node(index)
 }
 
-func (ref edgeReference) ReverseEdge() (Edge, bool) {
-	index := ref.g.revEdges[ref.index]
-	if uint(index) == ref.index {
-		return ref, false
+func (g *graphFile) EdgeReverse(i Edge) (Edge, bool) {
+	index := g.revEdges[i]
+	if Edge(index) == i {
+		return Edge(index), false
 	}
-	return edgeReference{ref.g, uint(index)}, true
+	return Edge(index), true
 }
 
-func (ref edgeReference) Steps() []Step {
-	start  := ref.g.steps[ref.index]
-	stop   := ref.g.steps[ref.index+1]
+func (g *graphFile) EdgeSteps(i Edge) []Step {
+	start  := g.steps[i]
+	stop   := g.steps[i+1]
 	revert := false
 	if start == stop {
-		revIndex := ref.g.revEdges[ref.index]
-		if uint(revIndex) != ref.index {
-			start  = ref.g.steps[revIndex]
-			stop   = ref.g.steps[revIndex + 1]
+		revIndex := g.revEdges[i]
+		if Edge(revIndex) != i {
+			start  = g.steps[revIndex]
+			stop   = g.steps[revIndex + 1]
 			revert = true
 		}
 	}
 	size := stop - start
 	steps := make([]Step, size)
-	for i, _ := range steps {
-		lat := ref.g.stepPositions[2*(int(start)+i)]
-		lng := ref.g.stepPositions[2*(int(start)+i)+1]
-		steps[i] = Step{lat, lng}
+	for j, _ := range steps {
+		lat := g.stepPositions[2*(int(start)+j)]
+		lng := g.stepPositions[2*(int(start)+j)+1]
+		steps[j] = Step{lat, lng}
 	}
 	if revert {
 		reverse(steps)
@@ -346,10 +325,9 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
     }
     i -= g.NodeCount()
     // find the (edge, offset) pair for step i
-	edgeIndex := sort.Search(len(g.steps),
-		func(j int) bool { return uint(g.steps[j]) > uint(i) }) - 1
-	offset := uint32(i) - g.steps[edgeIndex]
-	edge   := g.Edge(uint(edgeIndex))
+	edge := Edge(sort.Search(len(g.steps),
+		func(j int) bool { return uint(g.steps[j]) > uint(i) }) - 1)
+	offset := uint32(i) - g.steps[edge]
 	// now we can allocate the way corresponding to (edge,offset),
 	// but there are three cases to consider:
 	// - if the way is bidirectional we have to compute both directions,
@@ -361,15 +339,15 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	// Strictly speaking only the second case needs an additional binary
 	// search in the form of edge.StartPoint, but let's keep this simple
 	// for now.
-	steps := edge.Steps()
+	steps := g.EdgeSteps(edge)
 	b1 := make([]Step, len(steps[:offset]))
 	b2 := make([]Step, len(steps[offset+1:]))
 	copy(b1, steps[:offset])
 	copy(b2, steps[offset+1:])
 	l1 := wayLength(steps[:offset+1], g.geo)
 	l2 := wayLength(steps[offset:],   g.geo)
-	t1 := edge.StartPoint()
-	t2 := edge.EndPoint()
+	t1 := g.EdgeStartPoint(edge)
+	t2 := g.EdgeEndPoint(edge)
 	t1Lat, t1Lng := g.NodeLatLng(t1)
 	t2Lat, t2Lng := g.NodeLatLng(t2)
 	d1, _ := g.geo.To(t1Lat, t1Lng, steps[0].Lat, steps[0].Lng)
@@ -385,7 +363,7 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	}
 	
 	var w []Way
-	if _, ok := edge.ReverseEdge(); ok {
+	if _, ok := g.EdgeReverse(edge); ok {
 		w = make([]Way, 2) // bidirectional
 		w[0] = Way{Length: l1, Node: t1, Steps: b1, Forward: forward, Target: target}
 		w[1] = Way{Length: l2, Node: t2, Steps: b2, Forward: forward, Target: target}

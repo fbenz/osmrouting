@@ -55,20 +55,20 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List,
 		}
 		currDist := d[curr]
 		
-		for _, e := range g.NodeEdges(curr) {
-			n := e.EndPoint()
+		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
+			n := g.EdgeEndPoint(currEdge)
 			elem := NewElement(n, currDist)
 			if dist, ok := d[n]; ok {
-				if tmpDist := currDist + e.Length(); tmpDist < dist {
+				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < dist {
 					q.ChangePriority(elem, tmpDist)
 					d[n] = tmpDist
 					p[n] = curr
-					ep[n] = e
+					ep[n] = currEdge
 				}
 			} else {
-				d[n] = currDist + e.Length()
+				d[n] = currDist + g.EdgeLength(currEdge)
 				p[n] = curr
-				ep[n] = e
+				ep[n] = currEdge
 				heap.Push(&q, elem)
 			}
 		}
