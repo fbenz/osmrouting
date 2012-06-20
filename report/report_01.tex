@@ -1,0 +1,86 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+
+\usepackage{graphicx}  % import graphics
+\usepackage{listings}  % support source code listing
+\usepackage{amsmath}  % math stuff
+\usepackage{amssymb} % 
+\usepackage{a4wide} % wide pages
+\usepackage{fancyhdr} % nice headers
+\usepackage{tikz}
+\usetikzlibrary{arrows}
+\usetikzlibrary{petri}
+
+\lstset{basicstyle=\footnotesize,language=Python,numbers=left, numberstyle=\tiny, stepnumber=5,firstnumber=0, numbersep=5pt} % set up listings
+\pagestyle{fancy}             % header
+
+\usepackage[none]{hyphenat}
+\sloppy
+
+% change enums style: first level (a), (b), (c)           
+\renewcommand{\labelenumi}{\arabic{enumi}.}
+\renewcommand{\labelenumii}{\alph{enumii})}
+
+%term/semester
+\newcommand{\term}{
+	Summer 2012 -- Saarland University
+} 
+
+%lecture name
+\newcommand{\lecture}{
+	Algorithm Engineering
+}           
+
+%assignment iteration
+\newcommand{\assignment}{
+	Team FortyTwo Report
+}
+
+%set up names, matricle number, and email
+\newcommand{\authors}{
+  Florian Benz, Steven Schäfer, Bernhard Schommer
+}
+
+% use to start a new exercise
+\newcommand{\exercise}[1]
+{
+  \stepcounter{subsection}
+  \subsection*{Exercise \thesubsection: #1}
+
+}
+
+\begin{document}
+\title{
+  \vspace{-3cm}
+  \large
+  \lecture \\
+  \small \term \\
+  \huge \assignment
+}
+\author{\small \authors}
+
+\setlength \headheight{25pt}
+\fancyhead[R]{\begin{tabular}{r}\lecture \\ \assignment \end{tabular}}
+\fancyhead[L]{\authors}
+
+\maketitle
+
+\section{Encountered Problems}
+structure of OSM data (strange values...),
+performance degradation due to too many memory allocations,
+memory usage of the parser
+
+\section{Implementation}
+parser,
+graph,
+dijkstra
+
+\section{Additional Features}
+logging,
+testpage,
+profiling
+
+\section{Future Work}
+precomputation to beat pure dijkstra
+
+\end{document}
