@@ -10,10 +10,7 @@ import (
 	"ellipsoid"
 )
 
-type Node interface {
-	Edges() []Edge
-	LatLng() (float64, float64)
-}
+type Node uint // TODO uint or something else?
 
 type Edge interface {
 	Length() float64
@@ -36,9 +33,12 @@ type Way struct {
 type Graph interface {
 	NodeCount() int
 	EdgeCount() int
-	Node(uint) Node
+	//Node(Node) Node
 	Edge(uint) Edge
 	Positions() Positions
+	
+	NodeEdges(Node) []Edge
+	NodeLatLng(Node) (float64, float64)
 }
 
 // Implementation sketch (wrapper around graph):
@@ -187,11 +187,6 @@ func reverse(steps []Step) {
 
 // Interface Implementation
 
-type nodeReference struct {
-	g     *graphFile
-	index uint
-}
-
 type edgeReference struct {
 	g     *graphFile
 	index uint
@@ -207,13 +202,6 @@ func (g *graphFile) EdgeCount() int {
 	return len(g.edges)
 }
 
-func (g *graphFile) Node(i uint) Node {
-	if i >= uint(g.NodeCount()) {
-		panic("Node access out of bounds.")
-	}
-	return nodeReference{g, i}
-}
-
 func (g *graphFile) Edge(i uint) Edge {
 	if i >= uint(g.EdgeCount()) {
 		panic("Edge access out of bounds.")
@@ -227,20 +215,25 @@ func (g *graphFile) Positions() Positions {
 
 // Node
 
-func (ref nodeReference) Edges() []Edge {
-	start := ref.g.vertices[ref.index]
-	stop := ref.g.vertices[ref.index+1]
+func (g *graphFile) NodeEdges(i Node) []Edge {
+	// The check is done anyway when accessing g.vertices
+	/*if i >= Node(g.NodeCount()) {
+		panic("Node access out of bounds.")
+	}*/
+
+	start := g.vertices[i]
+	stop := g.vertices[i+1]
 	degree := stop - start
 	edges := make([]Edge, degree)
-	for i, _ := range edges {
-		edges[i] = edgeReference{ref.g, uint(start+uint32(i))}
+	for j, _ := range edges {
+		edges[j] = edgeReference{g, uint(start+uint32(j))}
 	}
 	return edges
 }
 
-func (ref nodeReference) LatLng() (float64, float64) {
-	lat := ref.g.positions[2*ref.index]
-	lng := ref.g.positions[2*ref.index+1]
+func (g *graphFile) NodeLatLng(i Node) (float64, float64) {
+	lat := g.positions[2*i]
+	lng := g.positions[2*i+1]
 	return lat, lng
 }
 
@@ -253,12 +246,12 @@ func (ref edgeReference) Length() float64 {
 func (ref edgeReference) StartPoint() Node {
 	i := sort.Search(len(ref.g.vertices),
 		func(i int) bool { return uint(ref.g.vertices[i]) > ref.index }) - 1
-	return nodeReference{ref.g, uint(i)}
+	return Node(i)
 }
 
 func (ref edgeReference) EndPoint() Node {
 	index := ref.g.edges[ref.index]
-	return nodeReference{ref.g, uint(index)}
+	return Node(index)
 }
 
 func (ref edgeReference) ReverseEdge() (Edge, bool) {
@@ -302,7 +295,7 @@ func (g *graphFile) Len() int {
 
 func (g *graphFile) Lat(i int) float64 {
 	if i < g.NodeCount() {
-		lat, _ := g.Node(uint(i)).LatLng()
+		lat, _ := g.NodeLatLng(Node(i))
 		return lat
 	}
 	i -= g.NodeCount()
@@ -311,7 +304,7 @@ func (g *graphFile) Lat(i int) float64 {
 
 func (g *graphFile) Lng(i int) float64 {
 	if i < g.NodeCount() {
-		_, lng := g.Node(uint(i)).LatLng()
+		_, lng := g.NodeLatLng(Node(i))
 		return lng
 	}
 	i -= g.NodeCount()
@@ -320,7 +313,7 @@ func (g *graphFile) Lng(i int) float64 {
 
 func (g *graphFile) Step(i int) Step {
 	if i < g.NodeCount() {
-		lat, lng := g.Node(uint(i)).LatLng()
+		lat, lng := g.NodeLatLng(Node(i))
 		return Step{lat, lng}
 	}
 	i -= g.NodeCount()
@@ -345,8 +338,8 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
     if i < g.NodeCount() {
 		// The easy case, where we hit some node exactly.
         w := make([]Way, 1)
-		n := g.Node(uint(i))
-		lat, lng := n.LatLng()
+		n := Node(i)
+		lat, lng := g.NodeLatLng(n)
 		target := Step{lat, lng}
 		w[0] = Way{Length: 0, Node: n, Steps: nil, Target: target}
         return w
@@ -377,8 +370,8 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	l2 := wayLength(steps[offset:],   g.geo)
 	t1 := edge.StartPoint()
 	t2 := edge.EndPoint()
-	t1Lat, t1Lng := t1.LatLng()
-	t2Lat, t2Lng := t2.LatLng()
+	t1Lat, t1Lng := g.NodeLatLng(t1)
+	t2Lat, t2Lng := g.NodeLatLng(t2)
 	d1, _ := g.geo.To(t1Lat, t1Lng, steps[0].Lat, steps[0].Lng)
 	d2, _ := g.geo.To(t2Lat, t2Lng, steps[len(steps)-1].Lat, steps[len(steps)-1].Lng)
 	l1 += d1

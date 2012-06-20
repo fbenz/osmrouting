@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	
+	//"fmt"
 )
 
 const (
@@ -199,9 +201,12 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true /* forward */)
 		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
 		
-		dist, vertices, edges, start, end := alg.Dijkstra(startWays, endWays)
+		//stD := time.Now()
+		dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
+		//dTime := time.Now().Sub(stD)
+		//fmt.Printf("dijkstra: %v\n", dTime.Nanoseconds()/1000)
 		
-		legs[i] = PathToLeg(dist,vertices,edges,start,end)
+		legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
 	}

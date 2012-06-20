@@ -21,7 +21,7 @@ func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
 // A slightly optimized version of dijkstras algorithm
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
-func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, graph.Way) {
+func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, graph.Way) {
 	d := make(map[graph.Node]float64)
 	p := make(map[graph.Node]graph.Node)  // Predecessor list
 	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
@@ -54,12 +54,13 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, gra
 			}
 		}
 		currDist := d[curr]
-		for _, e := range curr.Edges() {
+		
+		for _, e := range g.NodeEdges(curr) {
 			n := e.EndPoint()
 			elem := NewElement(n, currDist)
 			if dist, ok := d[n]; ok {
 				if tmpDist := currDist + e.Length(); tmpDist < dist {
-					q.ChangePriority(elem, tmpDist) // TODO again check cast
+					q.ChangePriority(elem, tmpDist)
 					d[n] = tmpDist
 					p[n] = curr
 					ep[n] = e
@@ -101,12 +102,11 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, gra
 			}
 		}
 	}
-	//fmt.Printf("target: %v\n", curr)
+	
 	var start bool
 	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
-		// In case no path was found or something goes wrong here
-		if curr == nil {
-			log.Printf("WARNING: curr = nil\n")
+		if curr == p[curr] {
+			log.Printf("WARNING: dijkstra found no path\n")
 			break
 		}
 
@@ -124,5 +124,10 @@ func Dijkstra(s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, gra
 	//fmt.Printf("startway: %v\n", startway)
 	//fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
+	
+	//fmt.Printf("len(d) = %v\n", len(d))
+	//fmt.Printf("len(p) = %v\n", len(p))
+	//fmt.Printf("len(ep) = %v\n", len(ep))
+	
 	return currdist, path, edges, startway, endway
 }

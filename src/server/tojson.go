@@ -49,8 +49,8 @@ func StepToPoint(step graph.Step) Point {
 	return Point{step.Lat, step.Lng}
 }
 
-func NodeToStep(node graph.Node) graph.Step {
-	lat, lng := node.LatLng()
+func NodeToStep(g graph.Graph, node graph.Node) graph.Step {
+	lat, lng := g.NodeLatLng(node)
 	return graph.Step{lat, lng}
 }
 
@@ -89,12 +89,12 @@ func WayToStep(steps graph.Way, start, stop graph.Step) Step {
 }
 
 // Convert an Edge (u,v) into a json Step
-func EdgeToStep(edge graph.Edge, u, v graph.Node) Step {
-	return PartwayToStep(edge.Steps(), NodeToStep(u), NodeToStep(v), edge.Length())
+func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
+	return PartwayToStep(edge.Steps(), NodeToStep(g, u), NodeToStep(g, v), edge.Length())
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.Way) Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices, edges *list.List, start, stop graph.Way) Leg {
 	// Determine the number of steps on this path.
 	totalSteps := edges.Len()
 	if start.Length > 1e-7 {
@@ -109,7 +109,7 @@ func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.W
 	i := 0
 	if start.Length > 1e-7 {
 		next := vertices.Front().Value.(graph.Node)
-		steps[0] = WayToStep(start, start.Target, NodeToStep(next))
+		steps[0] = WayToStep(start, start.Target, NodeToStep(g, next))
 		i++
 	}
 	
@@ -120,7 +120,7 @@ func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.W
 		edge := edgeIter.Value.(graph.Edge)
 		from := vertexIter.Value.(graph.Node)
 		to   := vertexIter.Next().Value.(graph.Node)
-		steps[i] = EdgeToStep(edge, from, to)
+		steps[i] = EdgeToStep(g, edge, from, to)
 		vertexIter = vertexIter.Next()
 		edgeIter   = edgeIter.Next()
 		i++
@@ -129,7 +129,7 @@ func PathToLeg(distance float64, vertices, edges *list.List, start, stop graph.W
 	// Add the final step, if present
 	if stop.Length > 1e-7 {
 		prev := vertices.Back().Value.(graph.Node)
-		steps[i] = WayToStep(stop, NodeToStep(prev), stop.Target)
+		steps[i] = WayToStep(stop, NodeToStep(g, prev), stop.Target)
 	}
 	
 	return Leg{
