@@ -102,12 +102,30 @@ performance degradation due to too many memory allocations,
 memory usage of the parser
 
 \section{Additional Features}
-logging,
-testpage,
-profiling
+
+Our server can perform concurrent non-blocking logging with accurate timing information.
+In addition, the server can output profiling data for a request.
+This has already been useful in troubleshooting performance problems.
+
+Additionally, we have created a small JavaScript based frontend that 
+gives us an easy way to test and visualize the results of our implementation.
 
 \section{Future Work}
-precomputation to beat pure dijkstra
+
+Even for a route request from Saarbrücken to Frankfurt Dijkstra's algorithm takes an inordinate amount of time (1 second).
+Therefore, we are going to implement an algorithm based on transit node routing.
+Furthermore, we have to ensure that the street graphs continue to fit into memory.
+We are going to accomplish this by using succinct data structures;
+Elias Fano encoding for vertex indices and delta compression for edges and positions.
+
+The quality of the input data is also an issue.
+Currently there are mutiple strongly connected components in the input data.
+In the future we are going to partition the graph and throw away erroneous nodes.
+Finding strongly connected components in large graphs is a difficult problem.
+However, since we know that the graph contains a large SCC,
+a simple randomized strategy can be used.
+
+metric
 
 \begin{thebibliography}{9}
 
