@@ -65,15 +65,41 @@
 
 \maketitle
 
+\section{Overview}
+First, we preprocess the OSM data to extract a street graph consisting of intersections in the original graph.
+For each travel mode we currently emit a separate graph containing only those vertices and edges relevant for the travel mode.
+Our graph format consits of a compressed sparse row representation of the graph.
+Each vertex and edge can be uniquely identified by its offset.
+We use this to store additional attributes like distance, steps, or positions in separate files.
+
+During the startup of the server, all files are mapped into the server's address space.
+As a result our startup overhead is negligible and we do not have to load data from disk afterwards.
+This has been a boon for testing.
+
+When a query arrives, we find for each waypoint the nearest node in the OSM data.
+This might not correspond to a vertex in our street graph;
+in this case the node lies on an edge and we compute all reachable endpoints of this edge.
+At this point, we run Dijkstra's algorithm on the street graph.
+Finally, the resulting JSON object is created and returned.
+
+The street graph is significantly smaller than the original OSM graph.
+Furthermore, it is sparse; the average outdegree is around 2.4.
+This means that Dijkstra's algorithm is efficient with a simple binary heap.
+
+To find the nearest neighbor, we use a k-d tree with $k=2$ which is precomputed.
+This results in very fast queries during runtime.
+The construction algorithm is reminiscent of quicksort and can be parallelized efficiently.
+On disk the k-d tree is stored as a permutation of vertex and step indices.
+
+We use Go as our implementation language.
+Go is a modern, concurrent and statically compiled programming language.
+As the standard library comes with a HTTP server and JSON marschaling,
+the initial implementation went very smoothly.
+
 \section{Encountered Problems}
 structure of OSM data (strange values...),
 performance degradation due to too many memory allocations,
 memory usage of the parser
-
-\section{Implementation}
-parser,
-graph,
-dijkstra
 
 \section{Additional Features}
 logging,
@@ -82,5 +108,16 @@ profiling
 
 \section{Future Work}
 precomputation to beat pure dijkstra
+
+\begin{thebibliography}{9}
+
+\bibitem{lamport94}
+  Leslie Lamport,
+  \emph{\LaTeX: A Document Preparation System}.
+  Addison Wesley, Massachusetts,
+  2nd Edition,
+  1994.
+
+\end{thebibliography}
 
 \end{document}
