@@ -70,11 +70,10 @@ First, we pre-process the OSM data to extract a street graph consisting of inter
 For each travel mode we currently emit a separate graph containing only those vertices and edges relevant for the travel mode.
 Our graph format consists of a compressed sparse row representation of the graph.
 Each vertex and edge can be uniquely identified by its offset.
-We use this to store additional attributes like distance, steps, or positions in separate files.
+We use this to store additional attributes like distance, steps and positions in separate files.
 
 During the startup of the server, all files are mapped into the server's address space.
 As a result our startup overhead is negligible and we do not have to load data from disk afterwards.
-This has been a boon for testing.
 
 When a query arrives, we find for each waypoint the nearest node in the OSM data.
 This might not correspond to a vertex in our street graph;
@@ -86,43 +85,43 @@ The street graph is significantly smaller than the original OSM graph.
 Furthermore, it is sparse; the average out-degree is around 2.4.
 This means that Dijkstra's algorithm is efficient with a simple binary heap.
 
-To find the nearest neighbor, we use a k-d tree with $k=2$ which is precomputed.
+To find the nearest neighbor, we use a precomputed k-d tree.
 This results in very fast queries during runtime.
 The construction algorithm is reminiscent of quicksort and can be parallelized efficiently.
 On disk the k-d tree is stored as a permutation of vertex and step indices.
 
 We use Go as our implementation language.
 Go is a modern, concurrent and statically compiled programming language.
-As the standard library comes with a HTTP server and JSON marshaling,
+As the standard library comes with an HTTP server and JSON marshaling,
 the initial implementation went very smoothly.
 
 \section{Encountered Problems}
 
 The OSM data turned out to be astonishingly clean, compared to the output of a monkey with a typewriter.
 By default the data is sorted by creation date, which is nice if you want to build a history viewer.
-For our purposes, this sorting is useless if you want to apply any kind of graph algorithm
+For our purposes, this ordering is useless if you want to apply any kind of graph algorithm
 directly to the OSM files.
 
 Profiling revealed that we had performance degradation due to too many memory allocations.
 Thus, we improved the performance by replacing our "reference" structs for vertices and edges by integer indices.
 
 Due to the Go garbage collector, the addressable memory on a 64 bit machine is limited to 16 GB.
-At the moment our parser needs more memory if processing the whole of Germany for pedestrian routing.
+At the moment our parser needs more memory to process the whole of Germany for pedestrian routing.
 We intend to solve this by allocating large data structures in the non-GC heap
 and reducing our memory footprint.
 If it turns out that we have to swap data, we intend to use an off-the-shelf key-value store (e.g. LevelDB, RethinkDB).
-But this is only for the preprocessing.
+But this is only for the pre-processing.
 For the server, we try to avoid swapping at all costs.
-In this case, we will fall back to succinct data structures.
 
 \section{Additional Features}
 
 Our server can perform concurrent non-blocking logging with accurate timing information.
-In addition, the server can output profiling data for a request.
-This has already been useful in troubleshooting performance problems.
+In addition, the server can output profiling data for a request;
+this has already been useful in troubleshooting performance problems.
 
 Additionally, we have created a small JavaScript based frontend that 
-gives us an easy way to test and visualize the results of our implementation.
+gives us an easy way to test and visualize the results of our implementation
+(integrated into our server).
 
 \section{Future Work}
 
@@ -138,15 +137,15 @@ Currently there are multiple strongly connected components in the input data.
 In the future we are going to partition the graph and throw away erroneous nodes.
 Finding strongly connected components in large graphs is a difficult problem.
 However, since we know that the graph contains a large SCC,
-a simple randomized strategy can be used.
+a simple randomized strategy can be used~\cite{don07}.
 
 To improve the compression and locality, we intend to use a locality preserving ordering based on space filling curves
 (e.g. Hilbert curves~\cite{moo08}).
 
 The distance metric can be computed directly and this is already implemented.
 In order to compute fastest paths we need estimates of the average traveling speed.
-This topic needs additional research as the OSM data is incomplete. Existing routing
-services seem to use a combination of different heuristics.
+This topic needs additional research.
+Existing routing services use a combination of different heuristics.
 For supporting energy efficient routing we need precise elevation data.
 Fortunately, topographical surveys are readily available, see e.g. \cite{farr07}.
 In the future we will include the SRTM data set during pre-processing to compute
@@ -161,6 +160,9 @@ more accurate distances.
   Microsoft Research,
   2012,
   http://research.microsoft.com/pubs/163231/MSR-TR-2012-46.pdf.
+
+\bibitem{don07}
+	D. Donato, L. Laura, S. Leonardi, and S. Millozzi, \emph{The Web as a graph: How far we are}. ACM Trans. Internet Technol. 7, 1, Article 4, 2007. 
 
 \bibitem{farr07}
 	T. G. Farr, et al., \emph{The Shuttle Radar Topography Mission}. Rev. Geophys., 45, RG2004, 2007, doi:10.1029/2005RG000183.
