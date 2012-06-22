@@ -115,9 +115,9 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 		return currdist, path, edges, startway, endway
 	}
 	
-	//var start bool
 	position := stepCount - 1
 	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
+		elem, _ := elements[curr]
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
@@ -127,6 +127,14 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 		position--
 	}
 	path[0] = curr
+
+	// Choose startway corresponding to the path created by Dijkstra's algorithm
+	for _, way := range s {
+		if path[0] == way.Node {
+			startway = way
+			break
+		}
+	}
 
 	//fmt.Printf("path: %v\n", path)
 	//fmt.Printf("dist: %v\n", currdist)
@@ -141,7 +149,15 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	
 	/*time4 := time.Now()
 	fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
-	fmt.Printf("time 2-3: %v\n", time3.Sub(time2).Nanoseconds() / 1000)
+	fmt.Printf("time 2-3:func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
+	var resultway graph.Way
+	for _, way := range w {
+		if s == way.Node {
+			return true, way
+		}
+	}
+	return false, resultway
+} %v\n", time3.Sub(time2).Nanoseconds() / 1000)
 	fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
 	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
 	

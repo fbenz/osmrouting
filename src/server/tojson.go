@@ -113,10 +113,11 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 	}
 	
 	// Add the intermediate steps
-	for i, edge := range edges {
-		from := vertices[i]
-		to   := vertices[i+1]
+	for j, edge := range edges {
+		from := vertices[j]
+		to   := vertices[j+1]
 		steps[i] = EdgeToStep(g, edge, from, to)
+		i++
 	}
 	
 	// Add the final step, if present
