@@ -2,7 +2,6 @@ package main
 
 import (
 	"graph"
-	"container/list"
 	"math"
 	"fmt"
 )
@@ -94,41 +93,35 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices, edges *list.List, start, stop graph.Way) Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) Leg {
 	// Determine the number of steps on this path.
-	totalSteps := edges.Len()
+	totalSteps := len(edges)
 	if start.Length > 1e-7 {
 		totalSteps++
 	}
 	if stop.Length > 1e-7 {
 		totalSteps++
 	}
-	steps:=make([]Step,totalSteps)
+	steps := make([]Step, totalSteps)
 	
 	// Add the initial step, if present
 	i := 0
 	if start.Length > 1e-7 {
-		next := vertices.Front().Value.(graph.Node)
-		steps[0] = WayToStep(start, start.Target, NodeToStep(g, next))
+		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
+		steps[0] = WayToStep(start, start.Target, NodeToStep(g, vertices[0]))
 		i++
 	}
 	
 	// Add the intermediate steps
-	vertexIter := vertices.Front()
-	edgeIter   := edges.Front()
-	for edgeIter != nil {
-		edge := edgeIter.Value.(graph.Edge)
-		from := vertexIter.Value.(graph.Node)
-		to   := vertexIter.Next().Value.(graph.Node)
+	for i, edge := range edges {
+		from := vertices[i]
+		to   := vertices[i+1]
 		steps[i] = EdgeToStep(g, edge, from, to)
-		vertexIter = vertexIter.Next()
-		edgeIter   = edgeIter.Next()
-		i++
 	}
 	
 	// Add the final step, if present
 	if stop.Length > 1e-7 {
-		prev := vertices.Back().Value.(graph.Node)
+		prev := vertices[len(vertices) - 1]
 		steps[i] = WayToStep(stop, NodeToStep(g, prev), stop.Target)
 	}
 	

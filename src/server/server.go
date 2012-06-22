@@ -198,7 +198,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	distance := 0.0
 	duration := 0.0
 	for i := 0; i < len(waypoints) - 1; i++ {
-		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true /* forward */)
+		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true  /* forward */)
 		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
 		
 		//stD := time.Now()

@@ -2,43 +2,38 @@ package alg
 
 import (
 	"container/heap"
-	"container/list"
 	"log"
-	//"fmt"
 	"graph"
+	
+	//"fmt"
+	//"time"
 )
-
-func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
-	var resultway graph.Way
-	for _, way := range w {
-		if s == way.Node {
-			return true, way
-		}
-	}
-	return false, resultway
-}
 
 // A slightly optimized version of dijkstras algorithm
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
-func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List, graph.Way, graph.Way) {
-	d := make(map[graph.Node]float64)
-	p := make(map[graph.Node]graph.Node)  // Predecessor list
-	ep := make(map[graph.Node]graph.Edge) // Edge Predecessors
+func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.Edge, graph.Way, graph.Way) {
+	//time1 := time.Now()
+	
+	elements := make(map[graph.Node]*DijkstraElement)
 	q := NewPriorityQueue(1024)
+
 	final := make(map[graph.Node]bool)
 	for _, tar := range t {
 		final[tar.Node] = true
 	}
 	for _, str := range s {
 		priority := str.Length
-		x := NewElement(str.Node, priority) // TODO check this cast
+		x := NewDijkstraElement(str.Node, priority, priority)
+		elements[x.node] = x
 		heap.Push(&q, x)
-		d[str.Node] = priority
 	}
+	
+	//time2 := time.Now()
+	
 	for !q.Empty() {
-		currElem := (heap.Pop(&q)).(*Element) // Get the first element
-		curr := currElem.Value.(graph.Node)            // Unbox the node
+		currElem := (heap.Pop(&q)).(*DijkstraElement) // Get the first element
+		curr := currElem.node
 		if final[curr] {
 			// We're done as soon as we hit the last final node
 			final[curr] = false
@@ -53,29 +48,29 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List,
 				break
 			}
 		}
-		currDist := d[curr]
+		currDist := elements[curr].d
 		
 		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
 			n := g.EdgeEndPoint(currEdge)
-			elem := NewElement(n, currDist)
-			if dist, ok := d[n]; ok {
-				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < dist {
-					q.ChangePriority(elem, tmpDist)
-					d[n] = tmpDist
-					p[n] = curr
-					ep[n] = currEdge
+			if elem, ok := elements[n]; ok {
+				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < elem.d {
+					q.ChangePriority(elem, tmpDist) // TODO A*? tmpDist + estimate 
+					elem.d = tmpDist
+					elem.p = curr
+					elem.ep = currEdge
 				}
 			} else {
-				d[n] = currDist + g.EdgeLength(currEdge)
-				p[n] = curr
-				ep[n] = currEdge
-				heap.Push(&q, elem)
+				x := NewDijkstraElement(n, currDist /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				elements[x.node] = x
+				x.p = curr
+				x.ep = currEdge
+				heap.Push(&q, x)
 			}
 		}
 	}
+	
+	//time3 := time.Now()
 
-	path := list.New()
-	edges := list.New()
 	// Construct the list by moving from t to s
 	first := true
 	var curr graph.Node
@@ -84,10 +79,11 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List,
 	var startway graph.Way
 	for _, targetnode := range t {
 		tmpnode := targetnode.Node
-		dist, ok := d[tmpnode]
+		elem, ok := elements[tmpnode]
 		if !ok {
 			continue
 		}
+		dist := elem.d
 		tmpdist := dist + targetnode.Length
 		if first {
 			curr = tmpnode
@@ -103,21 +99,35 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List,
 		}
 	}
 	
-	var start bool
-	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
-		if curr == p[curr] {
-			log.Printf("WARNING: dijkstra found no path\n")
-			break
-		}
-
+	oldCurr := curr
+	stepCount := 0
+	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
+		curr = elements[curr].p
+		stepCount++
+	}
+	curr = oldCurr
+	
+	path := make([]graph.Node, stepCount + 1)
+	edges := make([]graph.Edge, stepCount)
+	
+	if stepCount == 0 {
+		log.Printf("WARNING: dijkstra found no path\n")
+		return currdist, path, edges, startway, endway
+	}
+	
+	//var start bool
+	position := stepCount - 1
+	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
-		path.PushFront(curr)
-		edges.PushFront(ep[curr])
-		curr = p[curr]
+		path[position + 1] = elem.node
+		edges[position] = elem.ep
+		curr = elem.p
+		position--
 	}
-	path.PushFront(curr)
+	path[0] = curr
+
 	//fmt.Printf("path: %v\n", path)
 	//fmt.Printf("dist: %v\n", currdist)
 	//fmt.Printf("edges: %v\n", edges)
@@ -128,6 +138,12 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, *list.List, *list.List,
 	//fmt.Printf("len(d) = %v\n", len(d))
 	//fmt.Printf("len(p) = %v\n", len(p))
 	//fmt.Printf("len(ep) = %v\n", len(ep))
+	
+	/*time4 := time.Now()
+	fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
+	fmt.Printf("time 2-3: %v\n", time3.Sub(time2).Nanoseconds() / 1000)
+	fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
+	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
 	
 	return currdist, path, edges, startway, endway
 }
