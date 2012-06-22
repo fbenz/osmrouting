@@ -116,10 +116,7 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	}
 	
 	position := stepCount - 1
-	//for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
-	var start bool
-	for start, startway = isInList(s, curr); !start; start, startway = isInList(s, curr) {
-		elem, _ := elements[curr]
+	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
@@ -131,12 +128,12 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	path[0] = curr
 
 	// Choose startway corresponding to the path created by Dijkstra's algorithm
-	/*for _, way := range s {
+	for _, way := range s {
 		if path[0] == way.Node {
 			startway = way
 			break
 		}
-	}*/
+	}
 
 	//fmt.Printf("path: %v\n", path)
 	//fmt.Printf("dist: %v\n", currdist)
@@ -164,14 +161,4 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
 	
 	return currdist, path, edges, startway, endway
-}
-
-func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
-	var resultway graph.Way
-	for _, way := range w {
-		if s == way.Node {
-			return true, way
-		}
-	}
-	return false, resultway
 }
