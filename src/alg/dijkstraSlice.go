@@ -14,8 +14,7 @@ import (
 // of the path
 func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.Edge, graph.Way, graph.Way) {
 	//time1 := time.Now()
-	
-	// TODO a large slice is not good for short routes
+
 	elements := make([]*DijkstraElement, g.NodeCount())
 	q := NewPriorityQueue(1024)
 

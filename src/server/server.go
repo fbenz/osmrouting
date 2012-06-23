@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"geo"
 	"graph"
 	"html/template"
 	"io"
@@ -200,14 +201,15 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < len(waypoints) - 1; i++ {
 		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true  /* forward */)
 		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
-		
-		//stD := time.Now()
-		// TODO DijkstraSlice is not good for small routes, maybe add a case distinction
-		dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
-		//dTime := time.Now().Sub(stD)
-		//fmt.Printf("dijkstra: %v\n", dTime.Nanoseconds()/1000)
-		
-		legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+
+		if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0 * 1000.0 { // > 100km
+			// only use Dijkstra with a large slice for large distances
+			dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
+			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+		} else {
+			dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
+			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+		}
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
 	}
@@ -231,6 +233,12 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonResult)
+}
+
+func getDistance(g graph.Graph, n1 graph.Node, n2 graph.Node) float64 {
+	lat1, lng1 := g.NodeLatLng(n1)
+	lat2, lng2 := g.NodeLatLng(n2)
+	return geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
 }
 
 // getWaypoints parses the given waypoints.
