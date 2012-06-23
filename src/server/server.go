@@ -202,7 +202,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
 		
 		//stD := time.Now()
-		dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
+		// TODO DijkstraSlice is not good for small routes, maybe add a case distinction
+		dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
 		//dTime := time.Now().Sub(stD)
 		//fmt.Printf("dijkstra: %v\n", dTime.Nanoseconds()/1000)
 		
