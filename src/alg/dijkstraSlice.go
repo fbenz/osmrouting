@@ -102,7 +102,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 	oldCurr := curr
 	stepCount := 0
 	for elem := elements[curr]; elem != nil && elem.node != elem.p; elem = elements[curr] {
-		curr = elements[curr].p
+		curr = elem.p
 		stepCount++
 	}
 	curr = oldCurr

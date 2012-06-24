@@ -102,7 +102,7 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	oldCurr := curr
 	stepCount := 0
 	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
-		curr = elements[curr].p
+		curr = elem.p
 		stepCount++
 	}
 	curr = oldCurr
