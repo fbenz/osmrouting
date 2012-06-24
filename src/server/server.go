@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"geo"
+	//"geo"
 	"graph"
 	"html/template"
 	"io"
@@ -122,7 +122,7 @@ func setup() error {
 	if err != nil {
 		return err
 	}
-	osmData["bike"] = *dat // <- look this up.
+	osmData["bicycling"] = *dat
 	
 	dat, err = loadFiles("foot")
 	if err != nil {
@@ -205,7 +205,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		// for all current checks on urania it is better to use the slice version, but for
 		// smaller distances the difference is not that large
 		//if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0 * 1000.0 { // > 100km
-
+		
 		dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
 		legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
 		distance += float64(legs[i].Distance.Value)
