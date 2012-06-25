@@ -52,6 +52,7 @@ var (
 	FlagPort    	int
 	FlagLogging 	bool
 	FlagCpuProfile 	string
+	FlagCaching		bool
 
 	startupTime time.Time
 	
@@ -62,6 +63,7 @@ func init() {
 	flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
 	flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
 	flag.StringVar(&FlagCpuProfile, "cpuprofile", "", "enables CPU profiling")
+	flag.BoolVar(&FlagCaching, "caching", false, "enables caching of route requests")
 }
 
 func main() {
@@ -130,7 +132,12 @@ func setup() error {
 	}
 	osmData["walking"] = *dat
 
-	InitLogger()
+	if FlagLogging {
+		InitLogger()
+	}
+	if FlagCaching {
+		InitCache()
+	}
 
 	// create the feature response only once (no change at runtime)
 	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
@@ -192,6 +199,14 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
+	cachingKey := urlParameter["waypoints"][0] + travelmode
+	if FlagCaching {
+		if resp, ok := CacheGet(cachingKey); ok {
+			w.Write(resp)
+			return
+		}
+	}
+	
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
 	data := osmData[travelmode]
@@ -229,6 +244,9 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "unable to create a proper JSON object", http.StatusInternalServerError)
 		return
+	}
+	if FlagCaching {
+		CachePut(cachingKey, jsonResult)
 	}
 	w.Write(jsonResult)
 }
@@ -328,6 +346,8 @@ func status(w http.ResponseWriter, r *http.Request) {
 	minutes := int64(uptime.Minutes()) % 60
 	statusInfo["uptimeHours"] = strconv.FormatInt(hours, 10 /* base */)
 	statusInfo["uptimeMinutes"] = strconv.FormatInt(minutes, 10 /* base */)
+	statusInfo["cacheCurrent"] = strconv.FormatInt(int64(cache.Size / 1024), 10 /* base */)
+	statusInfo["cacheMax"] = strconv.FormatInt(int64(MaxCacheSize / 1024), 10 /* base */)
 
 	if err := statusTemplate.Execute(w, statusInfo); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -346,6 +366,7 @@ const statusTemplateHTML = `
   <h1>Team FortyTwo Server Status</h1>
   <p>Started: {{ .startupTime }}</p>
   <p>Uptime: {{ .uptimeHours }} h {{ .uptimeMinutes }} min</p>
+  <p>Cache: {{ .cacheCurrent }} of {{ .cacheMax }} kB</p>
 </body>
 </html>
 `

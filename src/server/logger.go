@@ -27,10 +27,6 @@ type RequestInfo struct {
 
 // InitLogger sets up a buffered channel and starts a goroutine so that requests can be logged afterwards.
 func InitLogger() {
-	if !FlagLogging {
-		return
-	}
-
 	loggerChan = make(chan *RequestInfo, LogBufferSize)
 	// exactly one logger runs concurrently
 	go logger()
