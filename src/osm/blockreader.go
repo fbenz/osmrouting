@@ -1,16 +1,12 @@
-// Storage Layer - Parse OSMPBF blobs and decompress them.
+package osm
+
+// Storage Layer - Parse osmpbf blobs and decompress them.
 // A .osm.pbf file consists of a series of blobs which are encoded as
 // - header length (single int32 in big endian byte order)
 // - BlobHeader (type + compressed data size)
 // - BlobData (raw or zlib compressed block)
 // We provide a single function (ReadBlock) to read a complete block from a
 // given Reader.
-
-// This file contains some code from go-osmpbf-filter, namely the readb function.
-// (This means that if we ever release it, this will have to be replaced, or we
-// will be subject to the GPLv3)
-
-package pbf
 
 import (
 	"bytes"
@@ -19,14 +15,19 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"parser/OSMPBF"
+	"osm/pbf"
+)
+
+const (
+	MaxHeaderSize = 64 << 10
+	MaxBlobSize   = 32 << 20
 )
 
 type BlockType int
 
 const (
-	OSMHeader BlockType = 0
-	OSMData   BlockType = 1
+	OSMHeader BlockType = iota
+	OSMData
 )
 
 type Block struct {
@@ -34,17 +35,33 @@ type Block struct {
 	Data []byte
 }
 
+// Read exactly the number of requested bytes.
+// I don't know if this is truly necessary, but it is included in go-osmpbf-filter...
+func readb(file io.Reader, size int32) ([]byte, error) {
+	buffer := make([]byte, size)
+	var idx int32 = 0
+	for {
+		cnt, err := file.Read(buffer[idx:])
+		if err != nil {
+			return nil, err
+		}
+		idx += int32(cnt)
+		if idx == size {
+			break
+		}
+	}
+	return buffer, nil
+}
+
 // Read a BlobHeader, including the size field
-func readBlobHeader(stream io.Reader) (*OSMPBF.BlobHeader, error) {
+func readBlobHeader(stream io.Reader) (*pbf.BlobHeader, error) {
 	// Read the size of the blob header
 	var headerSize int32
 	if err := binary.Read(stream, binary.BigEndian, &headerSize); err != nil {
 		return nil, err
 	}
 
-	// The OSMPBF specification prescribes that "The length of the BlobHeader
-	// *should* be less than 32 KiB and *must* be less than 64 KiB."
-	if headerSize < 0 || headerSize > (64*1024) {
+	if headerSize < 0 || headerSize > MaxHeaderSize {
 		return nil, errors.New("Invalid blob header size")
 	}
 
@@ -53,7 +70,7 @@ func readBlobHeader(stream io.Reader) (*OSMPBF.BlobHeader, error) {
 		return nil, err
 	}
 
-	blobHeader := &OSMPBF.BlobHeader{}
+	blobHeader := &pbf.BlobHeader{}
 	if err := proto.Unmarshal(buffer, blobHeader); err != nil {
 		return nil, err
 	}
@@ -61,7 +78,7 @@ func readBlobHeader(stream io.Reader) (*OSMPBF.BlobHeader, error) {
 }
 
 // Parse the blob type
-func blobType(header *OSMPBF.BlobHeader) (BlockType, error) {
+func blobType(header *pbf.BlobHeader) (BlockType, error) {
 	t := proto.GetString(header.Type)
 	switch t {
 	case "OSMHeader":
@@ -72,12 +89,10 @@ func blobType(header *OSMPBF.BlobHeader) (BlockType, error) {
 	return 0, errors.New("Invalid BlobType: " + t)
 }
 
-// Read a pbf Blob, without decompressing
-func readBlobData(stream io.Reader, header *OSMPBF.BlobHeader) (*OSMPBF.Blob, error) {
-	// "The uncompressed length of a Blob *should* be less than 16 MiB
-	// and *must* be less than 32 MiB. "
+// Read a pbf Blob, without decompressing it
+func readBlobData(stream io.Reader, header *pbf.BlobHeader) (*pbf.Blob, error) {
 	blobSize := proto.GetInt32(header.Datasize)
-	if blobSize < 0 || blobSize > (32*1024*1024) {
+	if blobSize < 0 || blobSize > MaxBlobSize {
 		return nil, errors.New("Invalid blob size")
 	}
 
@@ -86,7 +101,7 @@ func readBlobData(stream io.Reader, header *OSMPBF.BlobHeader) (*OSMPBF.Blob, er
 		return nil, err
 	}
 
-	blob := &OSMPBF.Blob{}
+	blob := &pbf.Blob{}
 	if err := proto.Unmarshal(buffer, blob); err != nil {
 		return nil, err
 	}
@@ -94,7 +109,7 @@ func readBlobData(stream io.Reader, header *OSMPBF.BlobHeader) (*OSMPBF.Blob, er
 }
 
 // Decompress a given blob
-func decodeBlob(blob *OSMPBF.Blob) ([]byte, error) {
+func decodeBlob(blob *pbf.Blob) ([]byte, error) {
 	// If the block is stored in uncompressed form
 	if blob.Raw != nil {
 		return blob.Raw, nil

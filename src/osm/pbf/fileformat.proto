@@ -16,7 +16,7 @@
 */
 
 option optimize_for = LITE_RUNTIME;
-package OSMPBF;
+package pbf;
 
 
 //

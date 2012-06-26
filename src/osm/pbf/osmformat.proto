@@ -16,7 +16,7 @@
 */
 
 option optimize_for = LITE_RUNTIME;
-package OSMPBF;
+package pbf;
 
 /* OSM Binary file format 
 
@@ -225,11 +225,11 @@ message Way {
 }
 
 message Relation {
-  enum MemberType {
-    NODE = 0;
-    WAY = 1;
-    RELATION = 2;
-  } 
+   enum MemberType {
+      NODE = 0;
+      WAY = 1;
+      RELATION = 2;
+   } 
    required int64 id = 1;
 
    // Parallel arrays.
@@ -243,4 +243,3 @@ message Relation {
    repeated sint64 memids = 9 [packed = true]; // DELTA encoded
    repeated MemberType types = 10 [packed = true];
 }
-

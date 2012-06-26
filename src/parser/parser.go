@@ -17,47 +17,80 @@
 package main
 
 import (
+	"alg"
 	"encoding/binary"
 	"ellipsoid"
 	"flag"
 	"fmt"
+	"geo"
 	"os"
-	"parser/pbf"
+	"osm"
 )
 
-// Debugging
+// Street graph visitor, skips unimportant ways.
+type StreetGraph struct {
+	File   *os.File
+	Access osm.AccessType
+}
 
-type NodeInspector struct{}
+type StreetGraphVisitor struct {
+	Access  osm.AccessType
+	Visitor osm.Visitor
+}
 
-func (*NodeInspector) VisitNode(node pbf.Node) {
-	fmt.Printf("Node %d:\n", node.Id)
-	fmt.Printf(" - Lat/Lon: (%.5f, %.5f)\n", node.Lat, node.Lon)
-	for key, val := range node.Attributes {
-		fmt.Printf(" - %s: %s\n", key, val)
+func (s *StreetGraphVisitor) VisitNode(node osm.Node) {
+	s.Visitor.VisitNode(node)
+}
+
+func (s *StreetGraphVisitor) VisitRelation(relation osm.Relation) {
+	s.Visitor.VisitRelation(relation)
+}
+
+func (s *StreetGraphVisitor) VisitWay(way osm.Way) {
+	// Skip trivial ways
+	if len(way.Nodes) < 2 {
+		return
 	}
-}
-
-func (*NodeInspector) VisitWay(way pbf.Way) {
-	fmt.Printf("Way %d:\n", way.Id)
-	for i, ref := range way.Nodes {
-		fmt.Printf(" - Ref[%d] = %d\n", i, ref)
+	
+	// Skip non-roads
+	mask := osm.AccessMask(way)
+	if mask & s.Access == 0 {
+		return
 	}
-	for key, val := range way.Attributes {
-		fmt.Printf(" - %s: %s\n", key, val)
+	
+	// Now parse the oneway tag... if it's broken we cannot (safely) use
+	// this street.
+	safe := osm.NormalizeOneway(way)
+	if !safe {
+		return
 	}
+	
+	s.Visitor.VisitWay(way)
 }
 
-type NodeCounter struct {
-	nodeCount uint64
-	wayCount  uint64
+func Traverse(graph StreetGraph, visitor osm.Visitor) error {
+	filter := &StreetGraphVisitor{
+		Access:  graph.Access,
+		Visitor: visitor,
+	}
+	return osm.ParseFile(graph.File, filter)
 }
 
-func (c *NodeCounter) VisitNode(node pbf.Node) {
-	c.nodeCount++
-}
-
-func (c *NodeCounter) VisitWay(way pbf.Way) {
-	c.wayCount++
+// Output a slice of fixed size data in little endian format.
+func Output(name string, data interface{}) error {
+	output, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(output, binary.LittleEndian, data)
+	if err != nil {
+		return err
+	}
+	err = output.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // PASS 1
@@ -68,316 +101,253 @@ func (c *NodeCounter) VisitWay(way pbf.Way) {
 // nodes we see and add every node we see more than once to the subgraph.
 // Corner points are always part of the street graph.
 
-type subgraphNodes map[int64]uint32
+type NodeIndices map[int64] uint32
 
-type subgraph struct {
-	indices subgraphNodes
-	visited map[int64] bool
-	high    uint32
+type Subgraph struct {
+	Indices NodeIndices
+	Visited alg.BitVector
+	Size    uint32
 }
 
-func (s *subgraph) VisitNode(node pbf.Node) {
+func (s *Subgraph) VisitNode(node osm.Node) {
 }
 
-func (s *subgraph) VisitWay(way pbf.Way) {
-	if len(way.Nodes) > 1 {
-		i := way.Nodes[0]
-		j := way.Nodes[len(way.Nodes)-1]
-		if _, ok := s.indices[i]; !ok {
-			s.indices[i] = s.high
-			s.high++
+func (s *Subgraph) VisitRelation(relation osm.Relation) {
+}
+
+func (s *Subgraph) VisitWay(way osm.Way) {
+	// Add all flagged nodes along with the endpoints
+	for i, nodeId := range way.Nodes {
+		if _, ok := s.Indices[nodeId]; ok {
+			// node is already in the graph
+			continue
 		}
-		if _, ok := s.indices[j]; !ok {
-			s.indices[j] = s.high
-			s.high++
+		if i == 0 || i == len(way.Nodes) - 1 || s.Visited.Get(nodeId) {
+			s.Indices[nodeId] = s.Size
+			s.Size++
 		}
 	}
 	
-	// Flag interior nodes
-	if len(way.Nodes) > 2 {
-		for _, nodeIndex := range way.Nodes[1:len(way.Nodes)-1] {
-			if s.visited[nodeIndex] {
-				// Intersection node, add it to the graph
-				// (unless it's already in the graph)
-				if _, ok := s.indices[nodeIndex]; !ok {
-					s.indices[nodeIndex] = s.high
-					s.high++
-				}
-			} else {
-				// Flag the node
-				s.visited[nodeIndex] = true
-			}
-		}
+	// Flag all nodes in on the way
+	for _, nodeId := range way.Nodes {
+		s.Visited.Set(nodeId, true)
 	}
 }
 
-func subgraphInduction(graph pbf.Graph) (*subgraph, error) {
-	var nodes subgraphNodes = subgraphNodes(map[int64]uint32{})
-	var visited map[int64]bool = map[int64]bool {}
-	var subgraph *subgraph = &subgraph{nodes, visited, 0}
-	err := graph.Traverse(subgraph)
+func InducedSubgraph(graph StreetGraph) (*Subgraph, error) {
+	visitor := &Subgraph{
+		Indices: NodeIndices {},
+		Visited: alg.NewBitVector(64),
+		Size:    0,
+	}
+	
+	err := Traverse(graph, visitor)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Found a street-graph with %d nodes.\n", subgraph.high)
-	return subgraph, nil
+	
+	// the bitvector is still needed for pass 3
+	return visitor, nil
 }
 
 // Pass 2
+// Gather the relevant node attributes: out-degrees and positions.
+// At this point we could allow a small interlude which sorts the node
+// indices, but we do not do this currently.
 
-type nodeAttributes struct {
-	graph     *subgraph
-	degrees   []uint32
-	positions []float64
-	reverseIndex map[int] int64
-	count int
+type NodeAttributes struct {
+	*Subgraph
+	Degrees   []uint32
+	Positions []float64
 }
 
-func (v *nodeAttributes) VisitNode(node pbf.Node) {
-	if i, ok := v.graph.indices[node.Id]; ok {
-		v.positions[2*i]   = node.Lat
-		v.positions[2*i+1] = node.Lon
-		//fmt.Printf("Visit: %d\n", i)
-		v.reverseIndex[int(i)] = node.Id
-		v.count++
+func (v *NodeAttributes) VisitNode(node osm.Node) {
+	if i, ok := v.Indices[node.Id]; ok {
+		v.Positions[2*i]   = node.Position.Lat
+		v.Positions[2*i+1] = node.Position.Lng
 	}
 }
 
-func (v *nodeAttributes) VisitWay(way pbf.Way) {
+func (v *NodeAttributes) VisitRelation(relation osm.Relation) {
+}
+
+func (v *NodeAttributes) VisitWay(way osm.Way) {
 	isOneway := way.Attributes["oneway"] == "true"
-	//segmentStart := 0
-	segmentIndex, ok := v.graph.indices[way.Nodes[0]]
+	
+	prevIndex, ok := v.Indices[way.Nodes[0]]
 	if !ok {
-		panic("First vertex of a path is not in the graph!?")
+		panic("First vertex of a path is not in the graph")
 	}
-	borked := true
-	for _, nodeId := range way.Nodes[1:] {
-		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
-			borked = false
-			v.degrees[segmentIndex]++
-			if !isOneway {
-				v.degrees[nodeIndex]++
-			}
-			segmentIndex = nodeIndex
-			//segmentStart = i
+	
+	broken := true // this just guards against parser bugs
+	
+	for _, osmId := range way.Nodes[1:] {
+		nodeIndex, ok := v.Indices[osmId]
+		if !ok {
+			continue
 		}
+		broken = false
+		
+		// We always have an edge from the previous index to this one
+		v.Degrees[prevIndex]++
+		// The reverse edge only exists if this is a two-way road
+		if !isOneway {
+			v.Degrees[nodeIndex]++
+		}
+		
+		prevIndex = nodeIndex
 	}
-	if borked {
-		fmt.Printf("Visited an edge without vertices: %v.\n", way)
+	
+	if broken {
+		panic(fmt.Sprintf("Visited an edge without vertices: %v.\n", way))
 	}
 }
 
-func nodeAttribution(graph pbf.Graph, subgraph *subgraph) ([]uint32, []float64, error) {
-	positions := make([]float64, 2*subgraph.high)
-	degrees := make([]uint32, subgraph.high+1)
-	for i, _ := range degrees {
-		degrees[i] = 0
+func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, error) {
+	visitor := &NodeAttributes{
+		Subgraph:  subgraph,
+		Degrees:   make([]uint32,    subgraph.Size+1),
+		Positions: make([]float64, 2*subgraph.Size),
 	}
-	filter := &nodeAttributes{subgraph, degrees, positions, map[int]int64 {}, 0}
-	err := graph.Traverse(filter)
+	
+	err := Traverse(graph, visitor)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	println("Writing node positions")
-
+	
 	// Write node attributes
-	output, err := os.Create("positions.ftf")
+	err = Output("positions.ftf", visitor.Positions)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	binary.Write(output, binary.LittleEndian, positions)
-	output.Close()
-
-	println("Writing node edge pointers")
-
-	// Write node -> edge start pointers
-	vertices, err := os.Create("vertices.ftf")
-	if err != nil {
-		return nil, nil, err
-	}
-	var current uint32 = 0
-	var minDegree uint32 = degrees[0]
-	var maxDegree uint32 = degrees[0]
-	histogram := map[uint32] int {}
-	missing := 0
-	zeros   := 0
-	for i, d := range degrees {
-		// The last "vertex" is a sentinel and should not appear in the
-		// statistics...
-		if uint32(i) < subgraph.high {
-			if _, ok := filter.reverseIndex[i]; !ok {
-				missing++
-			} else if d == 0 {
-				fmt.Printf("Degree 0 node: %d\n", filter.reverseIndex[i])
-				zeros++
-			}
-			if _, ok := histogram[d]; !ok {
-				histogram[d] = 1
-			} else {
-				histogram[d]++
-			}
-			if i < int(subgraph.high) {
-				if d < minDegree {
-					minDegree = d
-				}
-				if d > maxDegree {
-					maxDegree = d
-				}
-			}
+	
+	// Write node -> first edge table (that's the degree sum)
+	var c uint32 = 0
+	h := alg.NewHistogram("degrees")
+	e := visitor.Degrees
+	for i, d := range e {
+		// The last "vertex" is a sentinel
+		if uint32(i) < subgraph.Size {
+			h.Add(fmt.Sprintf("%d", d))
 		}
-		degrees[i] = current
-		current += d
+		e[i] = c
+		c += d
 	}
-	fmt.Printf("Visited %d nodes\n", filter.count)
-	fmt.Printf("Missing nodes: %d\n", missing)
-	fmt.Printf("Degress 0 nodes: %d\n", zeros)
-	fmt.Printf("Edge count: %d\n", current)
-	fmt.Printf("Node count: %d\n", subgraph.high)
-	fmt.Printf("Average degree: %.4f\n", float64(current)/float64(subgraph.high))
-	fmt.Printf("Minimum degree: %d\n", minDegree)
-	fmt.Printf("Maximum degree: %d\n", maxDegree)
-	fmt.Printf("Degree histogram: %d\n", histogram)
-	//fmt.Printf("Degrees: %v\n", degrees)
-	binary.Write(vertices, binary.LittleEndian, degrees)
-	vertices.Close()
-	println("Success.")
-	return degrees, positions, nil
+	
+	// Print statistics
+	h.Print()
+	fmt.Printf("Edge Count: %d\n", c)
+	
+	err = Output("vertices.ftf", e)
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 // Pass 3
+// Gather edge attributes. The only vexing point here are the step positions.
+// Since we do not have edge indices (edges are subdivisions of ways), we can't
+// count the "step sizes" first and then allocate a single large file for the
+// steps. Instead we need to keep an array of dynamic arrays for the steps.
+// This sucks for multiple reasons. One, it uses more memory than it should.
+// Two, the garbage collector will have to traverse this very large array of
+// pointers.
+// TODO: Find a better way.
 
-type step struct {
-	lat float64
-	lon float64
-}
-
-type edgeAttributes struct {
-	// ellipsoid for distance calculations
-	geo ellipsoid.Ellipsoid
-	nodePositions []float64
-	// focus on the street graph
-	graph *subgraph
-	// node locations
-	locations map[int64]step
+type EdgeAttributes struct {
+	*Subgraph
+	
+	// ellipsoid, for distance calculations
+	E ellipsoid.Ellipsoid
+	// node locations, for the steps
+	Positions map[int64] geo.Coordinate
+	
 	// vertex -> edge index maps
-	current []uint32
+	Current []uint32
 	// edge -> vertex index map
-	edges []uint32
+	Edges []uint32
 	// edge -> edge index map
-	reverse []uint32
+	Reverse []uint32
 	// edge -> distance
-	distance []float64
-	// edge -> steps
-	steps [][]step
+	Distance []float64
+	// edge -> steps (could save indices instead of float64 pairs)
+	Steps [][]geo.Coordinate
 }
 
-func edgeLength(steps []step, geo ellipsoid.Ellipsoid) float64 {
+func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) float64 {
 	if len(steps) < 2 {
-		fmt.Printf("%v\n", steps)
-		panic("Missing steps")
-		return 0.0
+		panic(fmt.Sprintf("Missing steps: %v", steps))
 	}
 
 	prev := steps[0]
 	total := 0.0
 	for _, step := range steps[1:] {
-		distance, _ := geo.To(prev.lat, prev.lon, step.lat, step.lon)
+		distance, _ := e.To(prev.Lat, prev.Lng, step.Lat, step.Lng)
 		total += distance
 		prev = step
 	}
 	return total
 }
 
-func (v *edgeAttributes) VisitNode(node pbf.Node) {
-	v.locations[node.Id] = step{node.Lat, node.Lon}
+func (v *EdgeAttributes) VisitNode(node osm.Node) {
+	if v.Visited.Get(node.Id) {
+		v.Positions[node.Id] = node.Position
+	}
 }
 
-func (v *edgeAttributes) VisitWay(way pbf.Way) {
+func (v *EdgeAttributes) VisitRelation(relation osm.Relation) {
+}
+
+func (v *EdgeAttributes) VisitWay(way osm.Way) {
 	isOneway := way.Attributes["oneway"] == "true"
 	segmentStart := 0
-	segmentIndex := v.graph.indices[way.Nodes[0]]
+	segmentIndex := v.Indices[way.Nodes[0]]
 	for i, nodeId := range way.Nodes {
 		if i == 0 {
 			continue
 		}
-		if nodeIndex, ok := v.graph.indices[nodeId]; ok {
+		if nodeIndex, ok := v.Indices[nodeId]; ok {
 			// Record a new edge from vertex segmentIndex to nodeIndex
-			edge := v.current[segmentIndex]
-			v.edges[edge] = nodeIndex
-			v.current[segmentIndex]++
+			edge := v.Current[segmentIndex]
+			v.Edges[edge] = nodeIndex
+			v.Current[segmentIndex]++
 
 			// If this is a bidirectional road, also record the reverse edge
 			rev_edge := edge
 			if !isOneway {
-				rev_edge = v.current[nodeIndex]
-				v.edges[rev_edge] = segmentIndex
-				v.current[nodeIndex]++
-				v.reverse[edge] = rev_edge
-				v.reverse[rev_edge] = edge
+				rev_edge = v.Current[nodeIndex]
+				v.Edges[rev_edge] = segmentIndex
+				v.Current[nodeIndex]++
+				v.Reverse[edge] = rev_edge
+				v.Reverse[rev_edge] = edge
 			} else {
-				v.reverse[edge] = edge
+				v.Reverse[edge] = edge
 			}
 
 			// Calculate all steps on the way
-			edgeSteps := make([]step, i-segmentStart+1)
+			edgeSteps := make([]geo.Coordinate, i-segmentStart+1)
 			for j, stepId := range way.Nodes[segmentStart:i+1] {
-				edgeSteps[j] = v.locations[stepId]
-			}
-			
-			nlat := v.nodePositions[2 * segmentIndex]
-			nlon := v.nodePositions[2 * segmentIndex + 1]
-			vlat := v.locations[way.Nodes[segmentStart]].lat
-			vlon := v.locations[way.Nodes[segmentStart]].lon
-			if nlat != vlat || nlon != vlon {
-				fmt.Printf("Node Positions are wrong:\n")
-				fmt.Printf(" - should: (%.2f, %.2f)\n", nlat, nlon)
-				fmt.Printf(" - is:     (%.2f, %.2f)\n", vlat, vlon)
-				fmt.Printf(" - node id: %d\n", segmentIndex)
-				fmt.Printf(" - osm id:  %d\n", way.Nodes[segmentStart])
-				panic("No point in continuing.")
+				edgeSteps[j] = v.Positions[stepId]
 			}
 
 			// Calculate the length of the current edge
-			dist := edgeLength(edgeSteps, v.geo)
-			v.distance[edge] = dist
+			dist := edgeLength(edgeSteps, v.E)
+			v.Distance[edge] = dist
 			if !isOneway {
-				v.distance[rev_edge] = dist
-			}
-			
-			// Sanity check
-			tlat := v.nodePositions[2 * nodeIndex]
-			tlon := v.nodePositions[2 * nodeIndex + 1]
-			dlat := v.locations[nodeId].lat
-			dlon := v.locations[nodeId].lon
-			if tlat != dlat || tlon != dlon {
-				fmt.Printf("Node Positions are wrong:\n")
-				fmt.Printf(" - should: (%.2f, %.2f)\n", tlat, tlon)
-				fmt.Printf(" - is:     (%.2f, %.2f)\n", dlat, dlon)
-				fmt.Printf(" - node id: %d\n", nodeIndex)
-				fmt.Printf(" - osm id:  %d\n", nodeId)
-				panic("No point in continuing.")
-			}
-			line, _ := v.geo.To(nlat, nlon, dlat, dlon)
-			if line > dist + 0.1 {
-				fmt.Printf("Wormhole\n")
-				fmt.Printf(" - from: (%.2f, %.2f)\n", nlat, nlon)
-				fmt.Printf(" - to:   (%.2f, %.2f)\n", dlat, dlon)
-				fmt.Printf(" - dist: %.4f\n", dist)
-				fmt.Printf(" - line: %.4f\n", line)
-				panic("No point in continuing.")
+				v.Distance[rev_edge] = dist
 			}
 
 			// Finally, record the intermediate steps
 			if len(edgeSteps) > 2 {
-				v.steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
+				v.Steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
 			} else {
-				v.steps[edge] = []step {}
+				v.Steps[edge] = nil
 			}
 
 			if !isOneway {
 				// This is always implicit and we do not save it
-				v.steps[rev_edge] = []step {}
+				v.Steps[rev_edge] = nil
 			}
 			
 			segmentStart = i
@@ -386,109 +356,50 @@ func (v *edgeAttributes) VisitWay(way pbf.Way) {
 	}
 }
 
-func TestDistances(attributes *edgeAttributes, vertices []uint32) {
-	nodeCount := len(vertices) - 1
-	for i := 0; i < nodeCount; i++ {
-		nodeLat := attributes.nodePositions[2 * i]
-		nodeLng := attributes.nodePositions[2 * i + 1]
-		start := vertices[i]
-		stop  := vertices[i + 1]
-		for edgeIndex := start; edgeIndex < stop; edgeIndex++ {
-			tip := attributes.edges[edgeIndex]
-			tipLat := attributes.nodePositions[2 * tip]
-			tipLng := attributes.nodePositions[2 * tip + 1]
-			dist   := attributes.distance[edgeIndex]
-			line, _ := attributes.geo.To(nodeLat, nodeLng, tipLat, tipLng)
-			if line > dist + 0.01 {
-				fmt.Printf("Wormhole:\n")
-				fmt.Printf(" - from: %.4f, %.4f\n", nodeLat, nodeLng)
-				fmt.Printf(" - to:   %.4f, %.4f\n", tipLat, tipLng)
-				fmt.Printf(" - in distance: %.2f m\n", dist)
-				fmt.Printf(" - line dist:   %.2f m\n", line)
-				panic("Something is really wrong.")
-			}
-		}
-	}
-}
-
-func edgeAttribution(graph pbf.Graph, subgraph *subgraph, vertices []uint32, positions []float64) error {
+func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uint32) error {
 	// Allocate space for the edge attributes
 	numEdges := vertices[len(vertices)-1]
-	highPointers := make([]uint32, len(vertices) - 1)
-	copy(highPointers, vertices)
-	attributes := &edgeAttributes{
-		graph:     subgraph,
-		nodePositions: positions,
-		locations: map[int64]step{},
-		current:   highPointers,
-		edges:     make([]uint32, numEdges),
-		reverse:   make([]uint32, numEdges),
-		distance:  make([]float64, numEdges),
-		steps:     make([][]step, numEdges),
+	attributes := &EdgeAttributes{
+		Subgraph:  subgraph,
+		Positions: map[int64]geo.Coordinate{},
+		Current:   vertices,
+		Edges:     make([]uint32, numEdges),
+		Reverse:   make([]uint32, numEdges),
+		Distance:  make([]float64, numEdges),
+		Steps:     make([][]geo.Coordinate, numEdges),
 	}
 	
 	// We need to compute some distances in this pass
-	attributes.geo = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
+	attributes.E = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
 		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
 
 	// Perform the actual graph traversal
-	graph.Traverse(attributes)
-		
-	// Check that we hit all the edges
-	for i, high := range highPointers {
-		if high != vertices[i + 1] {
-			fmt.Printf("Missed a vertex at index %d\n", i)
-			fmt.Printf("Degree should be: %d\n", vertices[i + 1] - vertices[i])
-			fmt.Printf("       is:        %d\n", highPointers[i] - vertices[i])
-		}
+	err := Traverse(graph, attributes)
+	if err != nil {
+		return err
 	}
-	
-	// Check that the distances make sense
-	TestDistances(attributes, vertices)
 
 	// Write all edge attributes to disk
-	output, err := os.Create("edges.ftf")
-	if err != nil {
-		return err
-	}
-	binary.Write(output, binary.LittleEndian, attributes.edges)
-	output.Close()
-
-	output, err = os.Create("rev_edges.ftf")
-	if err != nil {
-		return err
-	}
-	binary.Write(output, binary.LittleEndian, attributes.reverse)
-	output.Close()
-
-	output, err = os.Create("distances.ftf")
-	if err != nil {
-		return err
-	}
-	binary.Write(output, binary.LittleEndian, attributes.distance)
-	output.Close()
+	Output("edges.ftf",     attributes.Edges)
+	Output("rev_edges.ftf", attributes.Reverse)
+	Output("distances.ftf", attributes.Distance)
 
 	// Index the step arrays
 	stepIndices := make([]uint32, numEdges+1)
 	var current uint32 = 0
-	for i, steps := range attributes.steps {
+	for i, steps := range attributes.Steps {
 		stepIndices[i] = current
 		current += uint32(len(steps))
 	}
 	stepIndices[numEdges] = current // <- sentinel
 
-	output, err = os.Create("steps.ftf")
-	if err != nil {
-		return err
-	}
-	binary.Write(output, binary.LittleEndian, stepIndices)
-	output.Close()
+	Output("steps.ftf", stepIndices)
 
-	output, err = os.Create("step_positions.ftf")
+	output, err := os.Create("step_positions.ftf")
 	if err != nil {
 		return err
 	}
-	for _, steps := range attributes.steps {
+	for _, steps := range attributes.Steps {
 		binary.Write(output, binary.LittleEndian, steps)
 	}
 	output.Close()
@@ -497,10 +408,14 @@ func edgeAttribution(graph pbf.Graph, subgraph *subgraph, vertices []uint32, pos
 }
 
 func main() {
-	inputFile  := flag.String("i", "input.osm.pbf", "input OSM PBF file")
+	inputFile  := flag.String("i", "", "input OSM PBF file")
 	accessType := flag.String("f", "car", "access type (car, bike, foot)")
-	//outputFile := flag.String("o", "output.map", "output graph map file")
 	flag.Parse()
+	
+	if len(*inputFile) == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	file, err := os.Open(*inputFile)
 	if err != nil {
@@ -508,23 +423,23 @@ func main() {
 		os.Exit(1)
 	}
 	
-	var access pbf.AccessType
+	var access osm.AccessType
 	switch *accessType {
 	case "car":
-		access = pbf.AccessMotorcar
+		access = osm.AccessMotorcar
 	case "bike":
-		access = pbf.AccessBicycle
+		access = osm.AccessBicycle
 	case "foot":
-		access = pbf.AccessFoot
+		access = osm.AccessFoot
 	default:
 		println("Unrecognized access type:", access)
 		os.Exit(2)
 	}
-	graph := pbf.NewGraph(file, access)
+	graph := StreetGraph{file, access}
 
 	println("Pass 1")
 
-	subgraph, err := subgraphInduction(graph)
+	subgraph, err := InducedSubgraph(graph)
 	if err != nil {
 		println("Error during pass1:", err.Error())
 		os.Exit(3)
@@ -532,7 +447,7 @@ func main() {
 
 	println("Pass 2")
 
-	vertices, positions, err := nodeAttribution(graph, subgraph)
+	vertices, err := ComputeNodeAttributes(graph, subgraph)
 	if err != nil {
 		println("Error during pass2:", err.Error())
 		os.Exit(4)
@@ -540,7 +455,7 @@ func main() {
 
 	println("Pass 3")
 
-	err = edgeAttribution(graph, subgraph, vertices, positions)
+	err = ComputeEdgeAttributes(graph, subgraph, vertices)
 	if err != nil {
 		println("Error during pass3:", err.Error())
 		os.Exit(5)

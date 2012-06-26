@@ -97,8 +97,7 @@ func Distance(a, b Coordinate) float64 {
 	aLat := a.Lat * math.Pi / 180.0
 	bLat := b.Lat * math.Pi / 180.0
 	// Euclidean distance
-	meanLat   := (aLat + bLat) / 2.0
-	cos2      := (1.0 + math.Cos(2.0 * meanLat)) / 2.0
+	cos2      := (1.0 + math.Cos(aLat + bLat)) / 2.0
 	deltaLat2 := deltaLat * deltaLat
 	deltaLng2 := deltaLng * deltaLng
 	return GreatCircleRadius * math.Sqrt(deltaLat2 + cos2 * deltaLng2)
