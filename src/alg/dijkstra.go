@@ -112,7 +112,8 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	
 	if stepCount == 0 {
 		log.Printf("WARNING: dijkstra found no path\n")
-		return currdist, path, edges, startway, endway
+		path[0] = s[0].Node
+		return 0, path, edges, s[0], t[0]
 	}
 	
 	position := stepCount - 1
