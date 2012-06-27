@@ -15,7 +15,7 @@ import (
 func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.Edge, graph.Way, graph.Way) {
 	//time1 := time.Now()
 
-	elements := make([]*DijkstraElement, g.NodeCount())
+	elements := make([]*Element, g.NodeCount())
 	q := NewPriorityQueue(1024)
 
 	final := make(map[graph.Node]bool)
@@ -24,7 +24,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 	}
 	for _, str := range s {
 		priority := str.Length
-		x := NewDijkstraElement(str.Node, priority, priority)
+		x := NewElement(str.Node, priority, priority)
 		elements[x.node] = x
 		heap.Push(&q, x)
 	}
@@ -32,7 +32,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 	//time2 := time.Now()
 	
 	for !q.Empty() {
-		currElem := (heap.Pop(&q)).(*DijkstraElement) // Get the first element
+		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.node
 		if final[curr] {
 			// We're done as soon as we hit the last final node
@@ -60,7 +60,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 					elem.ep = currEdge
 				}
 			} else {
-				x := NewDijkstraElement(n, currDist /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				x := NewElement(n, currDist /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
 				elements[x.node] = x
 				x.p = curr
 				x.ep = currEdge

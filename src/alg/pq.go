@@ -9,9 +9,6 @@
 //      heap.Pop(&pqueue) // returns y
 //      heap.Pop(&pqueue) // returns x
 
-// TODO index is only used in changePriority in the case that the element is already in the queue,
-//      but that never happens in the current Dijkstra. So we can probably get rid of it.
-
 package alg
 
 import (
@@ -19,7 +16,7 @@ import (
 )
 
 // A PriorityQueue implements heap.Interface and holds Elements.
-type PriorityQueue []*DijkstraElement
+type PriorityQueue []*Element
 
 func NewPriorityQueue(initialCapacity int) PriorityQueue {
 	return make(PriorityQueue, 0, initialCapacity)
@@ -46,7 +43,7 @@ func (pq *PriorityQueue) Push(x interface{}) {
 	// not just its contents.
 	a := *pq
 	n := len(a)
-	element := x.(*DijkstraElement)
+	element := x.(*Element)
 	element.index = n
 	a = append(a, element)
 	*pq = a
@@ -62,8 +59,8 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return element
 }
 
-func (pq *PriorityQueue) ChangePriority(element *DijkstraElement, priority float64) {
-	if element.Index() >= 0 && element.Index() < (*pq).Len() {
+func (pq *PriorityQueue) ChangePriority(element *Element, priority float64) {
+	if element.index >= 0 && element.index < (*pq).Len() {
 		heap.Remove(pq, element.index)
 	}
 	element.priority = priority
