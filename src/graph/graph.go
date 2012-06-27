@@ -1,18 +1,18 @@
 package graph
 
 import (
-	"sort"
 	"ellipsoid"
+	"sort"
 )
 
 type Node uint // TODO uint or something else?
 type Edge uint
 
-// "partial edge" is returned by the k-d tree
+// Way is a "partial edge" that is returned by the k-d tree
 type Way struct {
-	Length float64
-	Node   Node // StartPoint or EndPoint
-	Steps  []Step
+	Length  float64
+	Node    Node // StartPoint or EndPoint
+	Steps   []Step
 	Target  Step
 	Forward bool
 }
@@ -21,10 +21,10 @@ type Graph interface {
 	NodeCount() int
 	EdgeCount() int
 	Positions() Positions
-	
+
 	NodeEdges(Node) (Edge, Edge)
 	NodeLatLng(Node) (float64, float64)
-	
+
 	EdgeLength(Edge) float64
 	EdgeStartPoint(Edge) Node
 	EdgeEndPoint(Edge) Node
@@ -32,18 +32,6 @@ type Graph interface {
 	EdgeSteps(Edge) []Step
 }
 
-// Implementation sketch (wrapper around graph):
-// The graph is loaded before and is given to this.
-// Init: Both position files (vertexes and inner steps in an edge) are alread loaded
-//   for the graph (Nodes.LatLng(), Edge.Steps() - Step.Lat/Lng).
-//   Thus despite storing a pointer the graph, nothing to do here. 
-// For every method where an index is given, there is a branch
-//   if index < Graph.NodeCount()
-//      work with Graph.Node(index)
-//   else
-//      work with the underlying Step array (index - Graph.NodeCount())
-//      not possible efficiently with the current interface
-//
 // Positions is used for both creating the k-d tree in the preprocessing phase
 // and for doing the nearest neighbor lookup during runtime.
 type Positions interface {
@@ -192,14 +180,14 @@ func (g *graphFile) EdgeReverse(i Edge) (Edge, bool) {
 }
 
 func (g *graphFile) EdgeSteps(i Edge) []Step {
-	start  := g.steps[i]
-	stop   := g.steps[i+1]
+	start := g.steps[i]
+	stop := g.steps[i+1]
 	revert := false
 	if start == stop {
 		revIndex := g.revEdges[i]
 		if Edge(revIndex) != i {
-			start  = g.steps[revIndex]
-			stop   = g.steps[revIndex + 1]
+			start = g.steps[revIndex]
+			stop = g.steps[revIndex+1]
 			revert = true
 		}
 	}
@@ -219,7 +207,7 @@ func (g *graphFile) EdgeSteps(i Edge) []Step {
 // Positions
 
 func (g *graphFile) Len() int {
-	return g.NodeCount() + len(g.stepPositions) / 2
+	return g.NodeCount() + len(g.stepPositions)/2
 }
 
 func (g *graphFile) Lat(i int) float64 {
@@ -254,7 +242,7 @@ func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 		return 0.0
 	}
 	total := 0.0
-	prev  := steps[0]
+	prev := steps[0]
 	for _, step := range steps {
 		distance, _ := geo.To(prev.Lat, prev.Lng, step.Lat, step.Lng)
 		total += distance
@@ -264,17 +252,17 @@ func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 }
 
 func (g *graphFile) Ways(i int, forward bool) []Way {
-    if i < g.NodeCount() {
+	if i < g.NodeCount() {
 		// The easy case, where we hit some node exactly.
-        w := make([]Way, 1)
+		w := make([]Way, 1)
 		n := Node(i)
 		lat, lng := g.NodeLatLng(n)
 		target := Step{lat, lng}
 		w[0] = Way{Length: 0, Node: n, Steps: nil, Target: target}
-        return w
-    }
-    i -= g.NodeCount()
-    // find the (edge, offset) pair for step i
+		return w
+	}
+	i -= g.NodeCount()
+	// find the (edge, offset) pair for step i
 	edge := Edge(sort.Search(len(g.steps),
 		func(j int) bool { return uint(g.steps[j]) > uint(i) }) - 1)
 	offset := uint32(i) - g.steps[edge]
@@ -295,7 +283,7 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	copy(b1, steps[:offset])
 	copy(b2, steps[offset+1:])
 	l1 := wayLength(steps[:offset+1], g.geo)
-	l2 := wayLength(steps[offset:],   g.geo)
+	l2 := wayLength(steps[offset:], g.geo)
 	t1 := g.EdgeStartPoint(edge)
 	t2 := g.EdgeEndPoint(edge)
 	t1Lat, t1Lng := g.NodeLatLng(t1)
@@ -305,13 +293,13 @@ func (g *graphFile) Ways(i int, forward bool) []Way {
 	l1 += d1
 	l2 += d2
 	target := steps[offset]
-	
+
 	if !forward {
 		reverse(b2)
 	} else {
 		reverse(b1)
 	}
-	
+
 	var w []Way
 	if _, ok := g.EdgeReverse(edge); ok {
 		w = make([]Way, 2) // bidirectional
