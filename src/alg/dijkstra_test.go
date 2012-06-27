@@ -1,52 +1,10 @@
 package alg
 
 import (
+	"ellipsoid"
 	"graph"
 	"testing"
 )
-
-type TestNode struct {
-	edges *[]graph.Edge
-	lat float64
-	lng float64
-}
-
-func (n *TestNode) Edges() []graph.Edge {
-	return *n.edges
-}
-
-func (n *TestNode) LatLng() (float64, float64) {
-	return n.lat, n.lng
-}
-
-type Edge interface {
-	Length() float64
-	StartPoint() graph.Node // e.g. via binary search on the node array
-	EndPoint() graph.Node
-	ReverseEdge() (graph.Edge, bool)
-	Steps() []graph.Step
-	// Label() string
-}
-
-type TestEdge struct {
-	length float64
-	startPoint graph.Node
-	endPoint graph.Node
-	reverseEdgeExists bool
-	reverseEdge graph.Edge
-	steps []graph.Step
-}
-
-func (e *TestEdge) Length() float64   		{ return e.length }
-func (e *TestEdge) StartPoint() graph.Node  	{ return e.startPoint }
-func (e *TestEdge) EndPoint() graph.Node    	{ return e.endPoint }
-func (e *TestEdge) ReverseEdge() (graph.Edge, bool) {
-	if e.reverseEdgeExists {
-		return e.reverseEdge, true
-	}
-	return e, false
-}
-func (e *TestEdge) Steps() []graph.Step 		{ return e.steps }
 
 func checkVertex(t *testing.T, pos int, expected, actual graph.Node) {
 	if expected != actual {
@@ -79,60 +37,42 @@ func checkWays(t *testing.T, expected, actual graph.Way) {
 }
 
 func TestDijkstraSimple(t *testing.T) {
-	node1 := &TestNode{edges: nil, lat: 0, lng: 0}
-	node2 := &TestNode{edges: nil, lat: 0, lng: 0}
-	node3 := &TestNode{edges: nil, lat: 0, lng: 0}
-	node4 := &TestNode{edges: nil, lat: 0, lng: 0}
+	geo := ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
+		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
+	vertices := []uint32{0, 2, 3, 3}
+	edges := []uint32{1, 2, 3, 3}
+	revEdges := []uint32{0, 1, 2, 3} // no reverse edges -> self pointer
+	distances := []float64{3.0, 2.0, 4.0, 6.0}
+	positions := make([]float64, len(vertices) * 2) // just 0s
+	steps := []uint32{0, 1, 2, 3} // one step per edge
+	stepPositions := make([]float64, len(positions) * 2) // just 0s
+
+	g := graph.NewGraphFile(geo, vertices, edges, revEdges, distances, positions, steps, stepPositions)
 	
-	// two paths from 1 to 4
-	// first: 1 - 2 - 4, length 7
-	// second: 1 - 3 - 4, length 8
-	edge1_2 := &TestEdge{length: 3, startPoint: node1, endPoint: node2, reverseEdgeExists: false, steps: createSteps(1, 2)}
-	edge1_3 := &TestEdge{length: 2, startPoint: node1, endPoint: node3, reverseEdgeExists: false, steps: createSteps(1, 3)}
-	edge2_4 := &TestEdge{length: 4, startPoint: node2, endPoint: node4, reverseEdgeExists: false, steps: createSteps(2, 4)}
-	edge3_4 := &TestEdge{length: 6, startPoint: node3, endPoint: node4, reverseEdgeExists: false, steps: createSteps(3, 4)}
+	startWay := graph.Way{Length: 100, Node: 0, Steps: createSteps(0, 1)}
+	endWay := graph.Way{Length: 1000, Node: 3, Steps: createSteps(4, 100)}
 	
-	startWay := graph.Way{Length: 100, Node: node1, Steps: createSteps(0, 1)}
-	endWay := graph.Way{Length: 1000, Node: node4, Steps: createSteps(4, 100)}
-	
-	node1Edges := []graph.Edge{edge1_2, edge1_3}
-	node2Edges := []graph.Edge{edge2_4}
-	node3Edges := []graph.Edge{edge3_4}
-	node4Edges := []graph.Edge{}
-	node1.edges = &node1Edges
-	node2.edges = &node2Edges
-	node3.edges = &node3Edges
-	node4.edges = &node4Edges
-	
-	distance, vertices, edges, startW, endW := Dijkstra([]graph.Way{startWay}, []graph.Way{endWay})
+	dist, retVertices, retEdges, startW, endW := Dijkstra(g, []graph.Way{startWay}, []graph.Way{endWay})
 	
 	// actual distance 7, but +100 for start and +1000 for end way
-	if distance != 1107 {
+	if dist != 1107 {
 		t.Fatalf("Wrong distance: expected 1107 but was %v", distance)
 	}
 	
-	if vertices.Len() != 3 {
-		t.Fatalf("Wrong number of vertices: expected 3 but was %v", vertices.Len())
+	if len(retVertices) != 3 {
+		t.Fatalf("Wrong number of vertices: expected 3 but was %v", len(vertices))
 	}
 
-	vertexSlice := make([]graph.Node, 3)
-	for e, i := vertices.Front(), 0; e != nil; e, i = e.Next(), i+1 {
-		vertexSlice[i] = e.Value.(graph.Node)
-	}
-	checkVertex(t, 0, node1, vertexSlice[0])
-	checkVertex(t, 1, node2, vertexSlice[1])
-	checkVertex(t, 2, node4, vertexSlice[2])
+	checkVertex(t, 0, 0, retVertices[0])
+	checkVertex(t, 1, 1, retVertices[1])
+	checkVertex(t, 2, 3, retVertices[2])
 	
-	if edges.Len() != 2 {
-		t.Fatalf("Wrong number of edges: expected 2 but was %v", edges.Len())
+	if len(retEdges) != 2 {
+		t.Fatalf("Wrong number of edges: expected 2 but was %v", len(edges))
 	}
 	
-	edgeSlice := make([]graph.Edge, 2)
-	for e, i := edges.Front(), 0; e != nil; e, i = e.Next(), i+1 {
-		edgeSlice[i] = e.Value.(graph.Edge)
-	}
-	checkEdge(t, 0, edge1_2, edgeSlice[0])
-	checkEdge(t, 1, edge2_4, edgeSlice[1])
+	checkEdge(t, 0, 0, retEdges[0])
+	checkEdge(t, 1, 2, retEdges[1])
 	
 	checkWays(t, startWay, startW)
 	checkWays(t, endWay, endW)

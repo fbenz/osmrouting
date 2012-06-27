@@ -49,7 +49,8 @@ type Step struct {
 
 // Implementation
 
-type graphFile struct {
+// Public for testing
+type GraphFile struct {
 	// ellipsoid for distance calculations
 	geo ellipsoid.Ellipsoid
 	// vertices maps a vertex index to the index of its first out edge
@@ -68,8 +69,24 @@ type graphFile struct {
 	stepPositions []float64
 }
 
+// For testing
+func NewGraphFile(geo ellipsoid.Ellipsoid, vertices []uint32, edges []uint32,
+		revEdges []uint32, distances []float64, positions []float64, steps []uint32,
+		stepPositions []float64) *GraphFile {
+	return &GraphFile{
+		geo: geo,
+		vertices: vertices,
+		edges: edges,
+		revEdges: revEdges,
+		distances: distances,
+		positions: positions,
+		steps: steps,
+		stepPositions: stepPositions,
+	}
+}
+
 func Open(base string) (Graph, error) {
-	graph := graphFile{}
+	graph := GraphFile{}
 
 	graph.geo = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
 		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
@@ -123,21 +140,21 @@ func reverse(steps []Step) {
 
 // Graph
 
-func (g *graphFile) NodeCount() int {
+func (g *GraphFile) NodeCount() int {
 	return len(g.vertices) - 1
 }
 
-func (g *graphFile) EdgeCount() int {
+func (g *GraphFile) EdgeCount() int {
 	return len(g.edges)
 }
 
-func (g *graphFile) Positions() Positions {
+func (g *GraphFile) Positions() Positions {
 	return g
 }
 
 // Node
 
-func (g *graphFile) NodeEdges(i Node) (Edge, Edge) {
+func (g *GraphFile) NodeEdges(i Node) (Edge, Edge) {
 	// The check is done anyway when accessing g.vertices
 	/*if i >= Node(g.NodeCount()) {
 		panic("Node access out of bounds.")
@@ -148,7 +165,7 @@ func (g *graphFile) NodeEdges(i Node) (Edge, Edge) {
 	return Edge(start), Edge(end)
 }
 
-func (g *graphFile) NodeLatLng(i Node) (float64, float64) {
+func (g *GraphFile) NodeLatLng(i Node) (float64, float64) {
 	lat := g.positions[2*i]
 	lng := g.positions[2*i+1]
 	return lat, lng
@@ -156,22 +173,22 @@ func (g *graphFile) NodeLatLng(i Node) (float64, float64) {
 
 // Edge
 
-func (g *graphFile) EdgeLength(i Edge) float64 {
+func (g *GraphFile) EdgeLength(i Edge) float64 {
 	return g.distances[i]
 }
 
-func (g *graphFile) EdgeStartPoint(i Edge) Node {
+func (g *GraphFile) EdgeStartPoint(i Edge) Node {
 	j := sort.Search(len(g.vertices),
 		func(k int) bool { return Edge(g.vertices[k]) > i }) - 1
 	return Node(j)
 }
 
-func (g *graphFile) EdgeEndPoint(i Edge) Node {
+func (g *GraphFile) EdgeEndPoint(i Edge) Node {
 	index := g.edges[i]
 	return Node(index)
 }
 
-func (g *graphFile) EdgeReverse(i Edge) (Edge, bool) {
+func (g *GraphFile) EdgeReverse(i Edge) (Edge, bool) {
 	index := g.revEdges[i]
 	if Edge(index) == i {
 		return Edge(index), false
@@ -179,7 +196,7 @@ func (g *graphFile) EdgeReverse(i Edge) (Edge, bool) {
 	return Edge(index), true
 }
 
-func (g *graphFile) EdgeSteps(i Edge) []Step {
+func (g *GraphFile) EdgeSteps(i Edge) []Step {
 	start := g.steps[i]
 	stop := g.steps[i+1]
 	revert := false
@@ -206,11 +223,11 @@ func (g *graphFile) EdgeSteps(i Edge) []Step {
 
 // Positions
 
-func (g *graphFile) Len() int {
+func (g *GraphFile) Len() int {
 	return g.NodeCount() + len(g.stepPositions)/2
 }
 
-func (g *graphFile) Lat(i int) float64 {
+func (g *GraphFile) Lat(i int) float64 {
 	if i < g.NodeCount() {
 		lat, _ := g.NodeLatLng(Node(i))
 		return lat
@@ -219,7 +236,7 @@ func (g *graphFile) Lat(i int) float64 {
 	return g.stepPositions[2*i]
 }
 
-func (g *graphFile) Lng(i int) float64 {
+func (g *GraphFile) Lng(i int) float64 {
 	if i < g.NodeCount() {
 		_, lng := g.NodeLatLng(Node(i))
 		return lng
@@ -228,7 +245,7 @@ func (g *graphFile) Lng(i int) float64 {
 	return g.stepPositions[2*i+1]
 }
 
-func (g *graphFile) Step(i int) Step {
+func (g *GraphFile) Step(i int) Step {
 	if i < g.NodeCount() {
 		lat, lng := g.NodeLatLng(Node(i))
 		return Step{lat, lng}
@@ -251,7 +268,7 @@ func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
 	return total
 }
 
-func (g *graphFile) Ways(i int, forward bool) []Way {
+func (g *GraphFile) Ways(i int, forward bool) []Way {
 	if i < g.NodeCount() {
 		// The easy case, where we hit some node exactly.
 		w := make([]Way, 1)
