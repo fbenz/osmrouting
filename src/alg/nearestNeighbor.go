@@ -1,25 +1,17 @@
 package alg
 
 import (
-	"encoding/binary"
 	"geo"
 	"graph"
 	"kdtree"
-	"os"
-	"path"
 )
 
 func LoadKdTree(base string, positions graph.Positions) (*kdtree.KdTree, error) {
-	kdTreePermutation := make(kdtree.Nodes, positions.Len())
-	input, err := os.Open(path.Join(base, kdtree.FilenameKdTree))
+	kdTreePermutation, err := graph.MmapFileUint32(base, kdtree.FilenameKdTree)
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Read(input, binary.LittleEndian, kdTreePermutation)
-	if err != nil {
-		return nil, err
-	}
- 	return &kdtree.KdTree{kdTreePermutation, positions}, nil
+	return &kdtree.KdTree{kdTreePermutation, positions}, nil
 }
 
 func NearestNeighbor(kdTree *kdtree.KdTree, lat, lng float64, forward bool) (graph.Step, []graph.Way) {
