@@ -1,12 +1,17 @@
 // The idea is quite natural, but has been presented by other groups first: cache route requests
-// At the moment every request is cached until the cache is full. This can be improved
-// by using a hit counter, a timestamp and an eviction policy.
 
 package main
 
+import (
+	"sync"
+	"time"
+)
+
 const (
-	MaxCacheSize = 100 * 1024 * 1024 // in bytes
+	MaxCacheSize = 100 * 1024 * 1024 	// in bytes
 	CacheQueueSize = 100
+	CacheEvictionBorder = 0.75			// % of cache size
+	CacheEvictionPeriod = 15 * 60		// in seconds; min. distance in time between eviction passes
 )
 
 var (
@@ -14,14 +19,17 @@ var (
 )
 
 type Cache struct {
-	Size 	int
-	Map 	map[string]*CacheElement
-	Queue 	chan *CacheQueueElement
+	Size 				int
+	Queue 				chan *CacheQueueElement
+	mutex				sync.Mutex
+	elements			map[string]*CacheElement
+	lastEvictionPass	time.Time
 }
 
 type CacheElement struct {
-	Response 	[]byte
-	HitCounter 	int
+	Response 		[]byte
+	HitCounter		int
+	LastAccessed 	time.Time
 }
 
 type CacheQueueElement struct {
@@ -29,15 +37,50 @@ type CacheQueueElement struct {
 	Response 	[]byte
 }
 
+// Thread-safe access to the map of the cache
+func (c Cache) Get(key string) (*CacheElement, bool) {
+	c.mutex.Lock()
+	element, ok := c.elements[key]
+	c.mutex.Unlock()
+	return element, ok
+}
+
+// Thread-safe access to the map of the cache
+func (c Cache) Put(key string, element *CacheElement) {
+	c.mutex.Lock()
+	c.elements[key] = element
+	c.mutex.Unlock()
+}
+
+// Thread-safe access to the map of the cache
+func (c Cache) Update(key string) (*CacheElement, bool) {
+	c.mutex.Lock()
+	element, ok := c.elements[key]
+	if ok {
+		// adjust element in case of a hit
+		element.HitCounter++
+		element.LastAccessed = time.Now()
+	}
+	c.mutex.Unlock()
+	return element, ok
+}
+
+// Thread-safe access to the map of the cache
+func (c Cache) Delete(key string) {
+	c.mutex.Lock()
+	delete(c.elements, key)
+	c.mutex.Unlock()
+}
+
 func InitCache() {
 	cacheMap := make(map[string]*CacheElement)
 	cacheQueue := make(chan *CacheQueueElement, CacheQueueSize)
-	cache = Cache{Size: 0, Map: cacheMap, Queue: cacheQueue}
+	cache = Cache{Size: 0, elements: cacheMap, Queue: cacheQueue, lastEvictionPass: time.Now()}
 	go CacheHandler()
 }
 
 func CacheGet(key string) ([]byte, bool) {
-	if elem, ok := cache.Map[key]; ok {
+	if elem, ok := cache.Get(key); ok {
 		return elem.Response, true
 	}
 	return nil, false
@@ -51,11 +94,24 @@ func CachePut(key string, response []byte) {
 
 func CacheHandler() {
 	for elem := range cache.Queue {
-		if c, ok := cache.Map[elem.Key]; ok {
-			c.HitCounter++
-		} else if cache.Size + len(elem.Response) <= MaxCacheSize {
-			cache.Map[elem.Key] = &CacheElement{Response: elem.Response, HitCounter: 0}
+		if _, ok := cache.Update(elem.Key); !ok && cache.Size + len(elem.Response) <= MaxCacheSize {
+			cache.Put(elem.Key, &CacheElement{Response: elem.Response, HitCounter: 0, LastAccessed: time.Now()})
 			cache.Size += len(elem.Response)
+		}
+		if cache.Size >= CacheEvictionBorder * MaxCacheSize {
+			timeSinceLastEviction := time.Now().Sub(cache.lastEvictionPass)
+			// respect the period
+			if timeSinceLastEviction.Seconds() < CacheEvictionPeriod {
+				return
+			}
+			for k, elem := range cache.elements {
+				// TODO sort by some criteria and then delete the tail
+				timeSinceLastAccess := time.Now().Sub(elem.LastAccessed)
+				if elem.HitCounter <= 2 && timeSinceLastAccess.Hours() >= 2 {
+					cache.Delete(k)
+				}
+			}
+			cache.lastEvictionPass = time.Now()
 		}
 	}
 }
