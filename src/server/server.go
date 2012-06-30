@@ -118,19 +118,19 @@ func setup() error {
 	if err != nil {
 		return err
 	}
-	osmData["driving"] = *dat
+	osmData[TravelmodeCar] = *dat
 	
 	dat, err = loadFiles("bike")
 	if err != nil {
 		return err
 	}
-	osmData["bicycling"] = *dat
+	osmData[TravelmodeBike] = *dat
 	
 	dat, err = loadFiles("foot")
 	if err != nil {
 		return err
 	}
-	osmData["walking"] = *dat
+	osmData[TravelmodeFoot] = *dat
 
 	if FlagLogging {
 		InitLogger()
@@ -180,7 +180,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no waypoints", http.StatusBadRequest)
 		return
 	}
-	waypoints, err := getWaypoints(urlParameter["waypoints"][0])
+	waypoints, err := getWaypoints(urlParameter[ParameterWaypoints][0])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -199,7 +199,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	cachingKey := urlParameter["waypoints"][0] + travelmode
+	cachingKey := urlParameter[ParameterWaypoints][0] + travelmode
 	if FlagCaching {
 		if resp, ok := CacheGet(cachingKey); ok {
 			w.Write(resp)
