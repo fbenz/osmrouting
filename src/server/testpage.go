@@ -26,7 +26,22 @@ const testTemplateHTML = `
   
   <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
   <script type="text/javascript" src="http://tile.cloudmade.com/wml/latest/web-maps-lite.js"></script>
-  <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+  <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false&libraries=places"></script>
+  
+  <style type="text/css">
+      body {
+        font-family: sans-serif;
+        font-size: 14px;
+      }
+      .menu_show {
+        color: black;
+ 		font-weight: bold;
+ 		text-decoration: none;
+      }
+      .menu_hide {
+        color: #00C;
+      }
+    </style>
   
   <script type="text/javascript">
 var oldOverlays = [];
@@ -44,14 +59,30 @@ function init() {
 
 </head>
 <body onload="init()">
-  <div id="controls" style="height: 80px">
-  Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973&travelmode=walking" />
-  <input id="testButton" type="button" name="test" value="Go" style="width: 100px"/>
-  <br />
-  Reference route: 
-  <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>
-  (support for the first two waypoints and the travel mode)
-  <br />
+  <div>
+  <div style="margin-bottom: 12px;">
+    <a id="directParametersLink" href="#">Direct parameter input</a> - <a id="placesAutocompleteLink" href="#">Google Places autocomplete</a>
+  </div>
+  <div id="directParameters">
+    Parameters: <input id="testParameters" type="text" name="paramters" size="130" value="waypoints=49.2572069321567,7.04588517266191|49.2574019507051,7.04324261219973&travelmode=walking" />
+    <input id="testButton" type="button" name="test" value="Go" style="width: 100px"/>
+    <br />
+    Reference route: 
+    <a href="https://developers.google.com/maps/documentation/javascript/directions">Google Directions</a>
+    (support for the first two waypoints and the travel mode)
+  </div>
+  <div id="placesAutocomplete">
+    From <input id="fromInput" type="text" size="50"> 
+    to <input id="toInput" type="text" size="50">
+    <select id="travelmodeSelect">
+  		<option>driving</option>
+  		<option>walking</option>
+  		<option>bicycling</option>
+    </select>
+    <input id="autoTestButton" type="button" name="test" value="Go" style="width: 100px"/>
+    <br />
+    Parameters: <input id="showParameters" type="text" readonly="readonly" size="130"/>
+  </div>
   <input id="testPortCheck" type="checkbox" name="portcheck" value="" />Alternative port: 
   <input id="testPort" type="text" name="port" size="30" value="23401" />
   </div>
@@ -228,7 +259,7 @@ function refUpdate() {
 
 $(document).ready( function() {
   $("#testButton").click(update);
-  $("#refButton").click(refUpdate);
+  $("#autoTestButton").click(placesUpdate);
   
   $("#testParameters").keyup(function(event) {
     if(event.keyCode == 13){
@@ -240,7 +271,50 @@ $(document).ready( function() {
       $("#refButton").click();
     }
   });
+  
+  $("#placesAutocomplete").hide();
+  $("#directParametersLink").addClass("menu_show");
+  $("#placesAutocompleteLink").addClass("menu_hide");
+  
+  $("#directParametersLink").click(function(event) {
+    $("#placesAutocomplete").hide();
+    $("#directParameters").show();
+    $("#directParametersLink").removeClass("menu_hide");
+    $("#placesAutocompleteLink").removeClass("menu_show");
+    $("#directParametersLink").addClass("menu_show");
+    $("#placesAutocompleteLink").addClass("menu_hide");
+  });
+  $("#placesAutocompleteLink").click(function(event) {
+    $("#directParameters").hide();
+    $("#placesAutocomplete").show();
+    $("#directParametersLink").removeClass("menu_show");
+    $("#placesAutocompleteLink").removeClass("menu_hide");
+    $("#directParametersLink").addClass("menu_hide");
+    $("#placesAutocompleteLink").addClass("menu_show");
+  });
 });
+
+var fromAutocomplete;
+var toAutocomplete;
+function googleMapsInitialize() {
+  var fromInput = document.getElementById('fromInput');
+  fromAutocomplete = new google.maps.places.Autocomplete(fromInput);
+  var toInput = document.getElementById('toInput');
+  toAutocomplete = new google.maps.places.Autocomplete(toInput);
+}
+google.maps.event.addDomListener(window, 'load', googleMapsInitialize);
+
+function placesUpdate() {
+  var from = fromAutocomplete.getPlace();
+  var to = toAutocomplete.getPlace();
+  
+  var parameters = "waypoints=" + from.geometry.location.lat() + "," + from.geometry.location.lng()
+  	+ "|" + to.geometry.location.lat() + "," + to.geometry.location.lng()
+  	+ "&travelmode=" + $("#travelmodeSelect").val();
+  $("#testParameters").val(parameters);
+  $("#showParameters").val(parameters);
+  update();
+}
 </script>
 
 </body>
