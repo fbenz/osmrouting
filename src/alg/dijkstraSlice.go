@@ -52,15 +52,16 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 		
 		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
 			n := g.EdgeEndPoint(currEdge)
+			aStarHeuristic := aStarHeuristic(g, n, t)
 			if elem := elements[n]; elem != nil {
 				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < elem.d {
-					q.ChangePriority(elem, tmpDist) // TODO A*? tmpDist + estimate 
+					q.ChangePriority(elem, tmpDist + aStarHeuristic) // TODO A*? tmpDist + estimate 
 					elem.d = tmpDist
 					elem.p = curr
 					elem.ep = currEdge
 				}
 			} else {
-				x := NewElement(n, currDist /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				x := NewElement(n, currDist + aStarHeuristic /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
 				elements[x.node] = x
 				x.p = curr
 				x.ep = currEdge

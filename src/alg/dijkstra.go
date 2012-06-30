@@ -3,7 +3,9 @@ package alg
 import (
 	"container/heap"
 	"log"
+	"geo"
 	"graph"
+	"math"
 	
 	//"fmt"
 	//"time"
@@ -52,15 +54,16 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 		
 		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
 			n := g.EdgeEndPoint(currEdge)
+			aStarHeuristic := aStarHeuristic(g, n, t)
 			if elem, ok := elements[n]; ok {
 				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < elem.d {
-					q.ChangePriority(elem, tmpDist) // TODO A*? tmpDist + estimate 
+					q.ChangePriority(elem, tmpDist + aStarHeuristic)
 					elem.d = tmpDist
 					elem.p = curr
 					elem.ep = currEdge
 				}
 			} else {
-				x := NewElement(n, currDist /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				x := NewElement(n, currDist + aStarHeuristic /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
 				elements[x.node] = x
 				x.p = curr
 				x.ep = currEdge
@@ -162,4 +165,19 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
 	
 	return currdist, path, edges, startway, endway
+}
+
+// aStarHeuristic returns the minimum straight-line distance to one of the destinations.
+// This is an admissible heuristic function (under-approximation of the actual distance to the destination)
+// and thus ensures that an optimal route is returned.
+func aStarHeuristic(g graph.Graph, curr graph.Node, t []graph.Way) float64 {
+	lat1, lng1 := g.NodeLatLng(curr)
+	lat2, lng2 := g.NodeLatLng(t[0].Node)
+	distToDest0 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
+	if len(t) < 2 {
+		return distToDest0
+	}
+	lat3, lng3 := g.NodeLatLng(t[1].Node)
+	distToDest1 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat3, Lng: lng3})
+	return math.Min(distToDest0, distToDest1)
 }
