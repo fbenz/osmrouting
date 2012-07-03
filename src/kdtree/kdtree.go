@@ -4,6 +4,7 @@
 package kdtree
 
 import (
+	"ellipsoid"
 	"encoding/binary"
 	"graph"
 	"os"
@@ -21,6 +22,7 @@ type Nodes []uint32
 type KdTree struct {
 	Nodes Nodes
 	Positions graph.Positions
+	Geo ellipsoid.Ellipsoid
 }
 
 func (s Nodes) Len() int      { return len(s) }
@@ -53,7 +55,8 @@ func newkdTree(positions graph.Positions) KdTree {
 	for i := 0; i < positions.Len(); i++ {
 		nodes[i] = uint32(i)
 	}
-	t := KdTree{nodes, positions}
+	g := ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter, ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
+	t := KdTree{nodes, positions, g}
 	ready := make(chan int, 1)
 	go t.create(ready, t.Nodes, true)
 	<- ready
