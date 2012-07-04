@@ -216,18 +216,120 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < len(waypoints) - 1; i++ {
 		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true  /* forward */)
 		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
-
+		allequal:=true
+		oneequal:=false
+		if len(startWays) != len(endWays){
+			allequal = false
+		}
+		for _,startPoint:=range(startWays) {
+			existequal:=false
+			for _,endPoint:=range(endWays) {
+				existequal = existequal || (startPoint.Node == endPoint.Node)
+			}
+			oneequal = oneequal || existequal
+			allequal = allequal && existequal
+		}
+		//Start and Endpoint lie on the same edge
+		if allequal {
+			//Start node == End node
+			if len(startWays) == 1 {
+				polyline:= make([]Point,1)
+				startpoint := Point{startWays[0].Target.Lat,startWays[0].Target.Lng}
+				polyline[0]=startpoint
+				instruction:="Stay at Point" // Mockup describtion
+				duration:=Duration{"0.00 secs",0.0}
+				distance:=Distance{"0.00 mm",0.0}
+				step:=Step{distance,duration,startpoint,startpoint,polyline,instruction}
+				steps:=make([]Step,1)
+				steps[0]=step
+				legs[i]=Leg{distance,duration,startpoint,startpoint,steps}
+			} else { // Start and End node are on the same edge
+				var correctStartWay,correctEndWay graph.Way
+				S:
+					for _,startPoint:=range(startWays) {
+						for _,endPoint:=range(endWays) {
+							if startPoint.Node == endPoint.Node && (startPoint.Length-endPoint.Length)>0 {
+								correctStartWay=startPoint
+								correctEndWay=endPoint
+								break S
+							}
+						}
+					}
+				length:=correctStartWay.Length - correctEndWay.Length
+				polyline:=make([]graph.Step,(len(correctStartWay.Steps) - len(correctEndWay.Steps)))
+				// Find the steps from start to endpoint
+				startsteps:=correctStartWay.Steps
+				for i:=0;startsteps[i]!=correctEndWay.Steps[len(correctEndWay.Steps)-1];i++{
+					polyline=append(polyline,startsteps[i])
+				}
+				step:=PartwayToStep(polyline,correctStartWay.Target,correctEndWay.Target,length)
+				steps:=make([]Step,1)
+				steps[0]=step
+				legs[i]=Leg{step.Distance,step.Duration,step.StartLocation,step.EndLocation,steps}
+				
+				
+			}
+		} else if oneequal{
+			if len(startWays)==1 { // If the end node is on the edge outgoing from s
+				var correctEndWay graph.Way
+				for _,i:=range(endWays) {
+					if i.Node==startWays[0].Node {
+						correctEndWay = i
+						break
+					}
+				}
+				n:=len(correctEndWay.Steps)
+				polyline:=make([]graph.Step,n)
+				for i,item := range(correctEndWay.Steps){
+					polyline[n-i-1]=item
+				}
+				step:=PartwayToStep(polyline,startWays[0].Target,correctEndWay.Target,correctEndWay.Length)
+				steps:=make([]Step,1)
+				steps[0]=step
+				legs[i]=Leg{step.Distance,step.Duration,step.StartLocation,step.EndLocation,steps}
+			} else if len(endWays)==1 { // If the start node is on the edge outgoint from e
+				var correctStartWay graph.Way
+				for _,i:=range(startWays) {
+					if i.Node==endWays[0].Node {
+						correctStartWay =i
+						break
+					}
+				}
+				step:=PartwayToStep(correctStartWay.Steps,correctStartWay.Target,endWays[0].Target,correctStartWay.Length)
+				steps:=make([]Step,1)
+				steps[0]=step
+				legs[i]=Leg{step.Distance,step.Duration,step.StartLocation,step.EndLocation,steps}
+			} else { // we have s->u->e so they are on adjacent edges.
+				var correctStartWay,correctEndWay graph.Way
+				for _,i:=range(startWays) {
+					for _,j:=range(endWays) {
+						if i.Node==j.Node {
+							correctStartWay=i
+							correctEndWay=j
+						}
+					}
+				}
+				step1:=PartwayToStep(correctStartWay.Steps,correctStartWay.Target,NodeToStep(data.graph,correctStartWay.Node),correctStartWay.Length)
+				step2:=PartwayToStep(correctEndWay.Steps,NodeToStep(data.graph,correctEndWay.Node),correctEndWay.Target,correctEndWay.Length)
+				steps:=make([]Step,2)
+				steps[0]=step1
+				steps[1]=step2
+				length:=correctStartWay.Length+correctEndWay.Length
+				legs[i]=Leg{FormatDistance(length),MockupDuration(length),step1.StartLocation,step2.EndLocation,steps}
+			}
+		} else {
 		// Use the Dijkatrs version using a large slice only for long roues where the map of the
 		// other version can get quite large
-		if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0 * 1000.0 { // > 100km
-			dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
-			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
-		} else {
-			dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
-			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+			if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0 * 1000.0 { // > 100km
+				dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
+				legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+			} else {
+				dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
+				legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
+			}
+			distance += float64(legs[i].Distance.Value)
+			duration += float64(legs[i].Duration.Value)
 		}
-		distance += float64(legs[i].Distance.Value)
-		duration += float64(legs[i].Duration.Value)
 	}
 	
 	route := Route{
