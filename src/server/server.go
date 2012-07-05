@@ -237,12 +237,10 @@ func routes(w http.ResponseWriter, r *http.Request) {
 				startpoint := Point{startWays[0].Target.Lat, startWays[0].Target.Lng}
 				polyline[0] = startpoint
 				instruction := "Stay where you are" // Mockup describtion
-				duration := Duration{"0.00 secs", 0.0}
-				distance := Distance{"0.00 mm", 0.0}
-				step := Step{distance, duration, startpoint, startpoint, polyline, instruction}
+				step := Step{FormatDistance(0), MockupDuration(0), startpoint, startpoint, polyline, instruction}
 				steps := make([]Step, 1)
 				steps[0] = step
-				legs[i] = Leg{distance, duration, startpoint, startpoint, steps}
+				legs[i] = Leg{FormatDistance(0), MockupDuration(0), startpoint, startpoint, steps}
 			} else { // Start and End node are on the same edge
 				var correctStartWay, correctEndWay graph.Way
 			S:
@@ -262,14 +260,16 @@ func routes(w http.ResponseWriter, r *http.Request) {
 					for i := 0; startsteps[i] != correctEndWay.Steps[len(correctEndWay.Steps)-1]; i++ {
 						polyline = append(polyline, startsteps[i])
 					}
+				} else {
+					// TODO no route was found
+					// It is fine to output an empty polyline at the moment
 				}
-				length := 0.0
-				// TODO compute the length with the constructed polyline (iterate over polyline and sum up with ellipsoid.To)
-				step := PartwayToStep(polyline, correctStartWay.Target, correctEndWay.Target, length)
+				distance += data.graph.WayLength(polyline)
+				step := PartwayToStep(polyline, correctStartWay.Target, correctEndWay.Target, distance)
 				steps := make([]Step, 1)
 				steps[0] = step
 				legs[i] = Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
-
+				duration += float64(legs[i].Duration.Value)
 			}
 		} else if oneequal {
 			if len(startWays) == 1 { // If the end node is on the edge outgoing from s
@@ -289,6 +289,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 				steps := make([]Step, 1)
 				steps[0] = step
 				legs[i] = Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
+				distance += float64(legs[i].Distance.Value)
+				duration += float64(legs[i].Duration.Value)
 			} else if len(endWays) == 1 { // If the start node is on the edge outgoint from e
 				var correctStartWay graph.Way
 				for _, i := range startWays {
@@ -301,6 +303,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 				steps := make([]Step, 1)
 				steps[0] = step
 				legs[i] = Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
+				distance += float64(legs[i].Distance.Value)
+				duration += float64(legs[i].Duration.Value)
 			} else { // we have s->u->e so they are on adjacent edges.
 				var correctStartWay, correctEndWay graph.Way
 				for _, i := range startWays {
@@ -311,16 +315,19 @@ func routes(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
-				step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, NodeToStep(data.graph, correctStartWay.Node), correctStartWay.Length)
-				step2 := PartwayToStep(correctEndWay.Steps, NodeToStep(data.graph, correctEndWay.Node), correctEndWay.Target, correctEndWay.Length)
+				step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, NodeToStep(data.graph, correctStartWay.Node),
+					correctStartWay.Length)
+				step2 := PartwayToStep(correctEndWay.Steps, NodeToStep(data.graph, correctEndWay.Node), correctEndWay.Target,
+					correctEndWay.Length)
 				steps := make([]Step, 2)
 				steps[0] = step1
 				steps[1] = step2
-				length := correctStartWay.Length + correctEndWay.Length
-				legs[i] = Leg{FormatDistance(length), MockupDuration(length), step1.StartLocation, step2.EndLocation, steps}
+				distance += correctStartWay.Length + correctEndWay.Length
+				legs[i] = Leg{FormatDistance(distance), MockupDuration(distance), step1.StartLocation, step2.EndLocation, steps}
+				duration += float64(legs[i].Duration.Value)
 			}
 		} else {
-			// Use the Dijkatrs version using a large slice only for long roues where the map of the
+			// Use the Dijkatrs version using a large slice only for long routes where the map of the
 			// other version can get quite large
 			if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0*1000.0 { // > 100km
 				dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
