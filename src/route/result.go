@@ -1,6 +1,6 @@
 // The structure of the JSON object for the route response exactly as in the API definition
 
-package main
+package route
 
 type Result struct {
 	BoundingBox BoundingBox `json:"boundingBox"`
