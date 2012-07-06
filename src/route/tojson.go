@@ -93,7 +93,7 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) *Leg {
 	// Determine the number of steps on this path.
 	totalSteps := len(edges)
 	if start.Length > 1e-7 {
@@ -126,7 +126,7 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 		steps[i] = WayToStep(stop, NodeToStep(g, prev), stop.Target)
 	}
 
-	return Leg{
+	return &Leg{
 		Distance:      FormatDistance(distance),
 		Duration:      MockupDuration(distance),
 		StartLocation: StepToPoint(start.Target),
@@ -163,7 +163,7 @@ func ComputeBoundsStep(step Step) BoundingBox {
 }
 
 // Compute a thight bounding box for a leg
-func ComputeBoundsLeg(leg Leg) BoundingBox {
+func ComputeBoundsLeg(leg *Leg) BoundingBox {
 	if len(leg.Steps) == 0 {
 		// Bug?
 		return BoundingBox{Point{0.0, 0.0}, Point{0.0, 0.0}}

@@ -212,7 +212,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	data := osmData[travelmode]
 	
 	// Do the actual route computation.
-	result := route.Routes(data.graph, data.kdtree, waypoints)
+	result := route.ConcurrentRoutes(data.graph, data.kdtree, waypoints)
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
