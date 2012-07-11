@@ -38,7 +38,7 @@ type Coordinate struct {
 }
 
 // Decode a coordinate given its fixed point representation.
-func Decode(lat, lng int64) Coordinate {
+func DecodeCoordinate(lat, lng int32) Coordinate {
 	return Coordinate{
 		Lat: float64(lat) / OsmPrecision,
 		Lng: float64(lng) / OsmPrecision,
@@ -46,14 +46,14 @@ func Decode(lat, lng int64) Coordinate {
 }
 
 // Represent a coordinate in fixed point format.
-func Encode(a Coordinate) (lat, lng int64) {
-	lat = int64(math.Floor(a.Lat * OsmPrecision + 0.5))
-	lng = int64(math.Floor(a.Lng * OsmPrecision + 0.5))
-	return lat, lng
+func (a Coordinate) Encode() (lat, lng int32) {
+	lat = int32(math.Floor(a.Lat * OsmPrecision + 0.5))
+	lng = int32(math.Floor(a.Lng * OsmPrecision + 0.5))
+	return
 }
 
 // Round a Coordindate to osm precision.
-func Round(a Coordinate) Coordinate {
+func (a Coordinate) Round() Coordinate {
 	return Coordinate{
 		Lat: math.Floor(a.Lat * OsmPrecision + 0.5) / OsmPrecision,
 		Lng: math.Floor(a.Lng * OsmPrecision + 0.5) / OsmPrecision,
@@ -72,13 +72,13 @@ func EqualTolerance(a, b float64) bool {
 }
 
 // Test if two Coordinates differ by less than epsilon.
-func Equal(a, b Coordinate) bool {
+func (a Coordinate) Equal(b Coordinate) bool {
 	return EqualTolerance(a.Lat, b.Lat) && EqualTolerance(a.Lng, b.Lng)
 }
 
 // Compute the difference in latitude, longitude for a and b,
 // handling wrap around as appropriate.
-func Delta(a, b Coordinate) (lat, lng float64) {
+func (a Coordinate) Delta(b Coordinate) (lat, lng float64) {
 	lat = math.Abs(a.Lat - b.Lat)
 	lng = math.Mod(math.Abs(a.Lng - b.Lng), 360.0)
 	return lat, math.Min(lng, 360 - lng)
@@ -89,8 +89,8 @@ func Delta(a, b Coordinate) (lat, lng float64) {
 // apart the result is meaningless.
 // On the other hand this is fast and stable for small differences
 // in the coordinates.
-func Distance(a, b Coordinate) float64 {
-	deltaLat, deltaLng := Delta(a, b)
+func (a Coordinate) Distance(b Coordinate) float64 {
+	deltaLat, deltaLng := a.Delta(b)
 	// Convert to Radians
 	deltaLat = (deltaLat * math.Pi) / 180.0
 	deltaLng = (deltaLng * math.Pi) / 180.0

@@ -25,6 +25,7 @@ import (
 	"geo"
 	"os"
 	"osm"
+	"umath"
 )
 
 // Street graph visitor, skips unimportant ways.
@@ -158,13 +159,14 @@ func InducedSubgraph(graph StreetGraph) (*Subgraph, error) {
 type NodeAttributes struct {
 	*Subgraph
 	Degrees   []uint32
-	Positions []float64
+	Positions []int32
 }
 
 func (v *NodeAttributes) VisitNode(node osm.Node) {
 	if i, ok := v.Indices[node.Id]; ok {
-		v.Positions[2*i]   = node.Position.Lat
-		v.Positions[2*i+1] = node.Position.Lng
+		lat, lng := node.Position.Encode()
+		v.Positions[2*i]   = lat
+		v.Positions[2*i+1] = lng
 	}
 }
 
@@ -203,18 +205,49 @@ func (v *NodeAttributes) VisitWay(way osm.Way) {
 	}
 }
 
+// sort.Interface
+/*
+func (v *NodeAttributes) Len() int {
+	return int(v.Size)
+}
+
+func (v *NodeAttributes) Less(i, j int) bool {
+	lat0, lng0 := v.Positions[2 * i], v.Positions[2 * i + 1]
+	lat1, lng1 := v.Positions[2 * j], v.Positions[2 * j + 1]
+	x0, y0 := uint32(lng0 + 180), uint32(lat0 + 90)
+	x1, y1 := uint32(lng1 + 180), uint32(lat1 + 90)
+	return HilbertLess(x0, y0, x1, y1)
+}
+
+func (v *NodeAttributes) Swap(i, j int) {
+	v.Degrees[i], v.Degrees[j] = v.Degrees[j], v.Degrees[i]
+	v.Positions[2 * i], v.Positions[2 * j] =
+		v.Positions[2 * j], v.Positions[2 * i]
+	v.Positions[2 * i + 1], v.Positions[2 * j + 1] =
+		v.Positions[2 * j + 1], v.Positions[2 * i + 1]
+}
+
+func ReorderNodes(attr *NodeAttributes) {
+	permutation := SortPermutation(attr)
+	for k,i := range attr.Indices {
+		attr.Indices[k] = uint32(permutation[i])
+	}
+	ApplyPermutation(attr, permutation)
+}
+*/
+
 func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, error) {
 	visitor := &NodeAttributes{
 		Subgraph:  subgraph,
-		Degrees:   make([]uint32,    subgraph.Size+1),
-		Positions: make([]float64, 2*subgraph.Size),
+		Degrees:   make([]uint32, subgraph.Size+1),
+		Positions: make([]int32, 2*subgraph.Size),
 	}
 	
 	err := Traverse(graph, visitor)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Write node attributes
 	err = Output("positions.ftf", visitor.Positions)
 	if err != nil {
@@ -242,6 +275,7 @@ func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, err
 	if err != nil {
 		return nil, err
 	}
+	
 	return e, nil
 }
 
@@ -255,27 +289,31 @@ func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, err
 // pointers.
 // TODO: Find a better way.
 
+type EncodedPoint struct {
+	Lat, Lng int32
+}
+
 type EdgeAttributes struct {
 	*Subgraph
 	
 	// ellipsoid, for distance calculations
 	E ellipsoid.Ellipsoid
 	// node locations, for the steps
-	Positions map[int64] geo.Coordinate
+	Positions map[int64] EncodedPoint
 	
 	// vertex -> edge index maps
 	Current []uint32
 	// edge -> vertex index map
 	Edges []uint32
 	// edge -> edge index map
-	Reverse []uint32
+	//Reverse []uint32
 	// edge -> distance
-	Distance []float64
+	Distance []uint16
 	// edge -> steps (could save indices instead of float64 pairs)
-	Steps [][]geo.Coordinate
+	Steps [][]byte
 }
 
-func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) float64 {
+func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
 	if len(steps) < 2 {
 		panic(fmt.Sprintf("Missing steps: %v", steps))
 	}
@@ -287,12 +325,18 @@ func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) float64 {
 		total += distance
 		prev = step
 	}
-	return total
+	return uint16(umath.Float64ToHalf(total))
+}
+
+func (v *EdgeAttributes) Position(nodeIndex int64) geo.Coordinate {
+	p := v.Positions[nodeIndex]
+	return geo.DecodeCoordinate(p.Lat, p.Lng)
 }
 
 func (v *EdgeAttributes) VisitNode(node osm.Node) {
 	if v.Visited.Get(node.Id) {
-		v.Positions[node.Id] = node.Position
+		lat, lng := node.Position.Encode()
+		v.Positions[node.Id] = EncodedPoint{lat, lng}
 	}
 }
 
@@ -319,16 +363,16 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 				rev_edge = v.Current[nodeIndex]
 				v.Edges[rev_edge] = segmentIndex
 				v.Current[nodeIndex]++
-				v.Reverse[edge] = rev_edge
-				v.Reverse[rev_edge] = edge
+				//v.Reverse[edge] = rev_edge
+				//v.Reverse[rev_edge] = edge
 			} else {
-				v.Reverse[edge] = edge
+				//v.Reverse[edge] = edge
 			}
 
 			// Calculate all steps on the way
 			edgeSteps := make([]geo.Coordinate, i-segmentStart+1)
 			for j, stepId := range way.Nodes[segmentStart:i+1] {
-				edgeSteps[j] = v.Positions[stepId]
+				edgeSteps[j] = v.Position(stepId)
 			}
 
 			// Calculate the length of the current edge
@@ -340,7 +384,8 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 
 			// Finally, record the intermediate steps
 			if len(edgeSteps) > 2 {
-				v.Steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
+				v.Steps[edge] = geo.EncodeStep(edgeSteps[0], edgeSteps[1 : len(edgeSteps)-1])
+				//v.Steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
 			} else {
 				v.Steps[edge] = nil
 			}
@@ -361,12 +406,12 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 	numEdges := vertices[len(vertices)-1]
 	attributes := &EdgeAttributes{
 		Subgraph:  subgraph,
-		Positions: map[int64]geo.Coordinate{},
+		Positions: map[int64]EncodedPoint{},
 		Current:   vertices,
 		Edges:     make([]uint32, numEdges),
-		Reverse:   make([]uint32, numEdges),
-		Distance:  make([]float64, numEdges),
-		Steps:     make([][]geo.Coordinate, numEdges),
+		//Reverse:   make([]uint32, numEdges),
+		Distance:  make([]uint16, numEdges),
+		Steps:     make([][]byte, numEdges),
 	}
 	
 	// We need to compute some distances in this pass
@@ -381,7 +426,7 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 
 	// Write all edge attributes to disk
 	Output("edges.ftf",     attributes.Edges)
-	Output("rev_edges.ftf", attributes.Reverse)
+	//Output("rev_edges.ftf", attributes.Reverse)
 	Output("distances.ftf", attributes.Distance)
 
 	// Index the step arrays
@@ -447,7 +492,18 @@ func main() {
 
 	println("Pass 2")
 
+	//indices := NodeIndices {}
+	//for k,v := range subgraph.Indices {
+	//	indices[k] = v
+	//}
 	vertices, err := ComputeNodeAttributes(graph, subgraph)
+	//same := 0
+	//for k,v := range subgraph.Indices {
+	///	if indices[k] == v {
+	//		same++
+	//	}
+	//}
+	//fmt.Printf("same: %v, len: %v\n", same, len(indices) / 2)
 	if err != nil {
 		println("Error during pass2:", err.Error())
 		os.Exit(4)

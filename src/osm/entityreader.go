@@ -70,13 +70,13 @@ func readPrimitiveBlock(stream io.Reader) (*pbf.PrimitiveBlock, error) {
 
 // Internally, the encoding of coordinates depends on the context.
 // This function maps between raw lat/long values and Coordinates.
-func parseLocation(rawlat, rawlon int64, block *pbf.PrimitiveBlock) geo.Coordinate {
+func parseLocation(rawlat, rawlng int64, block *pbf.PrimitiveBlock) geo.Coordinate {
 	granularity := int64(proto.GetInt32(block.Granularity))
 	latOffset := proto.GetInt64(block.LatOffset)
-	lonOffset := proto.GetInt64(block.LonOffset)
-	lat := (latOffset + granularity*rawlat) / 100 // yes, these are stored with more than osm precision
-	lon := (lonOffset + granularity*rawlon) / 100 // no, I do not know why.
-	return geo.Decode(lat, lon)
+	lngOffset := proto.GetInt64(block.LonOffset)
+	lat := float64(latOffset + granularity*rawlat) / 1000000000.0
+	lng := float64(lngOffset + granularity*rawlng) / 1000000000.0
+	return geo.Coordinate{lat, lng}
 }
 
 // Attributes are represented as two parallel arrays of indices into the

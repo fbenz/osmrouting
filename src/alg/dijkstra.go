@@ -173,11 +173,13 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 func aStarHeuristic(g graph.Graph, curr graph.Node, t []graph.Way) float64 {
 	lat1, lng1 := g.NodeLatLng(curr)
 	lat2, lng2 := g.NodeLatLng(t[0].Node)
-	distToDest0 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
+	distToDest0 := geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2})
+	//distToDest0 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
 	if len(t) < 2 {
 		return distToDest0
 	}
 	lat3, lng3 := g.NodeLatLng(t[1].Node)
-	distToDest1 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat3, Lng: lng3})
+	distToDest1 := geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat3, Lng: lng3})
+	//distToDest1 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat3, Lng: lng3})
 	return math.Min(distToDest0, distToDest1)
 }

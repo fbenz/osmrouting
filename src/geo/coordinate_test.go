@@ -18,9 +18,9 @@ func Generate(rand *rand.Rand, _ int) Coordinate {
 func TestEncodeDecode(t *testing.T) {
 	// Test that encode/decode is the identity on osm values.
 	embeddingProjection := func(a Coordinate) bool {
-		osm := Round(a)
-		lat, lng := Encode(osm)
-		return Decode(lat, lng) == osm
+		osm := a.Round()
+		lat, lng := osm.Encode()
+		return DecodeCoordinate(lat, lng) == osm
 	}
 	if err := quick.Check(embeddingProjection, nil); err != nil {
 		t.Error(err)
@@ -28,8 +28,8 @@ func TestEncodeDecode(t *testing.T) {
 	
 	// Otherwise the result should still be within epsilon from the source.
 	decodeTolerance := func(a Coordinate) bool {
-		lat, lng := Encode(a)
-		return Equal(Decode(lat, lng), a)
+		lat, lng := a.Encode()
+		return a.Equal(DecodeCoordinate(lat, lng))
 	}
 	if err := quick.Check(decodeTolerance, nil); err != nil {
 		t.Error(err)
@@ -39,7 +39,7 @@ func TestEncodeDecode(t *testing.T) {
 // Test that rounding works correctly.
 func TestEqualTolerance(t *testing.T) {
 	roundEqual := func(a Coordinate) bool {
-		return Equal(a, Round(a))
+		return a.Equal(a.Round())
 	}
 	if err := quick.Check(roundEqual, nil); err != nil {
 		t.Error(err)
@@ -94,8 +94,8 @@ var distanceTests = [...]DistanceTestData {
 // handle all the corner cases for coordinates.
 func TestDistance(t *testing.T) {
 	for _, test := range distanceTests {
-		deltaLat, deltaLng := Delta(test.From, test.To)
-		distance := Distance(test.From, test.To)
+		deltaLat, deltaLng := test.From.Delta(test.To)
+		distance := test.From.Distance(test.To)
 		err := false
 		if math.Abs(deltaLat - test.DeltaLat) > DeltaTolerance {
 			t.Errorf("Wrong value for deltaLat: %.7f instead of %.7f",

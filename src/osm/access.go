@@ -64,6 +64,14 @@ func AccessMask(way Way) AccessType {
 		}
 	}
 
+	// Some roads are not actually built yet.
+	// Normally, these are tagged as highway=construction|proposed, but it is
+	// also permissible to tag it as construction=yes.
+	if ParseBool(way.Attributes["construction"]) {
+		return 0
+	}
+	
+
 	mask := DefaultAccessMask(way)
 
 	// The designated access tags are hirachical.
