@@ -1,7 +1,7 @@
 package alg
 
 import (
-	"geo"
+	"ellipsoid"
 	"graph"
 	"kdtree"
 )
@@ -11,15 +11,16 @@ func LoadKdTree(base string, positions graph.Positions) (*kdtree.KdTree, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &kdtree.KdTree{kdTreePermutation, positions}, nil
+	g := ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter, ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
+	return &kdtree.KdTree{Nodes: kdTreePermutation, Positions: positions, Geo: g}, nil
 }
 
-func NearestNeighbor(kdTree *kdtree.KdTree, lat, lng float64, forward bool) (graph.Step, []graph.Way) {
+func NearestNeighbor(kdTree *kdtree.KdTree, lat, lng float64, forward bool) (uint32, []graph.Way) {
 	index := binarySearch(kdTree, kdTree.Nodes, lat, lng, true /* compareLat */)
 	if index >= uint32(kdTree.Positions.Len()) {
 		panic("nearestNeighbor found index is too large")
 	}
-	return kdTree.Positions.Step(int(index)), kdTree.Positions.Ways(int(index), forward)
+	return index, kdTree.Positions.Ways(int(index), forward)
 }
 
 func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, compareLat bool) uint32 {
@@ -40,9 +41,9 @@ func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, c
 		// recursion on both halfs
 		leftRecIndex := binarySearch(kdTree, nodes[:middle], lat, lng, !compareLat)
 		rightRecIndex := binarySearch(kdTree, nodes[middle+1:], lat, lng, !compareLat)
-		distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
-		distRecursionLeft := distance(lat, lng, kdTree.Positions.Lat(int(leftRecIndex)), kdTree.Positions.Lng(int(leftRecIndex)))
-		distRecursionRight := distance(lat, lng, kdTree.Positions.Lat(int(rightRecIndex)), kdTree.Positions.Lng(int(rightRecIndex)))
+		distMiddle, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
+		distRecursionLeft, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(leftRecIndex)), kdTree.Positions.Lng(int(leftRecIndex)))
+		distRecursionRight, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(rightRecIndex)), kdTree.Positions.Lng(int(rightRecIndex)))
 		if distRecursionLeft < distRecursionRight {
 			if distRecursionLeft < distMiddle {
 				return leftRecIndex
@@ -69,8 +70,8 @@ func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, c
 		// recursion on the left half
 		recIndex := binarySearch(kdTree, nodes[:middle], lat, lng, !compareLat)
 		// compare middle and result from the left
-		distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
-		distRecursion := distance(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
+		distMiddle, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
+		distRecursion, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
 		if distMiddle < distRecursion {
 			return nodes[middle]
 		}
@@ -83,8 +84,8 @@ func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, c
 	// recursion on the right half
 	recIndex := binarySearch(kdTree, nodes[middle+1:], lat, lng, !compareLat)
 	// compare middle and result from the right
-	distMiddle := distance(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
-	distRecursion := distance(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
+	distMiddle, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(nodes[middle])), kdTree.Positions.Lng(int(nodes[middle])))
+	distRecursion, _ := kdTree.Geo.To(lat, lng, kdTree.Positions.Lat(int(recIndex)), kdTree.Positions.Lng(int(recIndex)))
 	if distMiddle < distRecursion {
 		return nodes[middle]
 	}
@@ -94,5 +95,4 @@ func binarySearch(kdTree *kdtree.KdTree, nodes kdtree.Nodes, lat, lng float64, c
 // TODO remove this function if everything uses geo.Coordinate
 func distance(lat1, lng1, lat2, lng2 float64) float64 {
 	return geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2})
-	//return geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
 }

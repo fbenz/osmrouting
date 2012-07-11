@@ -1,6 +1,6 @@
 // The structure of the JSON object for the route response exactly as in the API definition
 
-package main
+package route
 
 type Result struct {
 	BoundingBox BoundingBox `json:"boundingBox"`
@@ -17,7 +17,7 @@ type Route struct {
 	Duration      Duration `json:"duration"`
 	StartLocation Point    `json:"start_location"`
 	EndLocation   Point    `json:"end_location"`
-	Legs          []Leg    `json:"legs"`
+	Legs          []*Leg   `json:"legs"`
 }
 
 type Leg struct {

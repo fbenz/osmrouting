@@ -2,9 +2,9 @@ package alg
 
 import (
 	"container/heap"
-	"log"
 	"graph"
-	
+	"log"
+
 	//"fmt"
 	//"time"
 )
@@ -13,6 +13,8 @@ import (
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
 func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.Edge, graph.Way, graph.Way) {
+	distOfEndNodes := distanceOfNodes(g, t)
+
 	//time1 := time.Now()
 
 	elements := make([]*Element, g.NodeCount())
@@ -28,9 +30,9 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 		elements[x.node] = x
 		heap.Push(&q, x)
 	}
-	
+
 	//time2 := time.Now()
-	
+
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.node
@@ -49,19 +51,19 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 			}
 		}
 		currDist := elements[curr].d
-		
+
 		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
 			n := g.EdgeEndPoint(currEdge)
-			aStarHeuristic := aStarHeuristic(g, n, t)
+			aStarHeuristic := aStarHeuristic(g, n, t[0].Node, distOfEndNodes)
 			if elem := elements[n]; elem != nil {
 				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < elem.d {
-					q.ChangePriority(elem, tmpDist + aStarHeuristic) // TODO A*? tmpDist + estimate 
+					q.ChangePriority(elem, tmpDist+aStarHeuristic)
 					elem.d = tmpDist
 					elem.p = curr
 					elem.ep = currEdge
 				}
 			} else {
-				x := NewElement(n, currDist + aStarHeuristic /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				x := NewElement(n, currDist+aStarHeuristic /* priority */, currDist+g.EdgeLength(currEdge) /* d*/)
 				elements[x.node] = x
 				x.p = curr
 				x.ep = currEdge
@@ -69,7 +71,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 			}
 		}
 	}
-	
+
 	//time3 := time.Now()
 
 	// Construct the list by moving from t to s
@@ -99,7 +101,7 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 			}
 		}
 	}
-	
+
 	oldCurr := curr
 	stepCount := 0
 	for elem := elements[curr]; elem != nil && elem.node != elem.p; elem = elements[curr] {
@@ -107,22 +109,22 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 		stepCount++
 	}
 	curr = oldCurr
-	
-	path := make([]graph.Node, stepCount + 1)
+
+	path := make([]graph.Node, stepCount+1)
 	edges := make([]graph.Edge, stepCount)
-	
+
 	if stepCount == 0 {
 		log.Printf("WARNING: dijkstra found no path\n")
 		path[0] = s[0].Node
 		return 0, path, edges, s[0], t[0]
 	}
-	
+
 	position := stepCount - 1
 	for elem := elements[curr]; elem != nil && elem.node != elem.p; elem = elements[curr] {
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
-		path[position + 1] = elem.node
+		path[position+1] = elem.node
 		edges[position] = elem.ep
 		curr = elem.p
 		position--
@@ -143,24 +145,24 @@ func DijkstraSlice(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []gr
 	//fmt.Printf("startway: %v\n", startway)
 	//fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
-	
+
 	//fmt.Printf("len(d) = %v\n", len(d))
 	//fmt.Printf("len(p) = %v\n", len(p))
 	//fmt.Printf("len(ep) = %v\n", len(ep))
-	
+
 	/*time4 := time.Now()
-	fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
-	fmt.Printf("time 2-3:func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
-	var resultway graph.Way
-	for _, way := range w {
-		if s == way.Node {
-			return true, way
+		fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
+		fmt.Printf("time 2-3:func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
+		var resultway graph.Way
+		for _, way := range w {
+			if s == way.Node {
+				return true, way
+			}
 		}
-	}
-	return false, resultway
-} %v\n", time3.Sub(time2).Nanoseconds() / 1000)
-	fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
-	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
-	
+		return false, resultway
+	} %v\n", time3.Sub(time2).Nanoseconds() / 1000)
+		fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
+		fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
+
 	return currdist, path, edges, startway, endway
 }

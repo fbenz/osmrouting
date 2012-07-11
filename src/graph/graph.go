@@ -30,6 +30,8 @@ type Graph interface {
 	EdgeEndPoint(Edge) Node
 	EdgeReverse(Edge) (Edge, bool)
 	EdgeSteps(Edge) []Step
+	
+	WayLength([]Step) float64
 }
 
 // Positions is used for both creating the k-d tree in the preprocessing phase
@@ -254,14 +256,14 @@ func (g *GraphFile) Step(i int) Step {
 	return Step{g.stepPositions[2*i], g.stepPositions[2*i+1]}
 }
 
-func wayLength(steps []Step, geo ellipsoid.Ellipsoid) float64 {
+func (g *GraphFile) WayLength(steps []Step) float64 {
 	if len(steps) == 0 {
 		return 0.0
 	}
 	total := 0.0
 	prev := steps[0]
 	for _, step := range steps {
-		distance, _ := geo.To(prev.Lat, prev.Lng, step.Lat, step.Lng)
+		distance, _ := g.geo.To(prev.Lat, prev.Lng, step.Lat, step.Lng)
 		total += distance
 		prev = step
 	}
@@ -299,8 +301,8 @@ func (g *GraphFile) Ways(i int, forward bool) []Way {
 	b2 := make([]Step, len(steps[offset+1:]))
 	copy(b1, steps[:offset])
 	copy(b2, steps[offset+1:])
-	l1 := wayLength(steps[:offset+1], g.geo)
-	l2 := wayLength(steps[offset:], g.geo)
+	l1 := g.WayLength(steps[:offset+1])
+	l2 := g.WayLength(steps[offset:])
 	t1 := g.EdgeStartPoint(edge)
 	t2 := g.EdgeEndPoint(edge)
 	t1Lat, t1Lng := g.NodeLatLng(t1)

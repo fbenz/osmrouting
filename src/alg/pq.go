@@ -63,6 +63,6 @@ func (pq *PriorityQueue) ChangePriority(element *Element, priority float64) {
 	if element.index >= 0 && element.index < (*pq).Len() {
 		heap.Remove(pq, element.index)
 	}
-	element.priority = priority
+	element.priority = int32(priority)
 	heap.Push(pq, element)
 }

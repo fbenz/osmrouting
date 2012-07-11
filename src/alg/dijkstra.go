@@ -2,11 +2,10 @@ package alg
 
 import (
 	"container/heap"
-	"log"
 	"geo"
 	"graph"
-	"math"
-	
+	"log"
+
 	//"fmt"
 	//"time"
 )
@@ -15,8 +14,10 @@ import (
 // Takes an graph as argument and returns an list of vertices in order
 // of the path
 func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.Edge, graph.Way, graph.Way) {
+	distOfEndNodes := distanceOfNodes(g, t)
+
 	//time1 := time.Now()
-	
+
 	elements := make(map[graph.Node]*Element)
 	q := NewPriorityQueue(1024)
 
@@ -30,9 +31,9 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 		elements[x.node] = x
 		heap.Push(&q, x)
 	}
-	
+
 	//time2 := time.Now()
-	
+
 	for !q.Empty() {
 		currElem := (heap.Pop(&q)).(*Element) // Get the first element
 		curr := currElem.node
@@ -51,19 +52,19 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 			}
 		}
 		currDist := elements[curr].d
-		
+
 		for currEdge, endEdge := g.NodeEdges(curr); currEdge <= endEdge; currEdge++ {
 			n := g.EdgeEndPoint(currEdge)
-			aStarHeuristic := aStarHeuristic(g, n, t)
+			aStarHeuristic := aStarHeuristic(g, n, t[0].Node, distOfEndNodes)
 			if elem, ok := elements[n]; ok {
 				if tmpDist := currDist + g.EdgeLength(currEdge); tmpDist < elem.d {
-					q.ChangePriority(elem, tmpDist + aStarHeuristic)
+					q.ChangePriority(elem, tmpDist+aStarHeuristic)
 					elem.d = tmpDist
 					elem.p = curr
 					elem.ep = currEdge
 				}
 			} else {
-				x := NewElement(n, currDist + aStarHeuristic /* priority */, currDist + g.EdgeLength(currEdge) /* d*/)
+				x := NewElement(n, currDist+aStarHeuristic /* priority */, currDist+g.EdgeLength(currEdge) /* d*/)
 				elements[x.node] = x
 				x.p = curr
 				x.ep = currEdge
@@ -71,7 +72,7 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 			}
 		}
 	}
-	
+
 	//time3 := time.Now()
 
 	// Construct the list by moving from t to s
@@ -101,7 +102,7 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 			}
 		}
 	}
-	
+
 	oldCurr := curr
 	stepCount := 0
 	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
@@ -109,22 +110,22 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 		stepCount++
 	}
 	curr = oldCurr
-	
-	path := make([]graph.Node, stepCount + 1)
+
+	path := make([]graph.Node, stepCount+1)
 	edges := make([]graph.Edge, stepCount)
-	
+
 	if stepCount == 0 {
 		log.Printf("WARNING: dijkstra found no path\n")
 		path[0] = s[0].Node
 		return 0, path, edges, s[0], t[0]
 	}
-	
+
 	position := stepCount - 1
 	for elem, ok := elements[curr]; ok && elem.node != elem.p; elem, ok = elements[curr] {
 		//fmt.Printf("curr: %v\n", curr)
 		//fmt.Printf("p:    %v\n", p[curr])
 		//fmt.Printf("ep:   %v\n", ep[curr])
-		path[position + 1] = elem.node
+		path[position+1] = elem.node
 		edges[position] = elem.ep
 		curr = elem.p
 		position--
@@ -145,41 +146,47 @@ func Dijkstra(g graph.Graph, s, t []graph.Way) (float64, []graph.Node, []graph.E
 	//fmt.Printf("startway: %v\n", startway)
 	//fmt.Printf("endway: %v\n", endway)
 	// TODO fix, t[0] is not necessarily optimal
-	
+
 	//fmt.Printf("len(d) = %v\n", len(d))
 	//fmt.Printf("len(p) = %v\n", len(p))
 	//fmt.Printf("len(ep) = %v\n", len(ep))
-	
+
 	/*time4 := time.Now()
-	fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
-	fmt.Printf("time 2-3:func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
-	var resultway graph.Way
-	for _, way := range w {
-		if s == way.Node {
-			return true, way
+		fmt.Printf("time 1-2: %v\n", time2.Sub(time1).Nanoseconds() / 1000)
+		fmt.Printf("time 2-3:func isInList(w []graph.Way, s graph.Node) (bool, graph.Way) {
+		var resultway graph.Way
+		for _, way := range w {
+			if s == way.Node {
+				return true, way
+			}
 		}
-	}
-	return false, resultway
-} %v\n", time3.Sub(time2).Nanoseconds() / 1000)
-	fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
-	fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
-	
+		return false, resultway
+	} %v\n", time3.Sub(time2).Nanoseconds() / 1000)
+		fmt.Printf("time 3-4: %v\n", time4.Sub(time3).Nanoseconds() / 1000)
+		fmt.Printf("stepCount: %v, %v, %v\n", stepCount, len(path), len(edges))*/
+
 	return currdist, path, edges, startway, endway
 }
 
 // aStarHeuristic returns the minimum straight-line distance to one of the destinations.
 // This is an admissible heuristic function (under-approximation of the actual distance to the destination)
 // and thus ensures that an optimal route is returned.
-func aStarHeuristic(g graph.Graph, curr graph.Node, t []graph.Way) float64 {
+func aStarHeuristic(g graph.Graph, curr graph.Node, n graph.Node, distOfEndNodes float64) float64 {
 	lat1, lng1 := g.NodeLatLng(curr)
-	lat2, lng2 := g.NodeLatLng(t[0].Node)
-	distToDest0 := geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2})
-	//distToDest0 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
-	if len(t) < 2 {
-		return distToDest0
+	lat2, lng2 := g.NodeLatLng(n)
+	dist := geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2}) - distOfEndNodes
+	if dist < 0 {
+		return 0
 	}
-	lat3, lng3 := g.NodeLatLng(t[1].Node)
-	distToDest1 := geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat3, Lng: lng3})
-	//distToDest1 := geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat3, Lng: lng3})
-	return math.Min(distToDest0, distToDest1)
+	return dist
+}
+
+func distanceOfNodes(g graph.Graph, t []graph.Way) float64 {
+	distOfNodes := 0.0
+	if len(t) > 1 {
+		endLat0, endLng0 := g.NodeLatLng(t[0].Node)
+		endLat1, endLng1 := g.NodeLatLng(t[1].Node)
+		distOfNodes = geo.Coordinate{Lat: endLat0, Lng: endLng0}.Distance(geo.Coordinate{Lat: endLat1, Lng: endLng1})
+	}
+	return distOfNodes
 }

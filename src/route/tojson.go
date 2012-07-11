@@ -1,9 +1,9 @@
-package main
+package route
 
 import (
+	"fmt"
 	"graph"
 	"math"
-	"fmt"
 )
 
 // Returns a human readable string for the given distance value.
@@ -11,13 +11,13 @@ func FormatDistance(distance float64) Distance {
 	switch {
 	case distance < 0.5:
 		// Yes, this is a gag. Why do you even have to ask?
-		t := fmt.Sprintf("%.2f mm", distance * 1000.0)
+		t := fmt.Sprintf("%.2f mm", distance*1000.0)
 		return Distance{t, int(distance)}
 	case distance < 500.0:
 		t := fmt.Sprintf("%.2f m", distance)
 		return Distance{t, int(distance)}
 	}
-	t := fmt.Sprintf("%.2f km", distance / 1000.0)
+	t := fmt.Sprintf("%.2f km", distance/1000.0)
 	return Distance{t, int(distance)}
 }
 
@@ -28,10 +28,10 @@ func FormatDuration(seconds float64) Duration {
 		t := fmt.Sprintf("%.2f secs", seconds)
 		return Duration{t, int(seconds)}
 	case seconds < 1800.0:
-		t := fmt.Sprintf("%.2f mins", seconds / 60.0)
+		t := fmt.Sprintf("%.2f mins", seconds/60.0)
 		return Duration{t, int(seconds)}
 	}
-	t := fmt.Sprintf("%.2f hours", seconds / 3600.0)
+	t := fmt.Sprintf("%.2f hours", seconds/3600.0)
 	return Duration{t, int(seconds)}
 }
 
@@ -56,11 +56,11 @@ func NodeToStep(g graph.Graph, node graph.Node) graph.Step {
 // Given a path from start to stop with intermediate steps, turn
 // it into a Polyline for json output.
 func StepsToPolyline(steps []graph.Step, start, stop graph.Step) Polyline {
-	polyline := make([]Point,len(steps)+2)
+	polyline := make([]Point, len(steps)+2)
 	polyline[0] = StepToPoint(start)
 	polyline[len(steps)+1] = StepToPoint(stop)
-	for i,s:=range steps {
-		polyline[i + 1] = StepToPoint(s)
+	for i, s := range steps {
+		polyline[i+1] = StepToPoint(s)
 	}
 	return polyline
 }
@@ -93,7 +93,7 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) *Leg {
 	// Determine the number of steps on this path.
 	totalSteps := len(edges)
 	if start.Length > 1e-7 {
@@ -103,7 +103,7 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 		totalSteps++
 	}
 	steps := make([]Step, totalSteps)
-	
+
 	// Add the initial step, if present
 	i := 0
 	if start.Length > 1e-7 {
@@ -111,22 +111,22 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 		steps[0] = WayToStep(start, start.Target, NodeToStep(g, vertices[0]))
 		i++
 	}
-	
+
 	// Add the intermediate steps
 	for j, edge := range edges {
 		from := vertices[j]
-		to   := vertices[j+1]
+		to := vertices[j+1]
 		steps[i] = EdgeToStep(g, edge, from, to)
 		i++
 	}
-	
+
 	// Add the final step, if present
 	if stop.Length > 1e-7 {
-		prev := vertices[len(vertices) - 1]
+		prev := vertices[len(vertices)-1]
 		steps[i] = WayToStep(stop, NodeToStep(g, prev), stop.Target)
 	}
-	
-	return Leg{
+
+	return &Leg{
 		Distance:      FormatDistance(distance),
 		Duration:      MockupDuration(distance),
 		StartLocation: StepToPoint(start.Target),
@@ -151,7 +151,7 @@ func ComputeBoundsStep(step Step) BoundingBox {
 		// Bug?
 		return BoundingBox{Point{0.0, 0.0}, Point{0.0, 0.0}}
 	}
-	
+
 	bounds := BoundingBox{step.Polyline[0], step.Polyline[0]}
 	if len(step.Polyline) > 1 {
 		for _, point := range step.Polyline[1:] {
@@ -163,12 +163,12 @@ func ComputeBoundsStep(step Step) BoundingBox {
 }
 
 // Compute a thight bounding box for a leg
-func ComputeBoundsLeg(leg Leg) BoundingBox {
+func ComputeBoundsLeg(leg *Leg) BoundingBox {
 	if len(leg.Steps) == 0 {
 		// Bug?
 		return BoundingBox{Point{0.0, 0.0}, Point{0.0, 0.0}}
 	}
-	
+
 	bounds := ComputeBoundsStep(leg.Steps[0])
 	if len(leg.Steps) > 1 {
 		for _, step := range leg.Steps[1:] {
@@ -185,13 +185,13 @@ func ComputeBounds(route Route) BoundingBox {
 		// This is a bug...
 		return BoundingBox{Point{0.0, 0.0}, Point{0.0, 0.0}}
 	}
-	
+
 	bounds := ComputeBoundsLeg(route.Legs[0])
 	if len(route.Legs) > 1 {
 		for _, leg := range route.Legs[1:] {
 			bounds = BoxUnion(bounds, ComputeBoundsLeg(leg))
 		}
 	}
-	
+
 	return bounds
 }

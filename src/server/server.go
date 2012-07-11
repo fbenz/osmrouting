@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"geo"
 	"graph"
 	"html/template"
 	"io"
@@ -15,12 +14,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"route"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
-	
+
 	//"fmt"
 )
 
@@ -35,7 +35,7 @@ const (
 
 	DefaultPort = 23401 // the default port number
 
-	TravelmodeCar = "driving"
+	TravelmodeCar  = "driving"
 	TravelmodeFoot = "walking"
 	TravelmodeBike = "bicycling"
 )
@@ -49,14 +49,14 @@ var (
 	featureResponse []byte
 
 	// command line flags
-	FlagPort    	int
-	FlagLogging 	bool
-	FlagCpuProfile 	string
-	FlagCaching		bool
+	FlagPort       int
+	FlagLogging    bool
+	FlagCpuProfile string
+	FlagCaching    bool
 
 	startupTime time.Time
-	
-	osmData map[string] RoutingData
+
+	osmData map[string]RoutingData
 )
 
 func init() {
@@ -90,7 +90,7 @@ func main() {
 	// start the HTTP server
 	log.Println("Serving...")
 	startupTime = time.Now()
-	err := http.ListenAndServe(":" + strconv.Itoa(FlagPort), nil)
+	err := http.ListenAndServe(":"+strconv.Itoa(FlagPort), nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -102,8 +102,8 @@ func loadFiles(base string) (*RoutingData, error) {
 		log.Fatal("Loading graph: ", err)
 		return nil, err
 	}
-	t, err := alg.LoadKdTree(base, g.Positions());
-	if  err != nil {
+	t, err := alg.LoadKdTree(base, g.Positions())
+	if err != nil {
 		log.Fatal("Loading k-d tree: ", err)
 		return nil, err
 	}
@@ -112,20 +112,20 @@ func loadFiles(base string) (*RoutingData, error) {
 
 // setup does some initialization before the HTTP server starts.
 func setup() error {
-	osmData = map[string] RoutingData {}
-	
+	osmData = map[string]RoutingData{}
+
 	dat, err := loadFiles("car")
 	if err != nil {
 		return err
 	}
 	osmData[TravelmodeCar] = *dat
-	
+
 	dat, err = loadFiles("bike")
 	if err != nil {
 		return err
 	}
 	osmData[TravelmodeBike] = *dat
-	
+
 	dat, err = loadFiles("foot")
 	if err != nil {
 		return err
@@ -161,16 +161,16 @@ func root(w http.ResponseWriter, r *http.Request) {
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	defer LogRequest(r, startTime)
-	
+
 	// profiling if enabled
 	if FlagCpuProfile != "" {
-        f, err := os.Create(FlagCpuProfile)
-        if err != nil {
-            log.Fatal("Creating profile: ", err)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
+		f, err := os.Create(FlagCpuProfile)
+		if err != nil {
+			log.Fatal("Creating profile: ", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	// parse URL and extract parameters
 	urlParameter := r.URL.Query()
@@ -198,7 +198,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	cachingKey := urlParameter[ParameterWaypoints][0] + travelmode
 	if FlagCaching {
 		if resp, ok := CacheGet(cachingKey); ok {
@@ -206,43 +206,14 @@ func routes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
 	data := osmData[travelmode]
-	legs := make([]Leg, len(waypoints) - 1)
-	distance := 0.0
-	duration := 0.0
-	for i := 0; i < len(waypoints) - 1; i++ {
-		_, startWays := alg.NearestNeighbor(data.kdtree, waypoints[i][0],   waypoints[i][1],   true  /* forward */)
-		_, endWays   := alg.NearestNeighbor(data.kdtree, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
+	
+	// Do the actual route computation.
+	result := route.ConcurrentRoutes(data.graph, data.kdtree, waypoints)
 
-		// Use the Dijkatrs version using a large slice only for long roues where the map of the
-		// other version can get quite large
-		if getDistance(data.graph, startWays[0].Node, endWays[0].Node) > 100.0 * 1000.0 { // > 100km
-			dist, vertices, edges, start, end := alg.DijkstraSlice(data.graph, startWays, endWays)
-			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
-		} else {
-			dist, vertices, edges, start, end := alg.Dijkstra(data.graph, startWays, endWays)
-			legs[i] = PathToLeg(data.graph, dist, vertices, edges, start, end)
-		}
-		distance += float64(legs[i].Distance.Value)
-		duration += float64(legs[i].Duration.Value)
-	}
-	
-	route := Route{
-		Distance: FormatDistance(distance),
-		Duration: FormatDuration(duration),
-		StartLocation: legs[0].StartLocation,
-		EndLocation: legs[len(legs)-1].EndLocation,
-		Legs: legs,
-	}
-	
-	result := &Result{
-		BoundingBox: ComputeBounds(route),
-		Routes:      []Route{route},
-	}
-	
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
 		http.Error(w, "unable to create a proper JSON object", http.StatusInternalServerError)
@@ -254,21 +225,14 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonResult)
 }
 
-// getDistance returns the distance between the two given nodes
-func getDistance(g graph.Graph, n1 graph.Node, n2 graph.Node) float64 {
-	lat1, lng1 := g.NodeLatLng(n1)
-	lat2, lng2 := g.NodeLatLng(n2)
-	return geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
-}
-
 // getWaypoints parses the given waypoints.
-func getWaypoints(waypointString string) ([]Point, error) {
+func getWaypoints(waypointString string) ([]route.Point, error) {
 	waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
 	if len(waypointStrings) < 2 {
 		return nil, errors.New("too few waypoints. at least 2 waypoints are needed")
 	}
 
-	points := make([]Point, len(waypointStrings))
+	points := make([]route.Point, len(waypointStrings))
 	for i, v := range waypointStrings {
 		coordinateStrings := strings.Split(v, SeparatorLatLng)
 		if len(coordinateStrings) != 2 {
@@ -282,7 +246,7 @@ func getWaypoints(waypointString string) ([]Point, error) {
 		if err != nil {
 			return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[1])
 		}
-		points[i] = Point{lat, lng}
+		points[i] = route.Point{lat, lng}
 	}
 	return points, nil
 }
@@ -314,7 +278,7 @@ func forward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	port := urlParameter["port"][0]
-	
+
 	forwardParameter := ""
 	for k, v := range urlParameter {
 		if k != "port" {
@@ -334,7 +298,7 @@ func forward(w http.ResponseWriter, r *http.Request) {
 	for length > 0 {
 		length, readErr = resp.Body.Read(body)
 		if length != 0 && readErr != nil {
-			http.Error(w, "error while reading response from remote server: " + readErr.Error(), http.StatusInternalServerError)
+			http.Error(w, "error while reading response from remote server: "+readErr.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Write(body[:length])
@@ -350,8 +314,8 @@ func status(w http.ResponseWriter, r *http.Request) {
 	minutes := int64(uptime.Minutes()) % 60
 	statusInfo["uptimeHours"] = strconv.FormatInt(hours, 10 /* base */)
 	statusInfo["uptimeMinutes"] = strconv.FormatInt(minutes, 10 /* base */)
-	statusInfo["cacheCurrent"] = strconv.FormatInt(int64(cache.Size / 1024), 10 /* base */)
-	statusInfo["cacheMax"] = strconv.FormatInt(int64(MaxCacheSize / 1024), 10 /* base */)
+	statusInfo["cacheCurrent"] = strconv.FormatInt(int64(cache.Size/1024), 10 /* base */)
+	statusInfo["cacheMax"] = strconv.FormatInt(int64(MaxCacheSize/1024), 10 /* base */)
 
 	if err := statusTemplate.Execute(w, statusInfo); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
