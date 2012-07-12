@@ -222,6 +222,9 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	if FlagCaching {
 		CachePut(cachingKey, jsonResult)
 	}
+	
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write(jsonResult)
 }
 
@@ -256,6 +259,8 @@ func features(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	defer LogRequest(r, startTime)
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write(featureResponse)
 }
 
