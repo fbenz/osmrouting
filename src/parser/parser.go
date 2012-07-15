@@ -25,6 +25,8 @@ import (
 	"geo"
 	"os"
 	"osm"
+	"runtime"
+	"runtime/pprof"
 	"umath"
 )
 
@@ -237,19 +239,31 @@ func ReorderNodes(attr *NodeAttributes) {
 */
 
 func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, error) {
+	var err error
+	
 	visitor := &NodeAttributes{
 		Subgraph:  subgraph,
-		Degrees:   make([]uint32, subgraph.Size+1),
-		Positions: make([]int32, 2*subgraph.Size),
+		//Degrees:   make([]uint32, subgraph.Size+1),
+		//Positions: make([]int32, 2*subgraph.Size),
+	}
+	visitor.Degrees, err = MapFileUint32("vertices.ftf", int(subgraph.Size+1))
+	if err != nil {
+		return nil, err
+	}
+	visitor.Positions, err = MapFileInt32("positions.ftf", int(2*subgraph.Size))
+	if err != nil {
+		return nil, err
 	}
 	
-	err := Traverse(graph, visitor)
+	err = Traverse(graph, visitor)
 	if err != nil {
 		return nil, err
 	}
 
 	// Write node attributes
-	err = Output("positions.ftf", visitor.Positions)
+	err = UnmapFileInt32(visitor.Positions)
+	visitor.Positions = nil
+	//err = Output("positions.ftf", visitor.Positions)
 	if err != nil {
 		return nil, err
 	}
@@ -271,12 +285,19 @@ func ComputeNodeAttributes(graph StreetGraph, subgraph *Subgraph) ([]uint32, err
 	h.Print()
 	fmt.Printf("Edge Count: %d\n", c)
 	
-	err = Output("vertices.ftf", e)
+	// We need to preserve the vertices for the third pass, but we really
+	// shouldn't keep the file mapping around. Instead we copy everything
+	// to the go heap and then close the mapping.
+	vertices := make([]uint32, subgraph.Size+1)
+	copy(vertices, visitor.Degrees)
+	err = UnmapFileUint32(visitor.Degrees)
+	visitor.Degrees = nil
+	//err = Output("vertices.ftf", e)
 	if err != nil {
 		return nil, err
 	}
 	
-	return e, nil
+	return vertices, nil
 }
 
 // Pass 3
@@ -299,7 +320,8 @@ type EdgeAttributes struct {
 	// ellipsoid, for distance calculations
 	E ellipsoid.Ellipsoid
 	// node locations, for the steps
-	Positions map[int64] EncodedPoint
+	Positions Positions
+	//Positions map[int64] EncodedPoint
 	
 	// vertex -> edge index maps
 	Current []uint32
@@ -310,7 +332,20 @@ type EdgeAttributes struct {
 	// edge -> distance
 	Distance []uint16
 	// edge -> steps (could save indices instead of float64 pairs)
-	Steps [][]byte
+	//Steps [][]byte
+	Steps []uint32
+}
+
+type StepAttributes struct {
+	*Subgraph
+	// node locations
+	Positions Positions
+	// vertex -> edge index maps
+	Current []uint32
+	// first step indices
+	StepIndices []uint32
+	// the actual steps
+	Steps []byte
 }
 
 func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
@@ -328,15 +363,9 @@ func edgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
 	return uint16(umath.Float64ToHalf(total))
 }
 
-func (v *EdgeAttributes) Position(nodeIndex int64) geo.Coordinate {
-	p := v.Positions[nodeIndex]
-	return geo.DecodeCoordinate(p.Lat, p.Lng)
-}
-
 func (v *EdgeAttributes) VisitNode(node osm.Node) {
 	if v.Visited.Get(node.Id) {
-		lat, lng := node.Position.Encode()
-		v.Positions[node.Id] = EncodedPoint{lat, lng}
+		v.Positions.Set(node.Id, node.Position)
 	}
 }
 
@@ -363,16 +392,12 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 				rev_edge = v.Current[nodeIndex]
 				v.Edges[rev_edge] = segmentIndex
 				v.Current[nodeIndex]++
-				//v.Reverse[edge] = rev_edge
-				//v.Reverse[rev_edge] = edge
-			} else {
-				//v.Reverse[edge] = edge
 			}
 
 			// Calculate all steps on the way
 			edgeSteps := make([]geo.Coordinate, i-segmentStart+1)
 			for j, stepId := range way.Nodes[segmentStart:i+1] {
-				edgeSteps[j] = v.Position(stepId)
+				edgeSteps[j] = v.Positions.Get(stepId)
 			}
 
 			// Calculate the length of the current edge
@@ -384,15 +409,15 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 
 			// Finally, record the intermediate steps
 			if len(edgeSteps) > 2 {
-				v.Steps[edge] = geo.EncodeStep(edgeSteps[0], edgeSteps[1 : len(edgeSteps)-1])
-				//v.Steps[edge] = edgeSteps[1 : len(edgeSteps)-1]
+				v.Steps[edge] += uint32(len(geo.EncodeStep(edgeSteps[0], edgeSteps[1 : len(edgeSteps)-1])))
+				//v.Steps[edge] = geo.EncodeStep(edgeSteps[0], edgeSteps[1 : len(edgeSteps)-1])
 			} else {
-				v.Steps[edge] = nil
+				//v.Steps[edge] = nil
 			}
 
 			if !isOneway {
 				// This is always implicit and we do not save it
-				v.Steps[rev_edge] = nil
+				//v.Steps[rev_edge] = nil
 			}
 			
 			segmentStart = i
@@ -401,17 +426,74 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 	}
 }
 
+func (v *StepAttributes) VisitNode(node osm.Node) {
+}
+
+func (v *StepAttributes) VisitRelation(relation osm.Relation) {
+}
+
+func (v *StepAttributes) VisitWay(way osm.Way) {
+	isOneway := way.Attributes["oneway"] == "true"
+	segmentStart := 0
+	segmentIndex := v.Indices[way.Nodes[0]]
+	for i, nodeId := range way.Nodes {
+		if i == 0 {
+			continue
+		}
+		if nodeIndex, ok := v.Indices[nodeId]; ok {
+			// Record a new edge from vertex segmentIndex to nodeIndex
+			edge := v.Current[segmentIndex]
+			v.Current[segmentIndex]++
+
+			// If this is a bidirectional road, also record the reverse edge
+			if !isOneway {
+				v.Current[nodeIndex]++
+			}
+
+			// Calculate all steps on the way
+			edgeSteps := make([]geo.Coordinate, i-segmentStart+1)
+			for j, stepId := range way.Nodes[segmentStart:i+1] {
+				edgeSteps[j] = v.Positions.Get(stepId)
+			}
+
+			// Finally, record the intermediate steps
+			if len(edgeSteps) > 2 {
+				encoding := geo.EncodeStep(edgeSteps[0], edgeSteps[1 : len(edgeSteps)-1])
+				copy(v.Steps[v.StepIndices[edge] : len(v.Steps) - 1], encoding)
+				v.StepIndices[edge] += uint32(len(encoding))
+			}
+
+			segmentStart = i
+			segmentIndex = nodeIndex
+		}
+	}
+}
+
 func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uint32) error {
+	var err error
+	
 	// Allocate space for the edge attributes
-	numEdges := vertices[len(vertices)-1]
+	numEdges := int(vertices[len(vertices)-1])
 	attributes := &EdgeAttributes{
 		Subgraph:  subgraph,
-		Positions: map[int64]EncodedPoint{},
+		Positions: NewPositions(64),
 		Current:   vertices,
-		Edges:     make([]uint32, numEdges),
-		//Reverse:   make([]uint32, numEdges),
-		Distance:  make([]uint16, numEdges),
-		Steps:     make([][]byte, numEdges),
+		//Edges:     make([]uint32, numEdges),
+		//Distance:  make([]uint16, numEdges),
+		//Steps:     make([]uint32, numEdges+1),
+	}
+	
+	attributes.Edges, err = MapFileUint32("edges.ftf", numEdges)
+	if err != nil {
+		return err
+	}
+	attributes.Distance, err = MapFileUint16("distances.ftf", numEdges)
+	if err != nil {
+		return err
+	}
+	attributes.Steps, err = MapFileUint32("steps.ftf", numEdges+1)
+	if err != nil {
+		return err
 	}
 	
 	// We need to compute some distances in this pass
@@ -419,17 +501,44 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 		ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
 
 	// Perform the actual graph traversal
-	err := Traverse(graph, attributes)
+	fmt.Printf("Edge Attribute traversal\n")
+	err = Traverse(graph, attributes)
 	if err != nil {
 		return err
 	}
 
 	// Write all edge attributes to disk
-	Output("edges.ftf",     attributes.Edges)
-	//Output("rev_edges.ftf", attributes.Reverse)
-	Output("distances.ftf", attributes.Distance)
+	fmt.Printf("Writing edge attributes\n")
+	err = UnmapFileUint32(attributes.Edges)
+	attributes.Edges = nil
+	if err != nil {
+		return err
+	}
+	err = UnmapFileUint16(attributes.Distance)
+	attributes.Distance = nil
+	if err != nil {
+		return err
+	}
+	//Output("edges.ftf",     attributes.Edges)
+	//Output("distances.ftf", attributes.Distance)
 
 	// Index the step arrays
+	for i, c := 0, 0; i < len(attributes.Steps); i++ {
+		k := attributes.Steps[i]
+		attributes.Steps[i] = uint32(c)
+		c += int(k)
+	}
+	// Like before we need to kepp the step indices around, so we
+	// copy them onto the go heap.
+	steps := make([]uint32, numEdges+1)
+	copy(steps, attributes.Steps)
+	err = UnmapFileUint32(attributes.Steps)
+	attributes.Steps = nil
+	if err != nil {
+		return err
+	}
+	//Output("steps.ftf", attributes.Steps)
+	/*
 	stepIndices := make([]uint32, numEdges+1)
 	var current uint32 = 0
 	for i, steps := range attributes.Steps {
@@ -439,7 +548,45 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 	stepIndices[numEdges] = current // <- sentinel
 
 	Output("steps.ftf", stepIndices)
+	*/
 
+	fmt.Printf("Setting step attributes\n")
+	
+	// At this point we need to make one additional pass over the data
+	// to output the step data.
+	sattributes := &StepAttributes{
+		Subgraph:    subgraph,
+		Positions:   attributes.Positions,
+		Current:     attributes.Current,
+		StepIndices: steps,
+		Steps:       nil,
+	}
+	// We have to reset the current array (basically, right shift it by one)
+	copy(sattributes.Current[1 : len(sattributes.Current)-1], sattributes.Current)
+	sattributes.Current[0] = 0
+	// Finally, we can allocate storage for the step array, but we should really
+	// free everything else first.
+	attributes = nil
+	sattributes.Steps, err = MapFile("step_positions.ftf",
+		int(sattributes.StepIndices[len(sattributes.StepIndices)-1]))
+	if err != nil {
+		return err
+	}
+	//sattributes.Steps = make([]byte, sattributes.StepIndices[len(sattributes.StepIndices)-1])
+
+	fmt.Printf("Final traversal\n")
+	err = Traverse(graph, sattributes)
+	if err != nil {
+		return err
+	}
+	
+	err = UnmapFile(sattributes.Steps)
+	if err != nil {
+		return err
+	}
+	//Output("step_positions.ftf", sattributes.Steps)
+
+	/*
 	output, err := os.Create("step_positions.ftf")
 	if err != nil {
 		return err
@@ -448,6 +595,7 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 		binary.Write(output, binary.LittleEndian, steps)
 	}
 	output.Close()
+	*/
 
 	return nil
 }
@@ -455,12 +603,26 @@ func ComputeEdgeAttributes(graph StreetGraph, subgraph *Subgraph, vertices []uin
 func main() {
 	inputFile  := flag.String("i", "", "input OSM PBF file")
 	accessType := flag.String("f", "car", "access type (car, bike, foot)")
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+	//memprofile := flag.String("memprofile", "", "write memory profile to this file")
+	
 	flag.Parse()
 	
 	if len(*inputFile) == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			panic(err.Error())
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	
+	runtime.GOMAXPROCS(8)
 
 	file, err := os.Open(*inputFile)
 	if err != nil {
@@ -483,7 +645,6 @@ func main() {
 	graph := StreetGraph{file, access}
 
 	println("Pass 1")
-
 	subgraph, err := InducedSubgraph(graph)
 	if err != nil {
 		println("Error during pass1:", err.Error())
@@ -491,26 +652,13 @@ func main() {
 	}
 
 	println("Pass 2")
-
-	//indices := NodeIndices {}
-	//for k,v := range subgraph.Indices {
-	//	indices[k] = v
-	//}
 	vertices, err := ComputeNodeAttributes(graph, subgraph)
-	//same := 0
-	//for k,v := range subgraph.Indices {
-	///	if indices[k] == v {
-	//		same++
-	//	}
-	//}
-	//fmt.Printf("same: %v, len: %v\n", same, len(indices) / 2)
 	if err != nil {
 		println("Error during pass2:", err.Error())
 		os.Exit(4)
 	}
 
 	println("Pass 3")
-
 	err = ComputeEdgeAttributes(graph, subgraph, vertices)
 	if err != nil {
 		println("Error during pass3:", err.Error())

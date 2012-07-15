@@ -7,6 +7,9 @@
 package main
 
 import (
+	"code.google.com/p/snappy-go/snappy"
+	"compress/flate"
+	"alg"
 	"graph"
 	"log"
 	"flag"
@@ -15,6 +18,8 @@ import (
 	"math"
 	"encoding/binary"
 	"time"
+	"geo"
+	"os"
 )
 
 const (
@@ -66,7 +71,9 @@ func main() {
 		return
 	}
 	fmt.Printf("encode and check...\n")
-	encodeAndCheck()
+	//encodeAndCheck()
+	//fmt.Printf("encode and check 2...\n")
+	encodeAndCheck2()
 }
 
 func loadFiles(base string) (*RoutingData, error) {
@@ -228,6 +235,136 @@ func encodeAndCheck() {
 	
 	fmt.Printf("    average time per decoding: %d\n", timeStepsSum / int64(edgeCount))
 	fmt.Printf("vs. average time per access:   %d\n", timeRefStepsSum / int64(edgeCount))
+}
+
+func Bits(a int32) int {
+	if a < 0 {
+		a = -a
+	}
+	c := math.Log2(float64(a + 1))
+	return int(math.Ceil(c))
+}
+
+func EncodeStepHistogram(start geo.Coordinate, step []geo.Coordinate, h *alg.Histogram) {
+	prevLat, prevLng := start.Encode()
+	for _, curr := range step {
+		currLat, currLng := curr.Encode()
+		dlat := currLat - prevLat
+		dlng := currLng - prevLng
+		h.Add(fmt.Sprintf("%v", Bits(dlat)))
+		h.Add(fmt.Sprintf("%v", Bits(dlng)))
+		prevLat, prevLng = currLat, currLng
+	}
+}
+
+func EncodeSnappy(buffer []byte) []byte {
+	sl, err := snappy.Encode(nil, buffer)
+	if err != nil {
+		panic(err.Error())
+	}
+	return sl
+}
+
+func EncodeFlate(buffer []byte) []byte {
+	output := new(bytes.Buffer)
+	w, err := flate.NewWriter(output, -1)
+	if err != nil {
+		panic(err.Error())
+	}
+	w.Write(buffer)
+	w.Close()
+	return output.Bytes()
+}
+
+func Entropy(h *alg.Histogram) int {
+	samples := h.Samples()
+	size := float64(len(samples))
+	entropy := 0.0
+	for _, sample := range samples {
+		freq := float64(sample.Frequency)
+		p := freq / size
+		entropy += p * math.Log2(p)
+	}
+	entropy = -entropy
+	
+	fmt.Printf("Entropy: %.2f bits\n", entropy)
+	encodedSize := int(math.Ceil(size * entropy / 8.0))
+	fmt.Printf("Minimum size: %d bytes\n", encodedSize)
+	return encodedSize
+}
+
+func encodeAndCheck2() {
+	g := osmData[FlagMode].graph
+	
+	h := alg.NewHistogram("step indices")
+		
+	bytesOrg := 0
+	bytesNew := 0
+	stepCount := 0
+	stepLengthSum := 0
+	
+	data := new(bytes.Buffer)
+	
+	//time1 := time.Now()
+	
+	// Encode
+	for j := 0; j < g.EdgeCount(); j++ {
+		e := graph.Edge(j)
+		v := g.EdgeStartPoint(e)
+		lat,lng := g.NodeLatLng(v)
+		start := geo.Coordinate{lat, lng}
+
+		// don't consider steps twice
+		if revI, exists := g.EdgeReverse(e); exists && int(revI) < j {
+			continue
+		}
+		
+		gsteps := g.EdgeSteps(e)
+		steps := make([]geo.Coordinate, len(gsteps))
+		for i, s := range gsteps {
+			steps[i] = geo.Coordinate{s.Lat, s.Lng}
+		}
+		l := geo.EncodeStep(start, steps)
+		
+		bytesOrg += OriginalStepSize * len(steps)
+		bytesNew += len(l)
+		stepCount++
+		stepLengthSum += len(steps)
+		
+		data.Write(l)
+		
+		EncodeStepHistogram(start, steps, h)
+	}
+	// end of encoding
+	
+	out, err := os.Create("polylines.ftf")
+	if err != nil {
+		panic(err.Error())
+	}
+	out.Write(data.Bytes())
+	out.Close()
+	
+	bytesSnap  := len(EncodeSnappy(data.Bytes()))
+	bytesFlate := len(EncodeFlate(data.Bytes()))
+	
+	//time2 := time.Now()
+	
+	fmt.Printf("bytes saved (delta):  %v\n", bytesOrg - bytesNew)
+	fmt.Printf("%v / %v   %v\n", bytesNew, bytesOrg, float32(bytesNew) / float32(bytesOrg))
+	fmt.Printf("bytes saved (snappy): %v\n", bytesOrg - bytesSnap)
+	fmt.Printf("%v / %v   %v\n", bytesSnap, bytesOrg, float32(bytesSnap) / float32(bytesOrg))
+	fmt.Printf("bytes saved (flate):  %v\n", bytesOrg - bytesFlate)
+	fmt.Printf("%v / %v   %v\n", bytesFlate, bytesOrg, float32(bytesFlate) / float32(bytesOrg))
+	fmt.Printf("avg step length: %v\n", float64(stepLengthSum) / float64(stepCount))
+	fmt.Printf("avg step size (org):   %v\n", float64(bytesOrg)  / float64(stepCount))
+	fmt.Printf("avg step size (enc):   %v\n", float64(bytesNew)  / float64(stepCount))
+	fmt.Printf("avg step size (snap):  %v\n", float64(bytesSnap) / float64(stepCount))
+	fmt.Printf("avg step size (flate): %v\n", float64(bytesFlate) / float64(stepCount))
+	//fmt.Printf("time: %d\n", time2.Sub(time1).Nanoseconds() / (1000 * 1000))
+	//encodedSize := Entropy(h)
+	//fmt.Printf("best ratio: %v\n", float64(encodedSize) / float64(bytesOrg))
+	
+	h.Print()
 }
 
 func decodeSteps(bytes []byte) []graph.Step {

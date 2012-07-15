@@ -51,12 +51,7 @@ func parseHeader(stream io.Reader) error {
 
 // Parse a primitive block, which is a container for an arbitrary sequence
 // of data elements.
-func readPrimitiveBlock(stream io.Reader) (*pbf.PrimitiveBlock, error) {
-	block, err := ReadBlock(stream)
-	if err != nil {
-		return nil, err
-	}
-
+func parsePrimitiveBlock(block *Block) (*pbf.PrimitiveBlock, error) {
 	if block.Kind != OSMData {
 		return nil, errors.New("Duplicate HeaderBlock")
 	}
@@ -195,20 +190,47 @@ func visitGroup(group *pbf.PrimitiveGroup, block *pbf.PrimitiveBlock, client Vis
 	}
 }
 
+func readBlocks(stream io.Reader, cs chan *Block) {
+	for {
+		block, err := ReadBlock(stream)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err.Error())
+		}
+		cs <- block
+	}
+	cs <- nil
+}
+
+func readPrimitiveBlocks(stream io.Reader, cs chan *pbf.PrimitiveBlock) {
+	bs := make(chan *Block, 2)
+	go readBlocks(stream, bs)
+	for block := range bs {
+		if block == nil {
+			break
+		}
+		pb, err := parsePrimitiveBlock(block)
+		if err != nil {
+			panic(err.Error())
+		}
+		cs <- pb
+	}
+	cs <- nil
+}
+
 func Parse(stream io.Reader, client Visitor) error {
 	err := parseHeader(stream)
 	if err != nil {
 		return err
 	}
 
-	for {
-		block, err := readPrimitiveBlock(stream)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
+	cs := make(chan *pbf.PrimitiveBlock, 2)
+	go readPrimitiveBlocks(stream, cs)
+	for block := range cs {
+		if block == nil {
+			break
 		}
-
 		for _, group := range block.Primitivegroup {
 			visitGroup(group, block, client)
 		}
