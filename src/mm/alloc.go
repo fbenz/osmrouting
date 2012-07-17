@@ -11,17 +11,20 @@ type Region struct {
 const DefaultBlockSize = (1 << 20) // 1 MB blocks
 
 func Allocate(size int, p interface{}) error {
-	elem := reflect_elem_size(p)
-	m, err := sys_mmap_anon(size * elem)
+	rsize := size * reflect_elem_size(p)
+	m, err := sys_mmap_anon(rsize)
 	if err != nil {
 		return err
 	}
+	ProfileAllocate(rsize)
 	reflect_set(p, m)
 	return nil
 }
 
 func Free(p interface{}) error {
-	if err := sys_close(reflect_get(p)); err != nil {
+	b := reflect_get(p)
+	ProfileFree(len(b))
+	if err := sys_close(b); err != nil {
 		return err
 	}
 	reflect_set(p, nil)
@@ -33,6 +36,7 @@ func new_block(r *Region) {
 	if err != nil {
 		panic(err.Error())
 	}
+	ProfileAllocate(r.BlockSize)
 	r.Block  = bk
 	r.Chunks = append(r.Chunks, bk)
 }
@@ -72,6 +76,7 @@ func (r *Region) Allocate(size int, p interface{}) error {
 func (r *Region) Free() error {
 	r.Block = nil
 	for _, bk := range r.Chunks {
+		ProfileFree(len(bk))
 		err := sys_close(bk)
 		if err != nil {
 			return err
@@ -79,6 +84,7 @@ func (r *Region) Free() error {
 	}
 	r.Chunks = nil
 	for _, bk := range r.HugeBlocks {
+		ProfileFree(len(bk))
 		err := sys_close(bk)
 		if err != nil {
 			return err

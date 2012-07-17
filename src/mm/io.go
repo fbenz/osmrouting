@@ -2,10 +2,11 @@
 package mm
 
 func Open(path string, p interface{}) error {
-	m, err  := sys_open(path)
+	m, err := sys_open(path)
 	if err != nil {
 		return err
 	}
+	ProfileAllocate(len(m))
 	reflect_set(p, m)
 	return nil
 }
@@ -16,6 +17,7 @@ func Create(path string, size int, p interface{}) error {
 	if err != nil {
 		return err
 	}
+	ProfileAllocate(len(m))
 	reflect_set(p, m)
 	return nil
 }
@@ -30,8 +32,8 @@ func Close(p interface{}) error {
 	if err != nil {
 		return err
 	}
-	err = sys_close(b)
-	if err != nil {
+	ProfileFree(len(b))
+	if err := sys_close(b); err != nil {
 		return err
 	}
 	reflect_set(p, nil)

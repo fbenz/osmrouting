@@ -15,6 +15,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"mm"
 	"os"
 	"osm"
 	"strings"
@@ -85,6 +87,16 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
+	
+	if MemProfile != "" {
+		f, err := os.Create(fmt.Sprintf("%s.mm.pprof", MemProfile))
+		if err != nil {
+			println("Unable to open memprofile:", err.Error())
+			os.Exit(1)
+		}
+		mm.EnableProfiling(true)
+		defer mm.WriteProfile(f)
+	}
 
 	file, access := setup()
 	
@@ -111,12 +123,13 @@ func main() {
 	
 	// Write a memory profile for the most recent GC run.
 	if MemProfile != "" {
-		file, err := os.Create(MemProfile)
+		file, err := os.Create(fmt.Sprintf("%s.go.pprof", MemProfile))
 		if err != nil {
 			println("Unable to open memprofile:", err.Error())
 			os.Exit(5)
 		}
-		pprof.WriteHeapProfile(file)
+		pprof.Lookup("heap").WriteTo(file, 0)
+		//pprof.WriteHeapProfile(file)
 		file.Close()
 	}
 }
