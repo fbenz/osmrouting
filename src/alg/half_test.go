@@ -1,5 +1,5 @@
 
-package umath
+package alg
 
 import (
 	"math"
@@ -10,7 +10,7 @@ import (
 
 // limits, but note that f > HalfMaxFloat does not necessarily imply that
 // Float32ToHalf(f) == Infinity, as we might be rounding down.
-const MaxHalf half = 0x7bff
+const MaxHalf uint16 = 0x7bff
 const HalfMaxFloat = 65504.0 
 const HalfMinFloat = 1.0 / float32(1 << 14)
 

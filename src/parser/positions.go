@@ -7,7 +7,10 @@
 
 package main
 
-import "geo"
+import (
+	"geo"
+	"mm"
+)
 
 type Positions interface {
 	Get(id int64) geo.Coordinate
@@ -17,10 +20,10 @@ type Positions interface {
 type FlatVector []uint64
 
 // Global region allocator (since we would overflow the go heap otherwise)
-var allocator *Region
+var allocator *mm.Region
 
 func init() {
-	allocator = NewRegion()
+	allocator = mm.NewRegion(0)
 }
 
 func EncodePoint(p geo.Coordinate) uint64 {
@@ -84,11 +87,8 @@ func nextPowerOf2(v uint64) uint64 {
 
 func NewPositions(bits uint) Positions {
 	if bits <= 8 {
-		flatv := allocator.AllocateUint64(1 << bits)
-		//flatv := make([]uint64, 1 << bits, 1 << bits)
-		//for i, _ := range flatv {
-		//	flatv[i] = 0
-		//}
+		var flatv []uint64
+		allocator.Allocate(1 << bits, &flatv)
 		return FlatVector(flatv)
 	}
 	

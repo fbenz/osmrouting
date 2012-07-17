@@ -70,7 +70,6 @@ func AccessMask(way Way) AccessType {
 	if ParseBool(way.Attributes["construction"]) {
 		return 0
 	}
-	
 
 	mask := DefaultAccessMask(way)
 
