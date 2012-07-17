@@ -32,7 +32,7 @@ var (
 
 func init() {
 	flag.StringVar(&InputFile,  "i", "", "input pbf file")
-	flag.StringVar(&AccessType, "f", "car", "access type (car, bike, foot or combinations, e.g. car|bike)")
+	flag.StringVar(&AccessType, "f", "car", "access type (car, bike, foot or combinations, e.g. car,bike)")
 	flag.StringVar(&CpuProfile, "cpuprofile", "", "write cpu profile to file")
 	flag.StringVar(&MemProfile, "memprofile", "", "write memory profile to file")
 	
@@ -44,16 +44,6 @@ func init() {
 }
 
 func setup() (*os.File, osm.AccessType) {
-	if CpuProfile != "" {
-		f, err := os.Create(CpuProfile)
-		if err != nil {
-			println("Unable to open cpuprofile:", err.Error())
-			os.Exit(1)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
 	file, err := os.Open(InputFile)
 	if err != nil {
 		println("Unable to open input file:", err.Error())
@@ -61,7 +51,7 @@ func setup() (*os.File, osm.AccessType) {
 	}
 
 	var access osm.AccessType = 0
-	for _, f := range strings.Split(AccessType, "|") {
+	for _, f := range strings.Split(AccessType, ",") {
 		switch f {
 		case "car":
 			access |= osm.AccessMotorcar
@@ -86,6 +76,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if CpuProfile != "" {
+		f, err := os.Create(CpuProfile)
+		if err != nil {
+			println("Unable to open cpuprofile:", err.Error())
+			os.Exit(1)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	file, access := setup()
 	
 	println("Pass 1: Find the street graph.")
@@ -107,5 +107,16 @@ func main() {
 	if err != nil {
 		println(err.Error())
 		os.Exit(4)
+	}
+	
+	// Write a memory profile for the most recent GC run.
+	if MemProfile != "" {
+		file, err := os.Create(MemProfile)
+		if err != nil {
+			println("Unable to open memprofile:", err.Error())
+			os.Exit(5)
+		}
+		pprof.WriteHeapProfile(file)
+		file.Close()
 	}
 }
