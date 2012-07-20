@@ -71,6 +71,23 @@ type GraphFile struct {
 	stepPositions []float64
 }
 
+// TODO just for know (remove with the new graph interface)
+func (g *GraphFile) RawPositions() []float64 {
+	return g.positions
+}
+
+func (g *GraphFile) RawDistances() []float64 {
+	return g.distances
+}
+
+func (g *GraphFile) RawSteps() []uint32 {
+	return g.steps
+}
+
+func (g *GraphFile) RawStepPositions() []float64 {
+	return g.stepPositions
+}
+
 // For testing
 func NewGraphFile(geo ellipsoid.Ellipsoid, vertices []uint32, edges []uint32,
 		revEdges []uint32, distances []float64, positions []float64, steps []uint32,
@@ -87,7 +104,7 @@ func NewGraphFile(geo ellipsoid.Ellipsoid, vertices []uint32, edges []uint32,
 	}
 }
 
-func Open(base string) (Graph, error) {
+func OpenGraphFile(base string) (*GraphFile, error) {
 	graph := GraphFile{}
 
 	graph.geo = ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter,
@@ -130,6 +147,11 @@ func Open(base string) (Graph, error) {
 	}
 
 	return &graph, nil
+}
+
+func Open(base string) (Graph, error) {
+	graph, err := OpenGraphFile(base)
+	return graph, err
 }
 
 func reverse(steps []Step) {
