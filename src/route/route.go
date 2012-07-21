@@ -155,5 +155,5 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 func getDistance(g graph.Graph, n1 graph.Node, n2 graph.Node) float64 {
 	lat1, lng1 := g.NodeLatLng(n1)
 	lat2, lng2 := g.NodeLatLng(n2)
-	return geo.Distance(geo.Coordinate{Lat: lat1, Lng: lng1}, geo.Coordinate{Lat: lat2, Lng: lng2})
+	return geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2})
 }
