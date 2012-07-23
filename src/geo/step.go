@@ -30,9 +30,11 @@ func EncodeStep(start Coordinate, step []Coordinate) []byte {
 		prevLat, prevLng = currLat, currLng
 	}
 	
-	result := make([]byte, size)
-	copy(result, buf)
-	return result
+	// This happens in the parser, because we don't allocate steps on the go heap.
+	//result := make([]byte, size)
+	//copy(result, buf)
+	//return result
+	return buf[:size]
 }
 
 func DecodeStep(start Coordinate, step []byte) []Coordinate {

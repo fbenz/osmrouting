@@ -100,13 +100,13 @@ func main() {
 
 	file, access := setup()
 	
-	println("Pass 1: Find the street graph.")
+	println("Pass 1/3: Find the street graph.")
 	graph := NewStreetGraph(file, access)
 
-	println("Pass 2: Compute node attributes.")
+	println("Pass 2/3: Compute node attributes.")
 	vertices := ComputeNodeAttributes(graph)
 
-	println("Pass 3: Compute edge attributes.")
+	println("Pass 3/3: Compute edge attributes.")
 	ComputeEdgeAttributes(graph, vertices)
 	
 	// Write a memory profile for the most recent GC run.
