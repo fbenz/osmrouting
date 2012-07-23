@@ -9,9 +9,8 @@ import (
 
 const (
 	// Update intervals
-	ProfileAllocInterval = 5 << 20
-	ProfileFreeInterval  = 5 << 20
-	ProfileInuseInterval = 5 << 20
+	ProfileAllocInterval = 500 << 20
+	ProfileInuseInterval = 100 << 20
 )
 
 type ProfileRecord struct {
@@ -28,41 +27,36 @@ var (
 	ProfileRecords []ProfileRecord = nil
 
 	// Heap State
-	AllocObjects     = 0
-	InuseObjects     = 0
-	AllocCount       = 0
-	FreeCount        = 0
-	LastAllocCount   = 0
-	LastFreeCount    = 0
-	LastInuseCount   = 0
+	AllocObjects = 0
+	InuseObjects = 0
+	AllocBytes   = 0
+	InuseBytes   = 0
+	LastAlloc    = 0
+	LastInuse    = 0
 )
 
 func add_sample(delta int) bool {
+	InuseBytes += delta
 	if delta > 0 {
 		AllocObjects++
 		InuseObjects++
-		AllocCount += delta
+		AllocBytes += delta
 	} else {
 		InuseObjects--
-		FreeCount  -= delta
 	}
-	InuseCount := AllocCount - FreeCount
 	
 	dump := false
-	if AllocCount > LastAllocCount + ProfileAllocInterval {
+	if AllocBytes > LastAlloc + ProfileAllocInterval {
 		dump = true
-	} else if FreeCount > LastFreeCount + ProfileFreeInterval {
+	} else if InuseBytes > LastInuse + ProfileInuseInterval {
 		dump = true
-	} else if InuseCount > LastInuseCount + ProfileInuseInterval {
-		dump = true
-	} else if InuseCount < LastInuseCount - ProfileInuseInterval {
+	} else if InuseBytes < LastInuse - ProfileInuseInterval {
 		dump = true
 	}
 	
 	if dump {
-		LastAllocCount = AllocCount
-		LastFreeCount  = FreeCount
-		LastInuseCount = InuseCount
+		LastAlloc = AllocBytes
+		LastInuse = InuseBytes
 		return true
 	}
 	return false
@@ -74,15 +68,24 @@ func profile_sample(delta int) {
 	}
 	
 	stk := make([]uintptr, 32)
-	n := runtime.Callers(2, stk[:])
+	n := runtime.Callers(4, stk[:])
 	
 	record := ProfileRecord {
 		Stack:        stk[:n],
 		AllocObjects: AllocObjects,
 		InuseObjects: InuseObjects,
-		AllocBytes:   AllocCount,
-		InuseBytes:   AllocCount - FreeCount,
+		AllocBytes:   AllocBytes,
+		InuseBytes:   InuseBytes,
 	}
+	
+	// There is a divide by 0 in pprof if inuse/alloc = 0.
+	if InuseObjects == 0 {
+		record.InuseObjects++
+	}
+	if AllocObjects == 0 {
+		record.AllocObjects++
+	}
+	
 	ProfileRecords = append(ProfileRecords, record)
 }
 
@@ -103,9 +106,21 @@ func WriteProfile(w io.Writer) {
 		return
 	}
 	
-	fmt.Fprintf(w, "heap profile: %d: %d [%d: %d] @ heap/%d\n",
-		InuseObjects, AllocCount - FreeCount,
-		AllocObjects, AllocCount,
+	totalInuseObjects := 0
+	totalInuseBytes   := 0
+	totalAllocObjects := 0
+	totalAllocBytes   := 0
+	
+	for _, r := range ProfileRecords {
+		totalInuseObjects += r.InuseObjects
+		totalInuseBytes   += r.InuseBytes
+		totalAllocObjects += r.AllocObjects
+		totalAllocBytes   += r.AllocBytes
+	}
+	
+	fmt.Fprintf(w, "heap profile: %d: %d [%d: %d] @ heapprofile/%d\n",
+		totalInuseObjects, totalInuseBytes,
+		totalAllocObjects, totalAllocBytes,
 		2*ProfileInuseInterval)
 	
 	for _, r := range ProfileRecords {

@@ -3,6 +3,7 @@ package main
 
 import (
 	"alg"
+	"log"
 	"os"
 	"osm"
 )
@@ -60,7 +61,7 @@ func (s *StreetGraph) VisitWay(way osm.Way) {
 	}
 }
 
-func NewStreetGraph(file *os.File, access osm.AccessType) (*StreetGraph, error) {
+func NewStreetGraph(file *os.File, access osm.AccessType) *StreetGraph {
 	graph := &StreetGraph{
 		File:    file,
 		Access:  access,
@@ -70,9 +71,9 @@ func NewStreetGraph(file *os.File, access osm.AccessType) (*StreetGraph, error) 
 	}
 	err := osm.ParseFile(file, graph)
 	if err != nil {
-		return nil, err
+		log.Fatal(err.Error())
 	}
-	return graph, nil
+	return graph
 }
 
 type StreetGraphVisitor struct {
@@ -117,11 +118,14 @@ func (s *StreetGraphVisitor) VisitWay(way osm.Way) {
 	s.Visitor.VisitWay(way)
 }
 
-func (s *StreetGraph) Visit(visitor osm.Visitor) error {
+func (s *StreetGraph) Visit(visitor osm.Visitor) {
 	filter := &StreetGraphVisitor{
 		Access:  s.Access,
 		Visitor: visitor,
 		Nodes:   s.Visited,
 	}
-	return osm.ParseFile(s.File, filter)
+	err := osm.ParseFile(s.File, filter)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }

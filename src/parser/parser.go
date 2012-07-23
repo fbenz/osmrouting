@@ -101,25 +101,13 @@ func main() {
 	file, access := setup()
 	
 	println("Pass 1: Find the street graph.")
-	graph, err := NewStreetGraph(file, access)
-	if err != nil {
-		println(err.Error())
-		os.Exit(2)
-	}
+	graph := NewStreetGraph(file, access)
 
 	println("Pass 2: Compute node attributes.")
-	vertices, err := ComputeNodeAttributes(graph)
-	if err != nil {
-		println(err.Error())
-		os.Exit(3)
-	}
+	vertices := ComputeNodeAttributes(graph)
 
 	println("Pass 3: Compute edge attributes.")
-	err = ComputeEdgeAttributes(graph, vertices)
-	if err != nil {
-		println(err.Error())
-		os.Exit(4)
-	}
+	ComputeEdgeAttributes(graph, vertices)
 	
 	// Write a memory profile for the most recent GC run.
 	if MemProfile != "" {
