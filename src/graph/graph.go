@@ -1,12 +1,12 @@
-
 package graph
 
 import "geo"
 
 type Vertex int
-type Edge   int
+type Edge int
 
 type Transport int
+
 const (
 	Car Transport = iota
 	Foot
@@ -15,6 +15,7 @@ const (
 )
 
 type Metric int
+
 const (
 	Distance Metric = iota
 	MetricMax
@@ -31,17 +32,25 @@ type Way struct {
 
 type Graph interface {
 	VertexCount() int
-	EdgeCount()   int
+	EdgeCount() int
 
 	VertexAccessible(Vertex, Transport) bool
 	VertexCoordinate(Vertex) geo.Coordinate
 	VertexEdgeIterator(Vertex, bool, Transport) EdgeIterator
 
 	EdgeOpposite(Edge, Vertex) Vertex
-	EdgeSteps(Edge, Vertex)  []geo.Coordinate
+	EdgeSteps(Edge, Vertex) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
 }
 
 type EdgeIterator interface {
 	Next() (Edge, bool)
+}
+
+type OverlayGraph interface {
+	Graph
+
+	ClusterCount() int
+	ClusterSize(int) int      // cluster id -> number of vertices
+	VertexCluster(Vertex) int // vertex id -> cluster id
 }
