@@ -31,7 +31,7 @@ func init() {
 func main() {
 	flag.Parse()
 	
-	if InputFile == "" || OutputFile == "" {
+	if InputFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -65,9 +65,11 @@ func main() {
 	println("Open input file.")
 	g, _ := graph.OpenGraphFile(InputFile, true)
 	println("Pass 1/2: Find the accessible subgraph.")
-	/*subgraph :=*/ AccessibleRegion(g)
+	subgraph := AccessibleRegion(g)
 	println("Pass 2/2: Output the subgraph.")
-	//g.WriteInducedSubgraph(OutputFile, subgraph)
+	if OutputFile != "" {
+		g.WriteInducedSubgraph(OutputFile, subgraph)
+	}
 
 	// Write a memory profile for the most recent GC run.
 	if MemProfile != "" {

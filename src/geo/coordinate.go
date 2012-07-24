@@ -52,6 +52,12 @@ func (a Coordinate) Encode() (lat, lng int32) {
 	return
 }
 
+func (a Coordinate) EncodeUint() (lat, lng uint32) {
+	lat = uint32(math.Floor((a.Lat +  90.0) * OsmPrecision + 0.5))
+	lng = uint32(math.Floor((a.Lng + 180.0) * OsmPrecision + 0.5))
+	return
+}
+
 // Round a Coordindate to osm precision.
 func (a Coordinate) Round() Coordinate {
 	return Coordinate{

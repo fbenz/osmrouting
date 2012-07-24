@@ -9,8 +9,40 @@ import (
 
 const (
 	MaxTrials = 100
-	MinSize   = 0.50
+	MinSize   = 0.40
 )
+
+func Degree(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) int {
+	d := 0
+	for _ = range g.VertexEdges(v, forward, mode) {
+		d++
+	}
+	return d
+}
+
+func SanityCheck(g graph.Graph, mode graph.Transport) {
+	outHistogram := alg.NewHistogram(fmt.Sprintf("out degrees %v", mode))
+	inHistogram  := alg.NewHistogram(fmt.Sprintf("in degrees %v", mode))
+	inEdgeCount  := 0
+	outEdgeCount := 0
+	for i := 0; i < g.VertexCount(); i++ {
+		v := graph.Vertex(i)
+		outDegree := Degree(g, v, true, mode)
+		inDegree  := Degree(g, v, false, mode)
+		outHistogram.Add(fmt.Sprintf("%v", outDegree))
+		inHistogram.Add(fmt.Sprintf("%v", inDegree))
+		outEdgeCount += outDegree
+		inEdgeCount  += inDegree
+	}
+	if inEdgeCount != outEdgeCount {
+		fmt.Printf("Graph in/out edges are broken (t: %v):\n", mode)
+		fmt.Printf(" - EdgeCount: %v\n", g.EdgeCount())
+		fmt.Printf(" - Out edges: %v\n", outEdgeCount)
+		fmt.Printf(" - In  edges: %v\n", inEdgeCount)
+	}
+	outHistogram.Print()
+	inHistogram.Print()
+}
 
 func Reach(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) []byte {
 	result := make([]byte, (g.VertexCount() + 7) / 8)
@@ -21,8 +53,9 @@ func Reach(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) []
 	for len(queue) > 0 {
 		s := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
-		iter := g.VertexEdgeIterator(s, forward, mode)
-		for e, ok := iter.Next(); ok; e, ok = iter.Next() {
+		for _, e := range g.VertexEdges(s, forward, mode) {
+			//iter := g.VertexEdgeIterator(s, forward, mode)
+			//for e, ok := iter.Next(); ok; e, ok = iter.Next() {
 			//fmt.Printf("e: %v\n", e)
 			t := g.EdgeOpposite(e, s)
 			if !alg.GetBit(result, uint(t)) {
@@ -55,7 +88,7 @@ func LargeSCC(g graph.Graph, t graph.Transport) ([]byte, int) {
 		if size > maxSize {
 			maxSize = size
 			maxSCC  = scc
-			fmt.Printf("Found an SCC of size %v (frac: %.2f)\n",
+			fmt.Printf(" - Found an SCC of size %v (frac: %.2f)\n",
 				size, float64(size) / float64(g.VertexCount()))
 			if size > int(MinSize * float64(g.VertexCount())) {
 				return scc, size
@@ -68,7 +101,10 @@ func LargeSCC(g graph.Graph, t graph.Transport) ([]byte, int) {
 func AccessibleRegion(g *graph.GraphFile) []byte {
 	r := []byte(nil)
 	for t := 0; t < int(graph.TransportMax); t++ {
-		scc, _ := LargeSCC(g, graph.Transport(t))
+		mode := graph.Transport(t)
+		// SanityCheck(g, mode)
+		scc, _ := LargeSCC(g, mode)
+		g.Access[mode] = scc
 		if r == nil {
 			r = scc
 		} else {
@@ -76,7 +112,7 @@ func AccessibleRegion(g *graph.GraphFile) []byte {
 		}
 	}
 	size := alg.Popcount(r)
-	fmt.Printf("Accessible: %v (frac: %.2f)\n",
-		size, float64(size) / float64(g.VertexCount()))
+	fmt.Printf("Accessible: %v (frac: %.2f, trash: %v)\n",
+		size, float64(size) / float64(g.VertexCount()), g.VertexCount() - size)
 	return r
 }

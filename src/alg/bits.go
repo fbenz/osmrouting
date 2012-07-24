@@ -8,11 +8,7 @@ var (
 func init() {
 	popc = make([]byte, 256)
 	for i := range popc {
-		c := 0
-		for j := i; j != 0; j = j & (j - 1) {
-			c++
-		}
-		popc[i] = byte(c)
+		popc[i] = popc[i / 2] + byte(i % 2)
 	}
 }
 

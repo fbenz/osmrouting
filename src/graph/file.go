@@ -4,6 +4,7 @@ import (
 	"geo"
 	"math"
 	"mm"
+	"path"
 )
 
 type GraphFile struct {
@@ -44,7 +45,7 @@ type GraphFileEdgeIterator struct {
 
 // I/O
 
-func OpenGraphFile(path string, ignoreErrors bool) (*GraphFile, error) {
+func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 	g := &GraphFile{}
 	files := []struct{name string; p interface{}} {
 		{"vertices.ftf",       &g.FirstOut},
@@ -65,7 +66,7 @@ func OpenGraphFile(path string, ignoreErrors bool) (*GraphFile, error) {
 	}
 	
 	for _, file := range files {
-		err := mm.Open(file.name, file.p)
+		err := mm.Open(path.Join(base, file.name), file.p)
 		if err != nil && !ignoreErrors {
 			return nil, err
 		}
@@ -112,6 +113,50 @@ func (g *GraphFile) VertexCoordinate(v Vertex) geo.Coordinate {
 	lat := g.Coordinates[2 * int(v)]
 	lng := g.Coordinates[2 * int(v) + 1]
 	return geo.DecodeCoordinate(lat, lng)
+}
+
+func (g *GraphFile) VertexEdges(v Vertex, forward bool, t Transport) []Edge {
+	result := make([]Edge, 0)
+	// Add the out edges for v
+	for i := g.FirstOut[v]; i < g.FirstOut[v+1]; i++ {
+		// If we are iterating over the in edges and this is a oneway
+		// road there is no corresponding in edge.
+		if !forward && t < Foot && GetBit(g.Oneway, uint(i)) {
+			continue
+		}
+		// Furthermore, the edge might be inaccessible to begin with.
+		if t < TransportMax && !GetBit(g.AccessEdge[t], uint(i)) {
+			continue
+		}
+		// Otherwise we can take this edge
+		result = append(result, Edge(i))
+	}
+	
+	// The in edges are stored as a linked list. -1 means no in edges.
+	i := g.FirstIn[v]
+	if i == 0xffffffff {
+		return result
+	}
+	
+	for {
+		// If we are iterating over the out edges and this is a oneway
+		// road there is no corresponding out edge.
+		if forward && t < Foot && GetBit(g.Oneway, uint(i)) {
+			goto NextEdge
+		}
+		// Access restrictions.
+		if t < TransportMax && !GetBit(g.AccessEdge[t], uint(i)) {
+			goto NextEdge
+		}
+		result = append(result, Edge(i))
+		// Continue with the next in edge, if any.
+NextEdge:
+		if i == g.NextIn[i] {
+			break
+		}
+		i = g.NextIn[i]
+	}
+	return result
 }
 
 func (g *GraphFile) VertexEdgeIterator(v Vertex, forward bool, t Transport) EdgeIterator {

@@ -36,6 +36,7 @@ type Graph interface {
 
 	VertexAccessible(Vertex, Transport) bool
 	VertexCoordinate(Vertex) geo.Coordinate
+	VertexEdges(Vertex, bool, Transport) []Edge
 	VertexEdgeIterator(Vertex, bool, Transport) EdgeIterator
 
 	EdgeOpposite(Edge, Vertex) Vertex
@@ -53,4 +54,28 @@ type OverlayGraph interface {
 	ClusterCount() int
 	ClusterSize(int) int      // cluster id -> number of vertices
 	VertexCluster(Vertex) int // vertex id -> cluster id
+}
+
+func (t Transport) String() string {
+	switch t {
+	case Car:
+		return "TransportCar"
+	case Bike:
+		return "TransportBike"
+	case Foot:
+		return "TransportFoot"
+	case TransportMax:
+		return "TransportMax"
+	}
+	return "Invalid Transport Enum"
+}
+
+func (m Metric) String() string {
+	switch m {
+	case Distance:
+		return "MetricDistance"
+	case MetricMax:
+		return "MetricMax"
+	}
+	return "Invalid Metric Enum"
 }
