@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -18,6 +19,7 @@ import (
 const (
 	MetisGraphFile = "graph.txt"
 	Ufactor        = 1.03
+	MaxThreads     = 8
 )
 
 type PartitionInfo struct {
@@ -38,6 +40,7 @@ func init() {
 }
 
 func main() {
+	runtime.GOMAXPROCS(MaxThreads)
 	flag.Parse()
 
 	g, err := graph.OpenGraphFile(FlagBaseDir, false /* ignoreErrors */)
@@ -65,8 +68,8 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	}
 	output := bufio.NewWriter(out)
 
-	fmt.Printf("Size %d %d\n", g.VertexCount(), g.EdgeCount()/2)
-	fmt.Fprintf(output, "%d %d\n", g.VertexCount(), g.EdgeCount()/2)
+	fmt.Printf("Size %d %d\n", g.VertexCount(), g.EdgeCount())
+	fmt.Fprintf(output, "%d %d\n", g.VertexCount(), g.EdgeCount())
 
 	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
@@ -158,7 +161,7 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	fmt.Printf("Collecting border vertices: %v s\n", time5.Sub(time4).Seconds())
 
 	// just statistics
-	minPartSize := g.VertexCount()
+	/*minPartSize := g.VertexCount()
 	maxPartSize := 0
 	for p := 0; p < pi.Count; p++ {
 		curSize := 0
@@ -174,7 +177,7 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 			maxPartSize = curSize
 		}
 	}
-	fmt.Printf("Partition sizes, min: %d, max: %d (U = %v)\n", minPartSize, maxPartSize, U)
+	fmt.Printf("Partition sizes, min: %d, max: %d (U = %v)\n", minPartSize, maxPartSize, U)*/
 }
 
 func partitionCount(nodes int, U float64) int {

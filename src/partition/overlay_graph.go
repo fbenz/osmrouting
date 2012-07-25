@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"graph"
 	"log"
+	"os"
 	"path"
 	"time"
 )
@@ -20,7 +21,12 @@ func (pi *PartitionInfo) createOverlayGraph(g *graph.GraphFile, base string) {
 		}
 	}
 
-	err := g.WriteSubgraph(path.Join(base, "/overlay"), vertexIndices, pi.Table)
+	dir := path.Join(base, "/overlay")
+	err := os.Mkdir(dir, os.ModeDir|os.ModePerm)
+	if err != nil {
+		log.Fatal("Creating dir for overlay graph: ", err)
+	}
+	err = g.WriteSubgraph(path.Join(base, "/overlay"), vertexIndices, pi.Table)
 	if err != nil {
 		log.Fatal("Writing the overlay graph: ", err)
 	}
