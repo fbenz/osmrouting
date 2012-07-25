@@ -1,22 +1,14 @@
-// TODO
-// At the moment the partitioning works on the old graph interface, but
-// it is build in a way such that only a few changes are needed so that
-// it works with the new one.
-//
-// corner cases:
-// - start and/or endpoint is on a boundary edge
+// Graph partitioning using Metis
 
 package main
 
 import (
-	//"alg"
 	"bufio"
 	"flag"
 	"fmt"
 	"graph"
 	"log"
 	"math"
-	//"mm"
 	"os"
 	"os/exec"
 	"strconv"
@@ -24,85 +16,41 @@ import (
 )
 
 const (
-	TravelmodeCar  = "driving"
-	TravelmodeFoot = "walking"
-	TravelmodeBike = "bicycling"
-
 	MetisGraphFile = "graph.txt"
 	Ufactor        = 1.03
 )
 
-type RoutingData struct {
-	graph *graph.GraphFile
-}
-
 type PartitionInfo struct {
 	Count          int
-	Table          []int          // global vertex id -> partition number
-	BorderTable    []int          // global vertex id -> vertex id in cluster
-	BorderVertices [][]graph.Node // partition id -> boundary vertices
+	Table          []int            // global vertex id -> partition number
+	BorderTable    []int            // global vertex id -> vertex id in cluster
+	BorderVertices [][]graph.Vertex // partition id -> boundary vertices
 }
 
 var (
 	U = math.Pow(2, 15)
 
-	osmData  map[string]RoutingData
-	FlagMode string
+	FlagBaseDir string
 )
 
 func init() {
-	flag.StringVar(&FlagMode, "mode", "driving", "travel mode")
+	flag.StringVar(&FlagBaseDir, "dir", "", "directory of the graph")
 }
 
 func main() {
 	flag.Parse()
 
-	if err := setup(); err != nil {
-		log.Fatal("Setup failed:", err)
+	g, err := graph.OpenGraphFile(FlagBaseDir, false /* ignoreErrors */)
+	if err != nil {
+		log.Fatal("Loading graph: ", err)
 	}
 
-	g := osmData[FlagMode].graph
-	partitionCount := partitionCount(g.NodeCount(), U)
+	partitionCount := partitionCount(g.VertexCount(), U)
 	pi := &PartitionInfo{Count: partitionCount}
 
 	pi.metisPartitioning(g)
-	pi.createSubgraphs(g)
-	pi.createOverlayGraph(g)
-}
-
-func loadFiles(base string) (*RoutingData, error) {
-	g, err := graph.OpenGraphFile(base)
-	if err != nil {
-		log.Fatal("Loading graph: ", err)
-		return nil, err
-	}
-	return &RoutingData{g}, nil
-}
-
-// setup from the HTTP server
-func setup() error {
-	osmData = map[string]RoutingData{}
-
-	dat, err := loadFiles("car")
-	if err != nil {
-		return err
-	}
-	osmData["driving"] = *dat
-
-	// TODO add this back or change the graph
-	/*dat, err = loadFiles("bike")
-	if err != nil {
-		return err
-	}
-	osmData["bicycling"] = *dat
-
-	dat, err = loadFiles("foot")
-	if err != nil {
-		return err
-	}
-	osmData["walking"] = *dat*/
-
-	return nil
+	pi.createSubgraphs(g, FlagBaseDir)
+	pi.createOverlayGraph(g, FlagBaseDir)
 }
 
 func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
@@ -117,21 +65,16 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	}
 	output := bufio.NewWriter(out)
 
-	fmt.Printf("Size %d %d\n", g.NodeCount(), g.EdgeCount()/2)
-	fmt.Fprintf(output, "%d %d\n", g.NodeCount(), g.EdgeCount()/2)
-	for i := 0; i < g.NodeCount(); i++ {
-		start, end := g.NodeEdges(graph.Node(i))
+	fmt.Printf("Size %d %d\n", g.VertexCount(), g.EdgeCount()/2)
+	fmt.Fprintf(output, "%d %d\n", g.VertexCount(), g.EdgeCount()/2)
 
-		for j := start; j <= end; j++ {
-			_, exists := g.EdgeReverse(graph.Edge(j))
-			if !exists {
-				panic("directed edge detected")
-			}
-			endpoint := g.EdgeEndPoint(graph.Edge(j))
-			if endpoint == graph.Node(i) {
-				endpoint = g.EdgeStartPoint(graph.Edge(j))
-			}
-			fmt.Fprintf(output, "%v ", endpoint+1)
+	edges := []graph.Edge(nil)
+	for i := 0; i < g.VertexCount(); i++ {
+		vertex := graph.Vertex(i)
+		edges = g.VertexRawEdges(vertex, edges)
+		for _, e := range edges {
+			opposite := g.EdgeOpposite(e, vertex)
+			fmt.Fprintf(output, "%v ", opposite+1)
 		}
 		fmt.Fprintf(output, "\n")
 	}
@@ -157,8 +100,8 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 		return
 	}
 	input := bufio.NewReader(in)
-	pi.Table = make([]int, g.NodeCount())
-	for i := 0; i < g.NodeCount(); i++ {
+	pi.Table = make([]int, g.VertexCount())
+	for i, _ := range pi.Table {
 		p := -1
 		_, readErr := fmt.Fscanf(input, "%d\n", &p)
 		if readErr != nil {
@@ -177,32 +120,36 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	// determine border vertices
 	// here, initially pi.BorderTable maps border vertices to their partition
 	crossEdges := 0
-	pi.BorderTable = make([]int, g.NodeCount())
+	pi.BorderTable = make([]int, g.VertexCount())
 	for i, _ := range pi.BorderTable {
 		pi.BorderTable[i] = -1
 	}
-	for i := 0; i < g.EdgeCount(); i++ {
-		edge := graph.Edge(i)
-		sp := g.EdgeStartPoint(edge)
-		ep := g.EdgeEndPoint(edge)
-		if pi.Table[sp] != pi.Table[ep] {
-			pi.BorderTable[sp] = pi.Table[sp]
-			pi.BorderTable[ep] = pi.Table[ep]
-			crossEdges++ // not needed
+
+	for i := 0; i < g.VertexCount(); i++ {
+		vertex := graph.Vertex(i)
+		edges = g.VertexRawEdges(vertex, edges)
+		for _, e := range edges {
+			sp := vertex
+			ep := g.EdgeOpposite(e, vertex)
+			if pi.Table[sp] != pi.Table[ep] {
+				pi.BorderTable[sp] = pi.Table[sp]
+				pi.BorderTable[ep] = pi.Table[ep]
+				crossEdges++ // not needed
+			}
 		}
 	}
 	fmt.Printf("Cross edges %d\n", crossEdges/2)
 
 	// collect border vertices
 	// now, pi.BorderTable is changed so that it maps border vertices to their index in the cluster
-	pi.BorderVertices = make([][]graph.Node, pi.Count)
-	for p := 0; p < pi.Count; p++ {
-		pi.BorderVertices[p] = make([]graph.Node, 0, 200)
+	pi.BorderVertices = make([][]graph.Vertex, pi.Count)
+	for i, _ := range pi.BorderVertices {
+		pi.BorderVertices[i] = make([]graph.Vertex, 0, 200)
 	}
-	for i := 0; i < g.NodeCount(); i++ {
+	for i, _ := range pi.BorderTable {
 		if pi.BorderTable[i] != -1 {
 			p := pi.Table[i]
-			pi.BorderVertices[p] = append(pi.BorderVertices[p], graph.Node(i))
+			pi.BorderVertices[p] = append(pi.BorderVertices[p], graph.Vertex(i))
 			pi.BorderTable[i] = len(pi.BorderVertices[p]) - 1
 		}
 	}
@@ -210,12 +157,12 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	time5 := time.Now()
 	fmt.Printf("Collecting border vertices: %v s\n", time5.Sub(time4).Seconds())
 
-	// Just statistics
-	minPartSize := g.NodeCount()
+	// just statistics
+	minPartSize := g.VertexCount()
 	maxPartSize := 0
 	for p := 0; p < pi.Count; p++ {
 		curSize := 0
-		for i := 0; i < g.NodeCount(); i++ {
+		for i := 0; i < g.VertexCount(); i++ {
 			if pi.Table[i] == p {
 				curSize++
 			}
