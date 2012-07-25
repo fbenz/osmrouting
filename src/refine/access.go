@@ -8,27 +8,22 @@ import (
 )
 
 const (
-	MaxTrials = 100
-	MinSize   = 0.40
+	MaxTrials = 10
+	MinSize   = 0.5
 )
-
-func Degree(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) int {
-	d := 0
-	for _ = range g.VertexEdges(v, forward, mode) {
-		d++
-	}
-	return d
-}
 
 func SanityCheck(g graph.Graph, mode graph.Transport) {
 	outHistogram := alg.NewHistogram(fmt.Sprintf("out degrees %v", mode))
 	inHistogram  := alg.NewHistogram(fmt.Sprintf("in degrees %v", mode))
 	inEdgeCount  := 0
 	outEdgeCount := 0
+	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		v := graph.Vertex(i)
-		outDegree := Degree(g, v, true, mode)
-		inDegree  := Degree(g, v, false, mode)
+		edges = g.VertexEdges(v, true, mode, edges)
+		outDegree := len(edges)
+		edges = g.VertexEdges(v, false, mode, edges)
+		inDegree := len(edges)
 		outHistogram.Add(fmt.Sprintf("%v", outDegree))
 		inHistogram.Add(fmt.Sprintf("%v", inDegree))
 		outEdgeCount += outDegree
@@ -50,13 +45,13 @@ func Reach(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) []
 	alg.SetBit(result, uint(v))
 	queue[0] = v
 	
+	edges := []graph.Edge(nil)
+	
 	for len(queue) > 0 {
 		s := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
-		for _, e := range g.VertexEdges(s, forward, mode) {
-			//iter := g.VertexEdgeIterator(s, forward, mode)
-			//for e, ok := iter.Next(); ok; e, ok = iter.Next() {
-			//fmt.Printf("e: %v\n", e)
+		edges = g.VertexEdges(s, forward, mode, edges)
+		for _, e := range edges {
 			t := g.EdgeOpposite(e, s)
 			if !alg.GetBit(result, uint(t)) {
 				alg.SetBit(result, uint(t))

@@ -3,7 +3,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"graph"
 	"math/rand"
 	"mm"
@@ -41,7 +40,7 @@ func main() {
 	}
 
 	if CpuProfile != "" {
-		f, err := os.Create(CpuProfile)
+		f, err := os.Create(CpuProfile + ".pprof")
 		if err != nil {
 			println("Unable to open cpuprofile:", err.Error())
 			os.Exit(1)
@@ -51,7 +50,7 @@ func main() {
 	}
 	
 	if MemProfile != "" {
-		f, err := os.Create(fmt.Sprintf("%s.mm.pprof", MemProfile))
+		f, err := os.Create(MemProfile + ".mm.pprof")
 		if err != nil {
 			println("Unable to open memprofile:", err.Error())
 			os.Exit(1)
@@ -73,7 +72,7 @@ func main() {
 
 	// Write a memory profile for the most recent GC run.
 	if MemProfile != "" {
-		file, err := os.Create(fmt.Sprintf("%s.go.pprof", MemProfile))
+		file, err := os.Create(MemProfile + ".go.pprof")
 		if err != nil {
 			println("Unable to open memprofile:", err.Error())
 			os.Exit(5)

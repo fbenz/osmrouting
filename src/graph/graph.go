@@ -36,16 +36,11 @@ type Graph interface {
 
 	VertexAccessible(Vertex, Transport) bool
 	VertexCoordinate(Vertex) geo.Coordinate
-	VertexEdges(Vertex, bool, Transport) []Edge
-	VertexEdgeIterator(Vertex, bool, Transport) EdgeIterator
+	VertexEdges(Vertex, bool, Transport, []Edge) []Edge
 
 	EdgeOpposite(Edge, Vertex) Vertex
 	EdgeSteps(Edge, Vertex) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
-}
-
-type EdgeIterator interface {
-	Next() (Edge, bool)
 }
 
 type OverlayGraph interface {

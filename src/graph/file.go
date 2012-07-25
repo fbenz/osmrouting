@@ -1,8 +1,8 @@
 package graph
 
 import (
+	"alg"
 	"geo"
-	"math"
 	"mm"
 	"path"
 )
@@ -101,12 +101,8 @@ func (g *GraphFile) EdgeCount() int {
 	return len(g.Edges)
 }
 
-func GetBit(ary []byte, i uint) bool {
-	return ary[i / 8] & (1 << (i % 8)) != 0
-}
-
 func (g *GraphFile) VertexAccessible(v Vertex, t Transport) bool {
-	return GetBit(g.Access[t], uint(v))
+	return alg.GetBit(g.Access[t], uint(v))
 }
 
 func (g *GraphFile) VertexCoordinate(v Vertex) geo.Coordinate {
@@ -115,21 +111,44 @@ func (g *GraphFile) VertexCoordinate(v Vertex) geo.Coordinate {
 	return geo.DecodeCoordinate(lat, lng)
 }
 
-func (g *GraphFile) VertexEdges(v Vertex, forward bool, t Transport) []Edge {
-	result := make([]Edge, 0)
+func (g *GraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf []Edge) []Edge {
+	// This is rather nice: buf[:0] sets the length to 0 but does not change the capacity.
+	// In effect calls to append will not allocate a new array if the capacity is already
+	// sufficient. This is much faster than using an iterator, since every interface call
+	// is indirect.
+	result := buf[:0]
+	
+	// So, at this point you are probably thinking:
+	// "What The Fuck? Are you implementing common compiler optimizations by hand?"
+	// To which I am forced to answer that yes, I am. I wish this were a joke, but this
+	// saved 8 seconds (~25%) of the running time in the scc finding program.
+	// TODO: Implement loop unswitching, cse and some algebraic identities in the go compiler.
+	
 	// Add the out edges for v
-	for i := g.FirstOut[v]; i < g.FirstOut[v+1]; i++ {
-		// If we are iterating over the in edges and this is a oneway
-		// road there is no corresponding in edge.
-		if !forward && t < Foot && GetBit(g.Oneway, uint(i)) {
-			continue
+	first := g.FirstOut[v]
+	last  := g.FirstOut[v+1]
+	access := g.AccessEdge[t]
+	if forward || t == Foot {
+		// No need to consider the oneway flags
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 {
+				continue
+			}
+			result = append(result, Edge(i))
 		}
-		// Furthermore, the edge might be inaccessible to begin with.
-		if t < TransportMax && !GetBit(g.AccessEdge[t], uint(i)) {
-			continue
+	} else {
+		// Consider the oneway flags...
+		oneway := g.Oneway
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 || oneway[index] & bit != 0 {
+				continue
+			}
+			result = append(result, Edge(i))
 		}
-		// Otherwise we can take this edge
-		result = append(result, Edge(i))
 	}
 	
 	// The in edges are stored as a linked list. -1 means no in edges.
@@ -138,102 +157,36 @@ func (g *GraphFile) VertexEdges(v Vertex, forward bool, t Transport) []Edge {
 		return result
 	}
 	
-	for {
-		// If we are iterating over the out edges and this is a oneway
-		// road there is no corresponding out edge.
-		if forward && t < Foot && GetBit(g.Oneway, uint(i)) {
-			goto NextEdge
-		}
-		// Access restrictions.
-		if t < TransportMax && !GetBit(g.AccessEdge[t], uint(i)) {
-			goto NextEdge
-		}
-		result = append(result, Edge(i))
-		// Continue with the next in edge, if any.
-NextEdge:
-		if i == g.NextIn[i] {
-			break
-		}
-		i = g.NextIn[i]
-	}
-	return result
-}
-
-func (g *GraphFile) VertexEdgeIterator(v Vertex, forward bool, t Transport) EdgeIterator {
-	oneway := g.Oneway
-	if t == Foot || t == TransportMax {
-		oneway = nil
-	}
-	access := []byte(nil)
-	if t < TransportMax {
-		access = g.AccessEdge[t]
-	}
-	return &GraphFileEdgeIterator {
-		// Static fields:
-		Graph:   g,
-		Vertex:  v,
-		Forward: forward,
-		Access:  access,
-		Oneway:  oneway,
-		// Mutable fields:
-		Current: Edge(g.FirstOut[v]),
-		Out:     true,
-		Done:    false,
-	}
-}
-
-func (i *GraphFileEdgeIterator) Accessible(e Edge) bool {
-	if i.Access != nil && !GetBit(i.Access, uint(e)) {
-		return false
-	}
-	if i.Out == i.Forward || i.Oneway == nil {
-		return true
-	}
-	return !GetBit(i.Oneway, uint(e))
-}
-
-func (i *GraphFileEdgeIterator) Next() (Edge, bool) {
-	g := i.Graph
-	
-	// Iterate over the out edges first
-	if i.Out {
-		l := g.FirstOut[i.Vertex + 1]
-		for c := i.Current; uint32(c) < l; c++ {
-			if i.Accessible(c) {
-				i.Current = c + 1
-				return c, true
+	if !forward || t == Foot {
+		// As above, no need to consider the oneway flags
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 {
+				result = append(result, Edge(i))
 			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
 		}
-		// Finished with the out edges
-		i.Out = false
-		i.Current = Edge(g.FirstIn[i.Vertex])
-		if i.Current == Edge(-1) {
-			i.Done = true
+	} else {
+		// Need to consider the oneway flags.
+		oneway := g.Oneway
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 && oneway[index] & bit == 0 {
+				result = append(result, Edge(i))
+			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
 		}
 	}
 	
-	if i.Done {
-		return 0, false
-	}
-	
-	c := i.Current
-	for {
-		if g.NextIn[c] != uint32(c) {
-			i.Current = Edge(g.NextIn[c])
-		} else {
-			i.Done = true
-		}
-		
-		if i.Accessible(c) {
-			c = i.Current
-			return c, true
-		} else if i.Done {
-			return 0, false
-		}
-		
-		c = i.Current
-	}
-	return 0, false
+	return result
 }
 
 func (g *GraphFile) EdgeOpposite(e Edge, from Vertex) Vertex {
@@ -266,33 +219,6 @@ func (g *GraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
 	return step
 }
 
-func HalfToFloat32(a uint16) float32 {
-	s := uint32(a & 0x8000) << 16
-	e := uint32(a >> 10) & 0x1f
-	m := uint32(a & 0x3ff)
-	
-	if e == 0 {
-		// +/- 0, we don't produce denormals
-		// (mainly because we would have to turn them into a
-		// normalized number here and that's costly)
-		return math.Float32frombits(s)
-	} else if e == 31 {
-		if m == 0 {
-			// Infinity
-			return math.Float32frombits(s | 0x7f800000)
-		} else {
-			// NaN
-			return math.Float32frombits(0x7f800000 | (m << 13))
-		}
-	}
-	
-	return math.Float32frombits(s | ((e + 112) << 23) | (m << 13))
-}
-
-func HalfToFloat64(a uint16) float64 {
-	return float64(HalfToFloat32(a))
-}
-
 func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
-	return HalfToFloat64(g.Weights[m][e])
+	return alg.HalfToFloat64(g.Weights[m][e])
 }
