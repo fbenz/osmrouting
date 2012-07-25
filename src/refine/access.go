@@ -12,6 +12,32 @@ const (
 	MinSize   = 0.5
 )
 
+func UndirectedSanityCheck(g *graph.GraphFile) {
+	histogram := alg.NewHistogram("degrees")
+	edgeCount := 0
+	min, max := 100, 0
+	edges := []graph.Edge(nil)
+	for i := 0; i < g.VertexCount(); i++ {
+		v := graph.Vertex(i)
+		edges = g.VertexRawEdges(v, edges)
+		histogram.Add(fmt.Sprintf("%v", len(edges)))
+		edgeCount += len(edges)
+		if len(edges) < min {
+			min = len(edges)
+		} else if len(edges) > max {
+			max = len(edges)
+		}
+	}
+	histogram.Print()
+	fmt.Printf("\n")
+	fmt.Printf("Base Graph:\n")
+	fmt.Printf(" - |V| = %v\n", g.VertexCount())
+	fmt.Printf(" - |E| = %v\n", edgeCount)
+	fmt.Printf(" - average degree: %.2f\n", float64(edgeCount) / float64(g.VertexCount()))
+	fmt.Printf(" - minimum degree: %v\n", min)
+	fmt.Printf(" - maximum degree: %v\n", max)
+}
+
 func SanityCheck(g graph.Graph, mode graph.Transport) {
 	outHistogram := alg.NewHistogram(fmt.Sprintf("out degrees %v", mode))
 	inHistogram  := alg.NewHistogram(fmt.Sprintf("in degrees %v", mode))
@@ -95,6 +121,7 @@ func LargeSCC(g graph.Graph, t graph.Transport) ([]byte, int) {
 
 func AccessibleRegion(g *graph.GraphFile) []byte {
 	r := []byte(nil)
+	UndirectedSanityCheck(g)
 	for t := 0; t < int(graph.TransportMax); t++ {
 		mode := graph.Transport(t)
 		// SanityCheck(g, mode)

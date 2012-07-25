@@ -222,3 +222,28 @@ func (g *GraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
 func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
 	return alg.HalfToFloat64(g.Weights[m][e])
 }
+
+// Raw Interface (used to implement other tools working with GraphFiles)
+
+func (g *GraphFile) VertexRawEdges(v Vertex, buf []Edge) []Edge {
+	result := buf[:0]
+	
+	for i := g.FirstOut[v]; i < g.FirstOut[v+1]; i++ {
+		result = append(result, Edge(i))
+	}
+	
+	i := g.FirstIn[v]
+	if i == 0xffffffff {
+		return result
+	}
+	
+	for {
+		result = append(result, Edge(i))
+		if i == g.NextIn[i] {
+			break
+		}
+		i = g.NextIn[i]
+	}
+	
+	return result
+}
