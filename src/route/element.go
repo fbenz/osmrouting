@@ -1,22 +1,18 @@
 package route
 
 import (
-	"newgraph"
-	//"fmt"
+	"graph"
 )
 
 type Element struct {
-	vertex   newgraph.Vertex
+	vertex   graph.Vertex
 	index    int
 	priority float64
-	p        newgraph.Vertex
-	ep       newgraph.Edge
+	p        graph.Vertex
+	ep       graph.Edge
 }
 
-func NewElement(vertex newgraph.Vertex, priority float64) *Element {
-	/*if d < 100 {
-		fmt.Printf("%v vs. %v\n", priority, int32(priority * 1e4))
-	}*/
+func NewElement(vertex graph.Vertex, priority float64) *Element {
 	return &Element{
 		vertex:   vertex,
 		index:    -1,

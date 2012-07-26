@@ -2,6 +2,7 @@ package route
 
 import (
 	"fmt"
+	"geo"
 	"graph"
 	"math"
 )
@@ -43,19 +44,14 @@ func MockupDuration(distance float64) Duration {
 	return FormatDuration(distance / 1.1)
 }
 
-// Convert from graph.Step to a Point.
-func StepToPoint(step graph.Step) Point {
+// Convert from geo.Coordinate to a Point.
+func StepToPoint(step geo.Coordinate) Point {
 	return Point{step.Lat, step.Lng}
-}
-
-func NodeToStep(g graph.Graph, node graph.Node) graph.Step {
-	lat, lng := g.NodeLatLng(node)
-	return graph.Step{lat, lng}
 }
 
 // Given a path from start to stop with intermediate steps, turn
 // it into a Polyline for json output.
-func StepsToPolyline(steps []graph.Step, start, stop graph.Step) Polyline {
+func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polyline {
 	polyline := make([]Point, len(steps)+2)
 	polyline[0] = StepToPoint(start)
 	polyline[len(steps)+1] = StepToPoint(stop)
@@ -66,7 +62,7 @@ func StepsToPolyline(steps []graph.Step, start, stop graph.Step) Polyline {
 }
 
 // Convert the path from start - steps - stop to a json Step
-func PartwayToStep(steps []graph.Step, start, stop graph.Step, length float64) Step {
+func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, length float64) Step {
 	instruction := fmt.Sprintf(
 		"Walk from (%.4f, %.4f) to (%.4f, %.4f)",
 		start.Lat, start.Lng, stop.Lat, stop.Lng)
@@ -83,17 +79,17 @@ func PartwayToStep(steps []graph.Step, start, stop graph.Step, length float64) S
 // Convert a Path (start - steps - stop) into a json Step structure.
 // This contains some additional information, which might or might
 // not be accurate.
-func WayToStep(steps graph.Way, start, stop graph.Step) Step {
+func WayToStep(steps graph.Way, start, stop geo.Coordinate) Step {
 	return PartwayToStep(steps.Steps, start, stop, steps.Length)
 }
 
 // Convert an Edge (u,v) into a json Step
-func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Node) Step {
-	return PartwayToStep(g.EdgeSteps(edge), NodeToStep(g, u), NodeToStep(g, v), g.EdgeLength(edge))
+func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
+	return PartwayToStep(g.EdgeSteps(edge), g.VertexCoordinate(u), g.VertexCoordinate(v), g.EdgeLength(edge))
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []graph.Edge, start, stop graph.Way) *Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges []graph.Edge, start, stop graph.Way) *Leg {
 	// Determine the number of steps on this path.
 	totalSteps := len(edges)
 	if start.Length > 1e-7 {
@@ -108,7 +104,7 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 	i := 0
 	if start.Length > 1e-7 {
 		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
-		steps[0] = WayToStep(start, start.Target, NodeToStep(g, vertices[0]))
+		steps[0] = WayToStep(start, start.Target, g.VertexCoordinate(vertices[0]))
 		i++
 	}
 
@@ -123,7 +119,7 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Node, edges []g
 	// Add the final step, if present
 	if stop.Length > 1e-7 {
 		prev := vertices[len(vertices)-1]
-		steps[i] = WayToStep(stop, NodeToStep(g, prev), stop.Target)
+		steps[i] = WayToStep(stop, g.VertexCoordinate(prev), stop.Target)
 	}
 
 	return &Leg{
