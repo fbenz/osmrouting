@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"geo"
 	"graph"
-	"math"
 	"mm"
 	"path"
 )
@@ -59,12 +58,17 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 	return nil
 }
 
-// NearestNeighbor can fail and then returns -1 as an index
+// NearestNeighbor returns -1 if the way is on the overlay graph
+// No fail strategy: a nearest point on the overlay graph is always returned if no point
+// is found in the clusters.
 func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int, []graph.Way) {
 	edges := []graph.Edge(nil)
 
-	minDistance := math.Inf(1)
-	var bestEncodedStep uint32
+	t := clusterKdTree.Overlay
+	bestEncodedStep := binarySearch(t, t.EncodedSteps, x, true /* compareLat */, trans, &edges)
+	coordOverlay := decodeCoordinate(t.Graph, bestEncodedStep, trans, &edges)
+	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
+
 	clusterIndex := -1
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
@@ -78,10 +82,6 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 				clusterIndex = i
 			}
 		}
-	}
-	if clusterIndex == -1 {
-		fmt.Printf("NearestNeighbor did not find a matching cluster\n")
-		return -1, nil
 	}
 
 	g := clusterKdTree.Cluster[clusterIndex].Graph
