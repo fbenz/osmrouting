@@ -1,7 +1,6 @@
 package route
 
 import (
-	"alg"
 	"geo"
 	"graph"
 	"kdtree"
@@ -33,8 +32,11 @@ func Routes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Result {
 }
 
 func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
-	_, startWays := alg.NearestNeighbor(kdt, waypoints[i][0], waypoints[i][1], true /* forward */)
-	_, endWays := alg.NearestNeighbor(kdt, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
+	//_, startWays := alg.NearestNeighbor(kdt, waypoints[i][0], waypoints[i][1], true /* forward */)
+	//_, endWays := alg.NearestNeighbor(kdt, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
+	startWays := make([]graph.Way, 0)
+	endWays := make([]graph.Way, 0)
+
 	allequal := true
 	oneequal := false
 	if len(startWays) != len(endWays) {
@@ -43,7 +45,7 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 	for _, startPoint := range startWays {
 		existequal := false
 		for _, endPoint := range endWays {
-			existequal = existequal || (startPoint.Node == endPoint.Node)
+			existequal = existequal || (startPoint.Vertex == endPoint.Vertex)
 		}
 		oneequal = oneequal || existequal
 		allequal = allequal && existequal
@@ -65,14 +67,14 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 		S:
 			for _, startPoint := range startWays {
 				for _, endPoint := range endWays {
-					if startPoint.Node == endPoint.Node && (startPoint.Length-endPoint.Length) > 0 {
+					if startPoint.Vertex == endPoint.Vertex && (startPoint.Length-endPoint.Length) > 0 {
 						correctStartWay = startPoint
 						correctEndWay = endPoint
 						break S
 					}
 				}
 			}
-			polyline := make([]graph.Step, 0)
+			polyline := make([]geo.Coordinate, 0)
 			// Find the steps from start to endpoint
 			startsteps := correctStartWay.Steps
 			if len(startsteps) > 0 && len(correctEndWay.Steps) >= 0 {
@@ -83,7 +85,7 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 				// TODO no route was found
 				// It is fine to output an empty polyline at the moment
 			}
-			stepDistance := g.WayLength(polyline)
+			stepDistance := geo.StepLength(polyline)
 			step := PartwayToStep(polyline, correctStartWay.Target, correctEndWay.Target, stepDistance)
 			steps := make([]Step, 1)
 			steps[0] = step
@@ -93,13 +95,13 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 		if len(startWays) == 1 { // If the end node is on the edge outgoing from s
 			var correctEndWay graph.Way
 			for _, i := range endWays {
-				if i.Node == startWays[0].Node {
+				if i.Vertex == startWays[0].Vertex {
 					correctEndWay = i
 					break
 				}
 			}
 			n := len(correctEndWay.Steps)
-			polyline := make([]graph.Step, n)
+			polyline := make([]geo.Coordinate, n)
 			for i, item := range correctEndWay.Steps {
 				polyline[n-i-1] = item
 			}
@@ -110,7 +112,7 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 		} else if len(endWays) == 1 { // If the start node is on the edge outgoint from e
 			var correctStartWay graph.Way
 			for _, i := range startWays {
-				if i.Node == endWays[0].Node {
+				if i.Vertex == endWays[0].Vertex {
 					correctStartWay = i
 					break
 				}
@@ -123,15 +125,15 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 			var correctStartWay, correctEndWay graph.Way
 			for _, i := range startWays {
 				for _, j := range endWays {
-					if i.Node == j.Node {
+					if i.Vertex == j.Vertex {
 						correctStartWay = i
 						correctEndWay = j
 					}
 				}
 			}
-			step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, NodeToStep(g, correctStartWay.Node),
+			step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, g.VertexCoordinate(correctStartWay.Vertex),
 				correctStartWay.Length)
-			step2 := PartwayToStep(correctEndWay.Steps, NodeToStep(g, correctEndWay.Node), correctEndWay.Target,
+			step2 := PartwayToStep(correctEndWay.Steps, g.VertexCoordinate(correctEndWay.Vertex), correctEndWay.Target,
 				correctEndWay.Length)
 			steps := make([]Step, 2)
 			steps[0] = step1
@@ -141,19 +143,20 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 		}
 	}
 
+	// TODO call Dijkstra
+	return nil
+
 	// Use the Dijkatrs version using a large slice only for long routes where the map of the
 	// other version can get quite large
-	if getDistance(g, startWays[0].Node, endWays[0].Node) > 100.0*1000.0 { // > 100km
+	/*if getDistance(g, startWays[0].Vertex, endWays[0].Vertex) > 100.0*1000.0 { // > 100km
 		dist, vertices, edges, start, end := alg.DijkstraSlice(g, startWays, endWays)
 		return PathToLeg(g, dist, vertices, edges, start, end)
 	}
 	dist, vertices, edges, start, end := alg.Dijkstra(g, startWays, endWays)
-	return PathToLeg(g, dist, vertices, edges, start, end)
+	return PathToLeg(g, dist, vertices, edges, start, end)*/
 }
 
 // getDistance returns the distance between the two given nodes
-func getDistance(g graph.Graph, n1 graph.Node, n2 graph.Node) float64 {
-	lat1, lng1 := g.NodeLatLng(n1)
-	lat2, lng2 := g.NodeLatLng(n2)
-	return geo.Coordinate{Lat: lat1, Lng: lng1}.Distance(geo.Coordinate{Lat: lat2, Lng: lng2})
+func getDistance(g graph.Graph, v1 graph.Vertex, v2 graph.Vertex) float64 {
+	return g.VertexCoordinate(v1).Distance(g.VertexCoordinate(v2))
 }

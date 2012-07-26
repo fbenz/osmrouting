@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"graph"
 	"log"
+	"mm"
+	"os"
 	"path"
 	"time"
 )
@@ -11,16 +13,35 @@ import (
 func (pi *PartitionInfo) createOverlayGraph(g *graph.GraphFile, base string) {
 	time1 := time.Now()
 
+	dir := path.Join(base, "/overlay")
+	err := os.Mkdir(dir, os.ModeDir|os.ModePerm)
+	if err != nil {
+		log.Fatal("Creating dir for overlay graph: ", err)
+	}
+
+	var partitions []uint16
+	err = mm.Create(path.Join(dir, "partitions.ftf"), pi.Count+1, &partitions)
+	if err != nil {
+		log.Fatal("mm.Create failed: ", err)
+	}
+
 	vertexIndices := make([]int, g.VertexCount())
 	vertexCount := 0
-	for _, v := range pi.BorderVertices {
+	partitions[0] = 0
+	for i, v := range pi.BorderVertices {
+		partitions[i+1] = uint16(len(v))
 		for _, globalIndex := range v {
 			vertexIndices[globalIndex] = vertexCount
 			vertexCount++
 		}
 	}
 
-	err := g.WriteSubgraph(path.Join(base, "/overlay"), vertexIndices, pi.Table)
+	err = mm.Close(&partitions)
+	if err != nil {
+		log.Fatal("mm.Close failed: ", err)
+	}
+
+	err = g.WriteSubgraph(path.Join(base, "/overlay"), vertexIndices, pi.Table)
 	if err != nil {
 		log.Fatal("Writing the overlay graph: ", err)
 	}
