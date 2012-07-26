@@ -47,8 +47,8 @@ type OverlayGraph interface {
 	Graph
 
 	ClusterCount() int
-	ClusterSize(int) int      // cluster id -> number of vertices
-	VertexCluster(Vertex) int // vertex id -> cluster id
+	ClusterSize(int) int // cluster id -> number of vertices
+	VertexCluster(Vertex) (int, Vertex) // vertex id -> cluster id, cluster vertex id
 }
 
 func (t Transport) String() string {
