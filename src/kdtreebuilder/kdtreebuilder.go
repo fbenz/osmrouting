@@ -66,8 +66,7 @@ func main() {
 	}
 
 	fmt.Printf("Create k-d trees for the overlay graph\n")
-	// TODO add if graph.OverlayGraphFile.VertexRawEdges exists
-	//writeKdTreeOverlay(path.Join(FlagBaseDir, "/overlay"), clusterGraph.Overlay.(*graph.OverlayGraphFile))
+	writeKdTreeOverlay(path.Join(FlagBaseDir, "/overlay"), clusterGraph.Overlay.(*graph.OverlayGraphFile))
 }
 
 type byLat struct {
