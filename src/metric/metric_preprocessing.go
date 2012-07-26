@@ -36,7 +36,7 @@ func main() {
 
 	fmt.Printf("Metric preprocessing\n")
 
-	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir)
+	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir, false /* loadMatrices */)
 	if err != nil {
 		log.Fatal("Open cluster graph: ", err)
 	}
@@ -73,6 +73,8 @@ func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	matrices := make([][]float32, len(g.Cluster))
 	size := 0
 	for p, subgraph := range g.Cluster {
+		fmt.Printf("metric: %v, transport: %v, subgraph: %v\n", metric, trans, p)
+
 		boundaryVertexCount := g.Overlay.ClusterSize(p)
 		matrices[p] = computeMatrix(subgraph, boundaryVertexCount, metric, trans)
 		size += boundaryVertexCount * boundaryVertexCount
@@ -121,10 +123,10 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 
 		elements := route.DijkstraComplete(subgraph, s, graph.Metric(metric), graph.Transport(trans), true /* forward */)
 		for j, elem := range elements[:boundaryVertexCount] {
-			if elem == nil {
-				matrix[boundaryVertexCount * i + j] = float32(math.Inf(1))
-			} else {
+			if elem != nil {
 				matrix[boundaryVertexCount * i + j] = elem.Weight()
+			} else {
+				matrix[boundaryVertexCount * i + j] = float32(math.Inf(1))
 			}
 		}
 	}

@@ -10,8 +10,8 @@ type ClusterGraph struct {
 	Cluster []Graph
 }
 
-func OpenClusterGraph(base string) (*ClusterGraph, error) {
-	overlay, err := OpenOverlay(path.Join(base, "/overlay"), false /* ignoreErrors */)
+func OpenClusterGraph(base string, loadMatrices bool) (*ClusterGraph, error) {
+	overlay, err := OpenOverlay(path.Join(base, "/overlay"), loadMatrices, false /* ignoreErrors */)
 	if err != nil {
 		return nil, err
 	}
