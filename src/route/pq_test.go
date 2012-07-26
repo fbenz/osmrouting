@@ -1,11 +1,11 @@
 package route
 
 import (
-	"newgraph"
+	"graph"
 	"testing"
 )
 
-func compareNodes(t *testing.T, expected, actual newgraph.Vertex) {
+func compareNodes(t *testing.T, expected, actual graph.Vertex) {
 	if expected != actual {
 		t.Fatalf("Returned wrong element: expected value %v but was %v", expected, actual)
 	}

@@ -69,8 +69,8 @@ func preprocessOne(g *graph.ClusterGraph, metric int) {
 func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	time1 := time.Now()
 
-	// compute the matrices for all cluster
-	matrices := make([][][]float32, len(g.Cluster))
+	// compute the matrices for all Cluster
+	matrices := make([][]float32, len(g.Cluster))
 	size := 0
 	for p, subgraph := range g.Cluster {
 		fmt.Printf("metric: %v, transport: %v, subgraph: %v\n", metric, trans, p)
@@ -87,13 +87,11 @@ func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	if err != nil {
 		log.Fatal("mm.Create failed: ", err)
 	}
-	// iterate over all rows
+	// iterate over all matrices
 	pos := 0
 	for _, matrix := range matrices {
-		for _, row := range matrix {
-			copy(matrixFile[pos:len(row)], row)
-			pos += len(row)
-		}
+		copy(matrixFile[pos:], matrix)
+		pos += len(matrix)
 	}
 	err = mm.Close(&matrixFile)
 	if err != nil {
@@ -105,21 +103,23 @@ func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 }
 
 // computeMatrix computes the metric matrix for the given subgraph and metric
-func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int) [][]float32 {
+func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int) []float32 {
 	// TODO precompute the result of the metric for every edge and store the result for the graph
 	// An alternative would be an computation on-the-fly during each run of Dijkstra (preprocessing here + live query)
 	//for i := 0; i < subgraph.EdgeCount(); i++ {
 	// apply metric on edge weight and possibly other data
 	//}
-
-	matrix := make([][]float32, boundaryVertexCount)
-	for i, _ := range matrix {
-		matrix[i] = make([]float32, boundaryVertexCount)
+	
+	if boundaryVertexCount > subgraph.VertexCount() {
+		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
+			boundaryVertexCount, subgraph.VertexCount())
 	}
+
+	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
-	for i, _ := range matrix {
+	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
 		vertex := graph.Vertex(i)
 		s := make([]graph.Way, 1)
@@ -129,9 +129,9 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 		elements := route.DijkstraComplete(subgraph, s, graph.Metric(metric), graph.Transport(trans), true /* forward */)
 		for j, elem := range elements[:boundaryVertexCount] {
 			if elem != nil {
-				matrix[i][j] = elem.Weight()
+				matrix[boundaryVertexCount * i + j] = elem.Weight()
 			} else {
-				matrix[i][j] = float32(math.Inf(1))
+				matrix[boundaryVertexCount * i + j] = float32(math.Inf(1))
 			}
 		}
 	}
