@@ -2,7 +2,6 @@
 package kdtree
 
 import (
-	"ellipsoid"
 	"geo"
 	"graph"
 )
@@ -10,7 +9,6 @@ import (
 // encoded step: vertex index (16bit) + edge offset (8bit) + step offset (8bit)
 type KdTree struct {
 	Graph        graph.Graph
-	Geo          *ellipsoid.Ellipsoid
 	EncodedSteps []uint32
 	Coordinates  []geo.Coordinate
 }

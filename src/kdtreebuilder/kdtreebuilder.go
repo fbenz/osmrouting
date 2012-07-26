@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ellipsoid"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -9,10 +8,15 @@ import (
 	"graph"
 	"kdtree"
 	"log"
+	"mm"
 	"os"
 	"path"
 	"runtime"
 	"sort"
+)
+
+const (
+	MaxThreads = 8
 )
 
 var (
@@ -24,7 +28,7 @@ func init() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(16)
+	runtime.GOMAXPROCS(MaxThreads)
 	flag.Parse()
 
 	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir)
@@ -32,18 +36,38 @@ func main() {
 		log.Fatal("Loading graph: ", err)
 	}
 
+	fmt.Printf("Create k-d trees for the subgraphs\n")
+	bboxes := make([]geo.BBox, len(clusterGraph.Cluster))
 	ready := make(chan int, len(clusterGraph.Cluster))
 	for i, g := range clusterGraph.Cluster {
-		clusterDir := fmt.Sprintf("cluster%d", i+1)
-		go writeKdTree(ready, path.Join(FlagBaseDir, clusterDir), g)
+		clusterDir := fmt.Sprintf("/cluster%d", i+1)
+		go writeKdTreeSubgraph(ready, path.Join(FlagBaseDir, clusterDir), g.(*graph.GraphFile), bboxes, i)
 	}
 	for _, _ = range clusterGraph.Cluster {
 		<-ready
 	}
 
-	writeKdTree(ready, path.Join(FlagBaseDir, "/overlay"), clusterGraph.Overlay)
+	// write bounding boxes to file
+	fmt.Printf("Write bounding boxes\n")
+	var bboxesFile []int32
+	err = mm.Create(path.Join(FlagBaseDir, "bboxes.ftf"), len(bboxes)*4, &bboxesFile)
+	if err != nil {
+		log.Fatal("mm.Create failed: ", err)
+	}
+	for i, b := range bboxes {
+		encodedBox := b.Encode()
+		for j := 0; j < 4; j++ {
+			bboxesFile[4*i+j] = encodedBox[j]
+		}
+	}
+	err = mm.Close(&bboxesFile)
+	if err != nil {
+		log.Fatal("mm.Close failed: ", err)
+	}
 
-	// TODO create segment tree out of the bounding boxes
+	fmt.Printf("Create k-d trees for the overlay graph\n")
+	// TODO add if graph.OverlayGraphFile.VertexRawEdges exists
+	//writeKdTreeOverlay(path.Join(FlagBaseDir, "/overlay"), clusterGraph.Overlay.(*graph.OverlayGraphFile))
 }
 
 type byLat struct {
@@ -62,38 +86,66 @@ func (x byLng) Less(i, j int) bool {
 	return x.KdTree.Coordinates[i].Lng < x.KdTree.Coordinates[j].Lng
 }
 
-func createKdTree(g graph.Graph) kdtree.KdTree {
-	ellipsoidGeo := ellipsoid.Init("WGS84", ellipsoid.Degrees, ellipsoid.Meter, ellipsoid.Longitude_is_symmetric, ellipsoid.Bearing_is_symmetric)
+func createKdTreeSubgraph(g *graph.GraphFile) (kdtree.KdTree, geo.BBox) {
+	estimatedSize := g.VertexCount() + 4*g.EdgeCount()
+	EncodedSteps := make([]uint32, 0, estimatedSize)
+	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
+	bbox := geo.NewBBoxPoint(g.VertexCoordinate(graph.Vertex(0)))
+
+	// line up all coordinates and their encodings in the graph
+	edges := []graph.Edge(nil)
+	for i := 0; i < g.VertexCount(); i++ {
+		vertex := graph.Vertex(i)
+		coordinates = append(coordinates, g.VertexCoordinate(vertex))
+		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, 0xFF, 0xFF))
+		bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
+
+		edges = g.VertexRawEdges(vertex, edges)
+		for j, e := range edges {
+			steps := g.EdgeSteps(e, vertex)
+			for k, s := range steps {
+				coordinates = append(coordinates, s)
+				EncodedSteps = append(EncodedSteps, encodeCoordinate(i, j, k))
+				bbox.Union(geo.NewBBoxPoint(s))
+			}
+		}
+	}
+
+	t := kdtree.KdTree{Graph: g, EncodedSteps: EncodedSteps, Coordinates: coordinates}
+	createSubTree(t, true)
+	return t, bbox
+}
+
+func createKdTreeOverlay(g *graph.OverlayGraphFile) kdtree.KdTree {
 	estimatedSize := g.VertexCount() + 4*g.EdgeCount()
 	EncodedSteps := make([]uint32, 0, estimatedSize)
 	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
 	// line up all coordinates and their encodings in the graph
+	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
 		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, 0xFF, 0xFF))
 
-		iter := g.VertexEdgeIterator(vertex, true /* out edges */, 0 /* metric */)
-		j := 0
-		for e, ok := iter.Next(); ok; e, ok = iter.Next() {
+		g.VertexRawEdges(vertex, edges)
+		for j, e := range edges {
 			steps := g.EdgeSteps(e, vertex)
 			for k, s := range steps {
 				coordinates = append(coordinates, s)
 				EncodedSteps = append(EncodedSteps, encodeCoordinate(i, j, k))
 			}
-			j++
 		}
 	}
 
-	t := kdtree.KdTree{Graph: g, Geo: &ellipsoidGeo, EncodedSteps: EncodedSteps, Coordinates: coordinates}
+	t := kdtree.KdTree{Graph: g, EncodedSteps: EncodedSteps, Coordinates: coordinates}
 	createSubTree(t, true)
 	return t
 }
 
 func subKdTree(t kdtree.KdTree, from, to int) kdtree.KdTree {
-	return kdtree.KdTree{Graph: t.Graph, Geo: t.Geo, EncodedSteps: t.EncodedSteps[from:to], Coordinates: t.Coordinates[from:to]}
+	return kdtree.KdTree{Graph: t.Graph, EncodedSteps: t.EncodedSteps[from:to], Coordinates: t.Coordinates[from:to]}
 }
 
 func createSubTree(t kdtree.KdTree, compareLat bool) {
@@ -110,14 +162,25 @@ func createSubTree(t kdtree.KdTree, compareLat bool) {
 	createSubTree(subKdTree(t, middle+1, t.Len()), !compareLat)
 }
 
-// WriteKdTree creates and stores the k-d tree for the given graph
-func writeKdTree(ready chan<- int, baseDir string, g graph.Graph) {
-	t := createKdTree(g)
+// writeKdTreeSubgraph creates and stores the k-d tree for the given cluster graph
+func writeKdTreeSubgraph(ready chan<- int, baseDir string, g *graph.GraphFile, bboxes []geo.BBox, pos int) {
+	t, bbox := createKdTreeSubgraph(g)
 	err := writeToFile(t, baseDir)
 	if err != nil {
 		log.Fatal("Creating k-d tree: ", err)
 	}
+	// TODO add margin?
+	bboxes[pos] = bbox
 	ready <- 1
+}
+
+// writeKdTree creates and stores the k-d tree for the given graph
+func writeKdTreeOverlay(baseDir string, g *graph.OverlayGraphFile) {
+	t := createKdTreeOverlay(g)
+	err := writeToFile(t, baseDir)
+	if err != nil {
+		log.Fatal("Creating k-d tree: ", err)
+	}
 }
 
 // writeToFile stores the permitation created by the k-d tree
