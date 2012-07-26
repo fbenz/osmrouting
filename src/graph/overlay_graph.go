@@ -122,3 +122,8 @@ func (g *OverlayGraphFile) VertexCluster(v Vertex) (int, Vertex) {
 	i := g.VertexIndices[v]
 	return i, v - Vertex(g.Cluster[i])
 }
+
+//TODO implement this function
+func (g *OverlayGraphFile) ClusterVertex(i int, v Vertex) Vertex {
+	return v
+}

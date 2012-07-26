@@ -90,22 +90,22 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges []graph.Edge, start, stop graph.Way) *Leg {
+func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges []graph.Edge, start, stop *graph.Way) *Leg {
 	// Determine the number of steps on this path.
 	totalSteps := len(edges)
-	if start.Length > 1e-7 {
+	if start != nil && start.Length > 1e-7 {
 		totalSteps++
 	}
-	if stop.Length > 1e-7 {
+	if stop != nil && stop.Length > 1e-7 {
 		totalSteps++
 	}
 	steps := make([]Step, totalSteps)
 
 	// Add the initial step, if present
 	i := 0
-	if start.Length > 1e-7 {
+	if start != nil && start.Length > 1e-7 {
 		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
-		steps[0] = WayToStep(start, start.Target, g.VertexCoordinate(vertices[0]))
+		steps[0] = WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]))
 		i++
 	}
 
@@ -118,9 +118,9 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges [
 	}
 
 	// Add the final step, if present
-	if stop.Length > 1e-7 {
+	if stop != nil && stop.Length > 1e-7 {
 		prev := vertices[len(vertices)-1]
-		steps[i] = WayToStep(stop, g.VertexCoordinate(prev), stop.Target)
+		steps[i] = WayToStep(*stop, g.VertexCoordinate(prev), stop.Target)
 	}
 
 	return &Leg{
@@ -191,4 +191,24 @@ func ComputeBounds(route Route) BoundingBox {
 	}
 
 	return bounds
+}
+
+// Combine two legs into one leg
+func CombineLegs(a, b *Leg, e []Step) *Leg {
+	distance := (*a).Distance.Value + (*b).Distance.Value
+	steps := (*a).Steps
+	for _, s := range e {
+		distance += s.Distance.Value
+		steps = append(steps, s)
+	}
+	start := (*a).StartLocation
+	end := (*b).EndLocation
+	steps = append(steps, (*b).Steps...)
+	return &Leg{
+		Distance:      FormatDistance(float64(distance)),
+		Duration:      MockupDuration(float64(distance)),
+		StartLocation: start,
+		EndLocation:   end,
+		Steps:         steps,
+	}
 }

@@ -2,6 +2,7 @@ package route
 
 import (
 	"graph"
+	"log"
 )
 
 func DijkstraComplete(g graph.Graph, s []graph.Way, m graph.Metric, trans graph.Transport, forward bool) []*Element {
@@ -38,7 +39,30 @@ func DijkstraComplete(g graph.Graph, s []graph.Way, m graph.Metric, trans graph.
 			}
 		}
 	}
-
 	return elements
+}
 
+func ConstructForwardPath(spt []*Element, v graph.Vertex) ([]graph.Vertex, []graph.Edge) {
+	stepCount := 0
+	curr := v
+	for elem := spt[curr]; elem != nil && elem.vertex != elem.p; elem = spt[curr] {
+		curr = elem.p
+		stepCount++
+	}
+	path := make([]graph.Vertex, stepCount+1)
+	edges := make([]graph.Edge, stepCount)
+	if stepCount == 0 {
+		log.Printf("WARNING: dijkstra found no path\n")
+		return nil, nil
+	}
+	position := stepCount - 1
+	curr = v
+	for elem := spt[curr]; elem != nil && elem.vertex != elem.p; elem = spt[curr] {
+		path[position+1] = elem.vertex
+		edges[position] = elem.ep
+		curr = elem.p
+		position--
+	}
+	path[0] = curr
+	return path, edges
 }
