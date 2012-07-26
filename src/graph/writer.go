@@ -2,14 +2,15 @@ package graph
 
 import (
 	"alg"
+	"fmt"
 	"log"
 	"mm"
 	"path"
 )
 
 // It's easy to misuse the general API, so we do some sanity checks here.
-// Returns the number of nodes in the subgraph.
-func validateNodeIndices(g *GraphFile, indices []int) int {
+// Returns the vertexMap plus the number of nodes in the subgraph.
+func validateNodeIndices(g *GraphFile, indices []int) ([]int, int) {
 	if len(indices) != g.VertexCount() {
 		log.Fatalf("Wrong number of node indices (is: %v, should be: %v).",
 			len(indices), g.VertexCount())
@@ -32,32 +33,38 @@ func validateNodeIndices(g *GraphFile, indices []int) int {
 	present := make([]bool, maxIndex + 1)
 	for _, i := range indices {
 		if i != -1 {
+			if present[i] {
+				log.Fatalf("Vertex %v is mapped twice.", i)
+			}
 			present[i] = true
 		}
 	}
 	for i, t := range present {
 		if !t {
-			log.Fatalf("Node %v is not mapped.", i)
+			log.Fatalf("Vertex %v is not mapped.", i)
 		}
 	}
 	
-	return maxIndex + 1
+	vertices := make([]int, maxIndex+1)
+	for old, i := range indices {
+		if i != -1 {
+			vertices[i] = old
+		}
+	}
+	return vertices, maxIndex + 1
 }
 
 // Map the edge indices in the original graph to a new set of indices.
 // Returns the mapping, containing -1 if the edge is not in the subgraph,
 // and the number of edges in the subgraph.
-func mapEdges(g *GraphFile, indices, partition []int) ([]int, int) {
+func mapEdges(g *GraphFile, indices, partition, vertexMap []int) ([]int, int) {
 	edgeCount := 0
 	edgeMap := make([]int, g.EdgeCount())
 	for i := range edgeMap {
 		edgeMap[i] = -1
 	}
 	
-	for u := 0; u < g.VertexCount(); u++ {
-		if indices[u] == -1 {
-			continue
-		}
+	for _, u := range vertexMap {
 		for e := g.FirstOut[u]; e < g.FirstOut[u+1]; e++ {
 			v := g.EdgeOpposite(Edge(e), Vertex(u))
 			if indices[v] == -1 || partition[u] == partition[v] {
@@ -72,15 +79,31 @@ func mapEdges(g *GraphFile, indices, partition []int) ([]int, int) {
 }
 
 // Returns a mapping for the step indices and the size of the new step_positions file.
-func mapSteps(g *GraphFile, edgeIndices []int) ([]int, int) {
-	stepSize := 0
-	stepIndices := make([]int, g.EdgeCount())
+func mapSteps(g *GraphFile, edgeIndices []int, edgeCount int) ([]int, int) {
+	// Compute the Steps mapping (this is stupid... we use this to recompute the mapping
+	// later) TODO: rewrite.
+	steps := make([]int, edgeCount)
 	for e := 0; e < g.EdgeCount(); e++ {
 		if edgeIndices[e] == -1 {
 			continue
 		}
-		stepIndices[e] = stepSize
-		stepSize += int(g.Steps[e+1] - g.Steps[e]) 
+		steps[edgeIndices[e]] = int(g.Steps[e+1] - g.Steps[e])
+	}
+	
+	stepSize := 0
+	for i := range steps {
+		size := steps[i]
+		steps[i] = stepSize
+		stepSize += size
+	}
+	
+	stepIndices := make([]int, g.EdgeCount())
+	for e := 0; e < g.EdgeCount(); e++ {
+		if edgeIndices[e] == -1 {
+			stepIndices[e] = -1
+		} else {
+			stepIndices[e] = steps[edgeIndices[e]]
+		}
 	}
 	return stepIndices, stepSize
 }
@@ -118,25 +141,28 @@ func createGraphFile(base string, vertexCount, edgeCount, stepSize int) (*GraphF
 	return g, nil
 }
 
-func writeVertexAttributes(input, output *GraphFile, vertexIndices, edgeIndices []int) {
+func writeVertexAttributes(input, output *GraphFile, vertexIndices, edgeIndices, vertexMap []int) {
+	for i, u := range vertexMap {
+		degree := 0
+		for e := input.FirstOut[u]; e < input.FirstOut[u+1]; e++ {
+			if edgeIndices[e] != -1 {
+				degree++
+			}
+		}
+		output.FirstOut[i] = uint32(degree)
+	}
+	
+	current := 0
+	for i := 0; i <= len(vertexMap); i++ {
+		degree := output.FirstOut[i]
+		output.FirstOut[i] = uint32(current)
+		current += int(degree)
+	}
+	
 	for u := 0; u < input.VertexCount(); u++ {
 		a := vertexIndices[u]
 		if a == -1 {
 			continue
-		}
-		
-		// To find the first out edge of a we need to find the first
-		// mapped edge out of u. It's possible that there is no edge
-		// from u. Usually, this is not a problem, but we need to handle
-		// the case where we run past the end of the edge array.
-		for e := input.FirstOut[u]; int(e) <= input.EdgeCount(); e++ {
-			if int(e) == input.EdgeCount() {
-				output.FirstOut[a] = uint32(output.EdgeCount())
-				break
-			} else if edgeIndices[e] != -1 {
-				output.FirstOut[a] = uint32(edgeIndices[e])
-				break
-			}
 		}
 		
 		// The first in edge is similar, but there is an additional special case:
@@ -206,8 +232,10 @@ func writeEdgeAttributes(input, output *GraphFile, edgeIndices, stepIndices []in
 			}
 		}
 		
-		// Data attributes
+		// Distances
 		output.Weights[Distance][f] = input.Weights[Distance][e]
+		
+		// Steps
 		step := stepIndices[e]
 		if step == -1 {
 			log.Fatalf("Unmapped step index.")
@@ -223,7 +251,17 @@ func writeEdgeAttributes(input, output *GraphFile, edgeIndices, stepIndices []in
 	output.Steps[len(output.Steps)-1] = uint32(len(output.StepPositions))
 }
 
+func fromVertex(g *GraphFile, e Edge) Vertex {
+	for i := 0; i < g.VertexCount(); i++ {
+		if g.FirstOut[i] <= uint32(e) && uint32(e) < g.FirstOut[i+1] {
+			return Vertex(i)
+		}
+	}
+	panic("Unmapped egde.")
+}
+
 func writeEdges(input, output *GraphFile, vertexIndices, edgeIndices []int) {
+	presentEdges := make([]bool, output.EdgeCount())
 	for u := 0; u < input.VertexCount(); u++ {
 		if vertexIndices[u] == -1 {
 			continue
@@ -234,10 +272,25 @@ func writeEdges(input, output *GraphFile, vertexIndices, edgeIndices []int) {
 				continue
 			}
 			v := input.EdgeOpposite(Edge(e), Vertex(u))
+			
 			if vertexIndices[v] == -1 {
 				log.Fatalf("Missing edge endpoint.")
 			}
+			if vertexIndices[v] < 0 || vertexIndices[v] >= output.VertexCount() {
+				panic(fmt.Sprintf("Vertex %v is not in the output graph.", vertexIndices[v]))
+			}
+			if Vertex(vertexIndices[u]) != fromVertex(output, Edge(f)) {
+				log.Fatalf("VertexIndex[%v] should be %v, but is %v (for edge %v).",
+					u, fromVertex(output, Edge(f)), vertexIndices[u], f)
+			}
+			
+			presentEdges[f] = true
 			output.Edges[f] = uint32(vertexIndices[u] ^ vertexIndices[v])
+		}
+	}
+	for i, b := range presentEdges {
+		if !b {
+			panic(fmt.Sprintf("Edge %v is unmapped.", i))
 		}
 	}
 }
@@ -248,9 +301,9 @@ func writeEdges(input, output *GraphFile, vertexIndices, edgeIndices []int) {
 // u and v are in the subgraph and furthermore partition[u] != partition[v].
 func (g *GraphFile) WriteSubgraph(base string, indices, partition []int) error {
 	// Extend the mapping to edges and steps and compute the size of the subgraph.
-	vertexCount := validateNodeIndices(g, indices)
-	edgeIndices, edgeCount := mapEdges(g, indices, partition)
-	stepIndices, stepCount := mapSteps(g, edgeIndices)
+	vertexMap, vertexCount := validateNodeIndices(g, indices)
+	edgeIndices, edgeCount := mapEdges(g, indices, partition, vertexMap)
+	stepIndices, stepCount := mapSteps(g, edgeIndices, edgeCount)
 	
 	// Create the new graph file.
 	out, err := createGraphFile(base, vertexCount, edgeCount, stepCount)
@@ -258,7 +311,7 @@ func (g *GraphFile) WriteSubgraph(base string, indices, partition []int) error {
 		return err
 	}
 	
-	writeVertexAttributes(g, out, indices, edgeIndices)
+	writeVertexAttributes(g, out, indices, edgeIndices, vertexMap)
 	writeEdgeAttributes(g, out, edgeIndices, stepIndices)
 	writeEdges(g, out, indices, edgeIndices)
 	

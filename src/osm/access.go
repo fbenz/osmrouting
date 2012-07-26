@@ -60,7 +60,9 @@ func AccessMask(way Way) AccessType {
 	// If this way is not a road to begin with, ignore it.
 	if _, ok := way.Attributes["highway"]; !ok {
 		if _, ok := way.Attributes["junction"]; !ok {
-			return 0
+			if way.Attributes["route"] != "ferry" {
+				return 0
+			}
 		}
 	}
 
