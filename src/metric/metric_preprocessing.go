@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"graph"
 	"log"
+	"math"
 	"mm"
 	"path"
 	"route"
@@ -35,7 +36,7 @@ func main() {
 
 	fmt.Printf("Metric preprocessing\n")
 
-	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir)
+	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir, false /* loadMatrices */)
 	if err != nil {
 		log.Fatal("Open cluster graph: ", err)
 	}
@@ -68,10 +69,12 @@ func preprocessOne(g *graph.ClusterGraph, metric int) {
 func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	time1 := time.Now()
 
-	// compute the matrices for all Cluster
+	// compute the matrices for all cluster
 	matrices := make([][][]float32, len(g.Cluster))
 	size := 0
 	for p, subgraph := range g.Cluster {
+		fmt.Printf("metric: %v, transport: %v, subgraph: %v\n", metric, trans, p)
+
 		boundaryVertexCount := g.Overlay.ClusterSize(p)
 		matrices[p] = computeMatrix(subgraph, boundaryVertexCount, metric, trans)
 		size += boundaryVertexCount * boundaryVertexCount
@@ -110,6 +113,9 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 	//}
 
 	matrix := make([][]float32, boundaryVertexCount)
+	for i, _ := range matrix {
+		matrix[i] = make([]float32, boundaryVertexCount)
+	}
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
@@ -122,7 +128,11 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 
 		elements := route.DijkstraComplete(subgraph, s, graph.Metric(metric), graph.Transport(trans), true /* forward */)
 		for j, elem := range elements[:boundaryVertexCount] {
-			matrix[i][j] = elem.Weight()
+			if elem != nil {
+				matrix[i][j] = elem.Weight()
+			} else {
+				matrix[i][j] = float32(math.Inf(1))
+			}
 		}
 	}
 

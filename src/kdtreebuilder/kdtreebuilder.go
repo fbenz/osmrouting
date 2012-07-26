@@ -31,7 +31,7 @@ func main() {
 	runtime.GOMAXPROCS(MaxThreads)
 	flag.Parse()
 
-	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir)
+	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir, false /* loadMatrices */)
 	if err != nil {
 		log.Fatal("Loading graph: ", err)
 	}
