@@ -6,11 +6,26 @@ import (
 	"graph"
 )
 
+const (
+	VertexIndexBits = 16
+	EdgeOffsetBits  = 5
+	StepOffsetBits  = 11
+	MaxVertexIndex  = 0xFFFF
+	MaxEdgeOffset   = 0x1F
+	MaxStepOffset   = 0x7FF
+)
+
 // encoded step: vertex index (16bit) + edge offset (8bit) + step offset (8bit)
 type KdTree struct {
 	Graph        graph.Graph
 	EncodedSteps []uint32
 	Coordinates  []geo.Coordinate
+}
+
+type ClusterKdTree struct {
+	Overlay *KdTree
+	Cluster []*KdTree
+	BBoxes  []geo.BBox
 }
 
 func (t KdTree) Len() int {

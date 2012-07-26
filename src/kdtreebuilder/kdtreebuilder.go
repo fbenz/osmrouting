@@ -98,12 +98,17 @@ func createKdTreeSubgraph(g *graph.GraphFile) (kdtree.KdTree, geo.BBox) {
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
-		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, 0xFF, 0xFF))
+		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 		bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
 
 		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
 			steps := g.EdgeSteps(e, vertex)
+
+			if len(steps) > 2000 {
+				panic("steps > 2000")
+			}
+
 			for k, s := range steps {
 				coordinates = append(coordinates, s)
 				EncodedSteps = append(EncodedSteps, encodeCoordinate(i, j, k))
@@ -127,7 +132,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) kdtree.KdTree {
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
-		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, 0xFF, 0xFF))
+		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 
 		g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
@@ -198,18 +203,22 @@ func writeToFile(t kdtree.KdTree, baseDir string) error {
 }
 
 func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint32 {
-	if vertexIndex > 0xFFFF {
+	if vertexIndex > kdtree.MaxVertexIndex {
 		panic("vertex index too large")
 	}
-	if edgeOffset >= 0xFF {
-		panic("edge offset too large")
-	}
-	if stepOffset >= 0xFF {
-		panic("step offset too large")
+	// both offsets are at max if only a vertex is encoded
+	if edgeOffset != kdtree.MaxEdgeOffset && stepOffset != kdtree.MaxStepOffset {
+		if edgeOffset >= kdtree.MaxEdgeOffset {
+			panic("edge offset too large")
+		}
+		if stepOffset >= kdtree.MaxStepOffset {
+			fmt.Printf("vertex: %d, edge offset: %v, step offset: %v\n", vertexIndex, edgeOffset, stepOffset)
+			panic("step offset too large")
+		}
 	}
 
-	ec := uint32(vertexIndex) << 16
-	ec |= uint32(edgeOffset) << 8
+	ec := uint32(vertexIndex) << (kdtree.EdgeOffsetBits + kdtree.StepOffsetBits)
+	ec |= uint32(edgeOffset) << kdtree.StepOffsetBits
 	ec |= uint32(stepOffset)
 	return ec
 }
