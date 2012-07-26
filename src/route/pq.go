@@ -66,7 +66,7 @@ func shiftup(pq *PriorityQueue, index int) {
 func ChangePriority(pq *PriorityQueue, element *Element, priority float64) {
 	if element.priority == priority { // Later to be removed
 		return
-	} else if element.priority > priority {
+	} else if element.priority < priority {
 		element.priority = priority
 		heapify(pq, element.index)
 	} else {
