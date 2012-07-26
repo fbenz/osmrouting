@@ -8,7 +8,7 @@ import (
 	"kdtree"
 )
 
-func ConcurrentRoutes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Result {
+func ConcurrentRoutes(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
 	distance := 0.0
 	duration := 0.0
 	legs := make([]*Leg, len(waypoints)-1)
@@ -17,7 +17,7 @@ func ConcurrentRoutes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Res
 		// fork
 		for i := 0; i < len(waypoints)-1; i++ {
 			go func(j int) {
-				legs[j] = leg(g, kdt, waypoints, j)
+				legs[j] = leg(g, kdt, waypoints, j, m, trans)
 				c <- j
 			}(i)
 		}
@@ -33,7 +33,7 @@ func ConcurrentRoutes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Res
 		}
 	} else {
 		// no goroutine for a single leg
-		legs[0] = leg(g, kdt, waypoints, 0)
+		legs[0] = leg(g, kdt, waypoints, 0, m, trans)
 		distance += float64(legs[0].Distance.Value)
 		duration += float64(legs[0].Duration.Value)
 	}

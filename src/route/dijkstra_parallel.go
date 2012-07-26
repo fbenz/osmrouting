@@ -49,17 +49,31 @@ func DijkstraStarter(g graph.Graph, s, t []*Element, m graph.Metric, trans graph
 	resultT := make(chan []*Element)
 	verticesS := make(chan graph.Vertex)
 	verticesT := make(chan graph.Vertex)
-	visited := alg.NewBitVector(uint(g.VertexCount()))
+	visitedS := alg.NewBitVector(uint(g.VertexCount()))
+	visitedT := alg.NewBitVector(uint(g.VertexCount()))
 
 	go DijkstraRunner(g, s, m, trans, true, resultS, finishedS, verticesS)
 	go DijkstraRunner(g, t, m, trans, false, resultT, finishedT, verticesT)
 
 	for {
 		select {
-		case j := <-verticesS:
-			visited.Set(int64(j), true)
+		case i := <-verticesS:
+			visitedS.Set(int64(i), true)
+			if visitedT.Get(int64(i)) {
+				finishedS <- true
+				finishedT <- true
+				elms := <-resultS
+				elmt := <-resultT
+				if ok, path, edges := ComputePath(elms, elmt, i); ok {
+					return elms[i].priority + elmt[i].priority, path, edges
+				}
+				path := make([]graph.Vertex, 1)
+				path[0] = s[0].vertex
+				return 0.0, path, nil
+			}
 		case i := <-verticesT:
-			if visited.Get(int64(i)) {
+			visitedT.Set(int64(i), true)
+			if visitedS.Get(int64(i)) {
 				finishedS <- true
 				finishedT <- true
 				elms := <-resultS
@@ -73,24 +87,43 @@ func DijkstraStarter(g graph.Graph, s, t []*Element, m graph.Metric, trans graph
 			}
 		case elms := <-resultS: // the forward dijkstra is finished
 			elmt := <-resultT
+			minvertex := -1
 			for i, e := range elms {
 				if e != nil && elmt[i] != nil {
-					if ok, path, edges := ComputePath(elms, elmt, graph.Vertex(i)); ok {
-						return elms[i].priority + elmt[i].priority, path, edges
+					if minvertex == -1 {
+						minvertex = i
+					} else {
+						if elmt[i].priority+elms[i].priority < elmt[minvertex].priority+elms[minvertex].priority {
+							minvertex = i
+						}
 					}
+				}
+			}
+			if minvertex != -1 {
+				if ok, path, edges := ComputePath(elms, elmt, graph.Vertex(minvertex)); ok {
+					return elms[minvertex].priority + elmt[minvertex].priority, path, edges
 				}
 			}
 			path := make([]graph.Vertex, 1)
 			path[0] = s[0].vertex
 			return 0.0, path, nil
-
 		case elmt := <-resultT: // the backward dijkstra is finished
 			elms := <-resultS
+			minvertex := -1
 			for i, e := range elms {
 				if e != nil && elmt[i] != nil {
-					if ok, path, edges := ComputePath(elms, elmt, graph.Vertex(i)); ok {
-						return elms[i].priority + elmt[i].priority, path, edges
+					if minvertex == -1 {
+						minvertex = i
+					} else {
+						if elmt[i].priority+elms[i].priority < elmt[minvertex].priority+elms[minvertex].priority {
+							minvertex = i
+						}
 					}
+				}
+			}
+			if minvertex != -1 {
+				if ok, path, edges := ComputePath(elms, elmt, graph.Vertex(minvertex)); ok {
+					return elms[minvertex].priority + elmt[minvertex].priority, path, edges
 				}
 			}
 			path := make([]graph.Vertex, 1)

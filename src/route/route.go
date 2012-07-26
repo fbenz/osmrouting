@@ -6,12 +6,12 @@ import (
 	"kdtree"
 )
 
-func Routes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Result {
+func Routes(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
 	distance := 0.0
 	duration := 0.0
 	legs := make([]*Leg, len(waypoints)-1)
 	for i := 0; i < len(waypoints)-1; i++ {
-		legs[i] = leg(g, kdt, waypoints, i)
+		legs[i] = leg(g, kdt, waypoints, i, m, trans)
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
 	}
@@ -31,11 +31,13 @@ func Routes(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point) *Result {
 	return result
 }
 
-func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
+func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m graph.Metric, trans graph.Transport) *Leg {
 	//_, startWays := alg.NearestNeighbor(kdt, waypoints[i][0], waypoints[i][1], true /* forward */)
 	//_, endWays := alg.NearestNeighbor(kdt, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
 	startWays := make([]graph.Way, 0)
 	endWays := make([]graph.Way, 0)
+	startCluster := 0 //TODO kdt should return cluster index of the start vertex
+	endCluster := 0   //TODO kdt should return cluster index of the target vertex
 
 	allequal := true
 	oneequal := false
@@ -131,9 +133,9 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 					}
 				}
 			}
-			step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, g.VertexCoordinate(correctStartWay.Vertex),
+			step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, g.Cluster[startCluster].VertexCoordinate(correctStartWay.Vertex),
 				correctStartWay.Length)
-			step2 := PartwayToStep(correctEndWay.Steps, g.VertexCoordinate(correctEndWay.Vertex), correctEndWay.Target,
+			step2 := PartwayToStep(correctEndWay.Steps, g.Cluster[endCluster].VertexCoordinate(correctEndWay.Vertex), correctEndWay.Target,
 				correctEndWay.Length)
 			steps := make([]Step, 2)
 			steps[0] = step1
@@ -143,13 +145,94 @@ func leg(g graph.Graph, kdt *kdtree.KdTree, waypoints []Point, i int) *Leg {
 		}
 	}
 
-	// TODO call Dijkstra
+	// Both are in the same Cluster
+	if startCluster == endCluster {
+		startElements := make([]*Element, len(startWays))
+		endElements := make([]*Element, len(endWays))
+		for i, n := range startWays {
+			e := NewElement(n.Vertex, n.Length)
+			startElements[i] = e
+		}
+		for i, n := range endWays {
+			e := NewElement(n.Vertex, n.Length)
+			endElements[i] = e
+		}
+		distance, vertices, edges := DijkstraStarter(g.Cluster[startCluster], startElements, endElements, m, trans)
+		indexstart := -1
+		for i, n := range startWays {
+			if vertices[0] == n.Vertex {
+				indexstart = i
+				break
+			}
+		}
+		indexend := -1
+		for i, n := range endWays {
+			if vertices[len(vertices)-1] == n.Vertex {
+				indexend = i
+				break
+			}
+		}
+		return PathToLeg(g.Cluster[startCluster], distance, vertices, edges, &startWays[indexstart], &endWays[indexend])
+	} else { //They are in different Clusters
+		startelms := []*Element(nil)
+		endelms := []*Element(nil)
+		// TODO check if start/end vertex is boundary note
+		c := make(chan int, 2)
+		go func() {
+			startelms = DijkstraComplete(g.Cluster[startCluster], startWays, m, trans, true)
+			c <- 0
+		}()
+		go func() {
+			endelms = DijkstraComplete(g.Cluster[endCluster], endWays, m, trans, false)
+			c <- 1
+		}()
+		<-c
+		<-c
+		startboundary := make([]*Element, g.Overlay.ClusterSize(startCluster))
+		endboundary := make([]*Element, g.Overlay.ClusterSize(endCluster))
+		reachable := false
+		for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
+			reachable = reachable || startelms[i] != nil
+			e := NewElement(g.Overlay.ClusterVertex(startCluster, startelms[i].vertex), startelms[i].priority)
+			startboundary[i] = e
+		}
+		if !reachable { // Cannot reach the boundary from this vertex
+			return nil
+		}
+		reachable = false
+		for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
+			reachable = reachable || endelms[i] != nil
+			e := NewElement(g.Overlay.ClusterVertex(endCluster, endelms[i].vertex), endelms[i].priority)
+			endboundary[i] = e
+		}
+		if !reachable { // Cannot reach the boundary from this vertex
+			return nil
+		}
+		distance, vertices, edges := DijkstraStarter(g.Overlay, startboundary, endboundary, m, trans)
+		// No path found
+		if vertices == nil {
+			return nil
+		}
+		crossvertices := make([]int, 1)
+		for i := 0; i < len(vertices)-1; i++ {
+			c1, _ := g.Overlay.VertexCluster(vertices[i])
+			c2, _ := g.Overlay.VertexCluster(vertices[i+1])
+			if c1 == c2 {
+				crossvertices = append(crossvertices, i)
+			}
+		}
+		tmplegs := make([]*Leg, len(crossvertices))
+		if len(crossvertices) == 1 {
+		}
+		_ = tmplegs
+		_ = distance
+		_ = edges
+	}
 	return nil
 
 	// Use the Dijkatrs version using a large slice only for long routes where the map of the
 	// other version can get quite large
-	/*if getDistance(g, startWays[0].Vertex, endWays[0].Vertex) > 100.0*1000.0 { // > 100km
-		dist, vertices, edges, start, end := alg.DijkstraSlice(g, startWays, endWays)
+	/*if getDistance(g, startWays[0].Vertex, endWays[0].Vertex) > 100.0*1000.0 { // > 100km		dist, vertices, edges, start, end := alg.DijkstraSlice(g, startWays, endWays)
 		return PathToLeg(g, dist, vertices, edges, start, end)
 	}
 	dist, vertices, edges, start, end := alg.Dijkstra(g, startWays, endWays)
