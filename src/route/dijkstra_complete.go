@@ -25,10 +25,12 @@ func DijkstraComplete(g graph.Graph, s []graph.Way, m graph.Metric, trans graph.
 		for _, e := range edges {
 			n := g.EdgeOpposite(e, curr)
 			if elem := elements[n]; elem != nil {
-				if tmpDist := currDist + g.EdgeWeight(e, trans, m); tmpDist < elem.priority {
-					ChangePriority(&q, elem, tmpDist)
-					elem.p = curr
-					elem.ep = e
+				if elem.index != -1 {
+					if tmpDist := currDist + g.EdgeWeight(e, trans, m); tmpDist < elem.priority {
+						ChangePriority(&q, elem, tmpDist)
+						elem.p = curr
+						elem.ep = e
+					}
 				}
 			} else {
 				x := NewElement(n, currDist+g.EdgeWeight(e, trans, m))

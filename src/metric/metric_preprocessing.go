@@ -109,12 +109,17 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 	//for i := 0; i < subgraph.EdgeCount(); i++ {
 	// apply metric on edge weight and possibly other data
 	//}
+	
+	if boundaryVertexCount > subgraph.VertexCount() {
+		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
+			boundaryVertexCount, subgraph.VertexCount())
+	}
 
 	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
-	for i, _ := range matrix {
+	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
 		vertex := graph.Vertex(i)
 		s := make([]graph.Way, 1)

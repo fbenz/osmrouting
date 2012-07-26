@@ -32,17 +32,6 @@ type GraphFile struct {
 	StepPositions []byte
 }
 
-type GraphFileEdgeIterator struct {
-	Graph   *GraphFile
-	Vertex  Vertex
-	Forward bool
-	Access  []byte
-	Oneway  []byte
-	Current Edge
-	Out     bool
-	Done    bool
-}
-
 // I/O
 
 func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
