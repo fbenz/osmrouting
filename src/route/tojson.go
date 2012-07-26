@@ -85,7 +85,8 @@ func WayToStep(steps graph.Way, start, stop geo.Coordinate) Step {
 
 // Convert an Edge (u,v) into a json Step
 func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
-	return PartwayToStep(g.EdgeSteps(edge), g.VertexCoordinate(u), g.VertexCoordinate(v), g.EdgeLength(edge))
+	// transport (here graph.Car) does not matter for the metric distance
+	return PartwayToStep(g.EdgeSteps(edge, u), g.VertexCoordinate(u), g.VertexCoordinate(v), g.EdgeWeight(edge, graph.Car, graph.Distance))
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
