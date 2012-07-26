@@ -9,7 +9,9 @@ import (
 	"graph"
 	"log"
 	"mm"
+	"path"
 	"route"
+	"runtime"
 	"time"
 )
 
@@ -33,13 +35,16 @@ func main() {
 
 	fmt.Printf("Metric preprocessing\n")
 
-	clusterGraph := OpenClusterGraph(FlagBaseDir)
+	clusterGraph, err := graph.OpenClusterGraph(FlagBaseDir)
+	if err != nil {
+		log.Fatal("Open cluster graph: ", err)
+	}
 
 	if FlagMetric >= 0 {
 		if FlagMetric >= int(graph.MetricMax) {
 			log.Fatal("metric index is too large: ", FlagMetric)
 		}
-		computeMatrices(clusterGraph, FlagMetric)
+		preprocessOne(clusterGraph, FlagMetric)
 	} else {
 		preprocessAll(clusterGraph)
 	}
@@ -48,27 +53,34 @@ func main() {
 // preprocessAll computes the metric matrices for all metrics
 func preprocessAll(g *graph.ClusterGraph) {
 	for i := 0; i < int(graph.MetricMax); i++ {
-		computeMatrices(g, i)
+		preprocessOne(g, i)
 	}
 }
 
-// computeMatrices computes the metric matrices for the given metric
-func computeMatrices(g *graph.ClusterGraph, metric int) {
+// preprocessOne computes the metric matrices for one metrics
+func preprocessOne(g *graph.ClusterGraph, metric int) {
+	for i := 0; i < int(graph.TransportMax); i++ {
+		computeMatrices(g, metric, i)
+	}
+}
+
+// computeMatrices computes the metric matrices for the given metric and transport mode
+func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	time1 := time.Now()
 
-	// compute the matrices for all subgraphs
-	matrices := make([][][]float32, len(g.Subgraphs))
+	// compute the matrices for all Cluster
+	matrices := make([][][]float32, len(g.Cluster))
 	size := 0
-	for p, subgraph := range g.Subgraphs {
-		boundaryVertexCount := overlay.ClusterSize(p)
-		matrices[p] = computeMatrix(subgraph, boundaryVertexCount, metric)
+	for p, subgraph := range g.Cluster {
+		boundaryVertexCount := g.Overlay.ClusterSize(p)
+		matrices[p] = computeMatrix(subgraph, boundaryVertexCount, metric, trans)
 		size += boundaryVertexCount * boundaryVertexCount
 	}
 
 	// write all matrices in row-major layout in one file (sorted by partition ID)
 	var matrixFile []float32
-	partString := fmt.Sprintf(".metric%d.ftf", metric+1)
-	err := mm.Create("matrices"+partString, size, &matrixFile)
+	fileName := fmt.Sprintf("matrices.trans%d.metric%d.ftf", trans+1, metric+1)
+	err := mm.Create(path.Join(FlagBaseDir, fileName), size, &matrixFile)
 	if err != nil {
 		log.Fatal("mm.Create failed: ", err)
 	}
@@ -90,12 +102,12 @@ func computeMatrices(g *graph.ClusterGraph, metric int) {
 }
 
 // computeMatrix computes the metric matrix for the given subgraph and metric
-func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric int) [][]float32 {
+func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int) [][]float32 {
 	// TODO precompute the result of the metric for every edge and store the result for the graph
 	// An alternative would be an computation on-the-fly during each run of Dijkstra (preprocessing here + live query)
-	for i := 0; i < subgraph.EdgeCount(); i++ {
-		// apply metric on edge weight and possibly other data
-	}
+	//for i := 0; i < subgraph.EdgeCount(); i++ {
+	// apply metric on edge weight and possibly other data
+	//}
 
 	matrix := make([][]float32, boundaryVertexCount)
 
@@ -108,10 +120,9 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric int) [][]fl
 		target := subgraph.VertexCoordinate(vertex)
 		s[0] = graph.Way{Length: 0, Vertex: vertex, Steps: nil, Target: target}
 
-		// TODO What about transport (car, ...)?
-		elements := route.DijkstraComplete(subgraph, s, metric, true /* forward */)
+		elements := route.DijkstraComplete(subgraph, s, graph.Metric(metric), graph.Transport(trans), true /* forward */)
 		for j, elem := range elements[:boundaryVertexCount] {
-			matrix[i][j] = float32(elem.priority)
+			matrix[i][j] = elem.Weight()
 		}
 	}
 

@@ -20,3 +20,7 @@ func NewElement(vertex graph.Vertex, priority float64) *Element {
 		p:        vertex,
 	}
 }
+
+func (e *Element) Weight() float32 {
+	return float32(e.priority)
+}
