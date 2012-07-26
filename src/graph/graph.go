@@ -24,7 +24,7 @@ const (
 // Way is a "partial edge" that is returned by the k-d tree
 type Way struct {
 	Length  float64
-	Node    Vertex // StartPoint or EndPoint
+	Vertex  Vertex // start or end point
 	Steps   []geo.Coordinate
 	Target  geo.Coordinate
 	Forward bool
