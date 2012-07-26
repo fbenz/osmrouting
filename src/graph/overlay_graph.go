@@ -7,14 +7,13 @@ import (
 	"path"
 )
 
-// TODO metric matrices
 type OverlayGraphFile struct {
 	*GraphFile
-	Cluster          []uint16          // cluster id -> vertex indices
-	VertexIndices    []int             // vertex indices -> cluster id
-	Matrices         [][][][][]float32 // transport mode -> metric -> cluster id -> i -> j -> weight
-	ClusterEdgeCount int
-	EdgeCounts       []int
+	Cluster          []uint16      // cluster id -> vertex indices
+	VertexIndices    []int         // vertex indices -> cluster id
+	Matrices         [][][]float32 // transport mode -> metric -> (cluster id, i, j) -> weight
+	ClusterEdgeCount int           // combined boundary edge count of the clusters 
+	EdgeCounts       []int         // cluster id -> id of first edge inside the cluster
 }
 
 // I/O
@@ -39,36 +38,17 @@ func computeEdgeCounts(g *OverlayGraphFile) {
 }
 
 func loadAllMatrices(g *OverlayGraphFile, base string) error {
-	g.Matrices = make([][][][][]float32, TransportMax)
+	g.Matrices = make([][][]float32, TransportMax)
 	for t := 0; t < int(TransportMax); t++ {
-		g.Matrices[t] = make([][][][]float32, MetricMax)
+		g.Matrices[t] = make([][]float32, MetricMax)
 		for m := 0; m < int(MetricMax); m++ {
-			g.Matrices[t][m] = make([][][]float32, g.ClusterCount())
-
 			var matrixFile []float32
 			fileName := fmt.Sprintf("matrices.trans%d.metric%d.ftf", t+1, m+1)
 			err := mm.Open(path.Join(base, fileName), &matrixFile)
 			if err != nil {
 				return err
 			}
-
-			pos := 0
-			for c := 0; c < g.ClusterCount(); c++ {
-				clusterSize := g.ClusterSize(c)
-				g.Matrices[t][m][c] = make([][]float32, clusterSize)
-				for i := 0; i < clusterSize; i++ {
-					g.Matrices[t][m][c][i] = make([]float32, clusterSize)
-					for j := 0; j < clusterSize; j++ {
-						g.Matrices[t][m][c][i][j] = matrixFile[pos]
-						pos++
-					}
-				}
-			}
-
-			err = mm.Close(&matrixFile)
-			if err != nil {
-				return err
-			}
+			g.Matrices[t][m] = matrixFile
 		}
 	}
 	return nil
@@ -156,22 +136,10 @@ func (g *OverlayGraphFile) IsCutEdge(e Edge) bool {
 	return int(e) < g.GraphFile.EdgeCount()
 }
 
-func (g *OverlayGraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
-	// Return nil unless the edge is a cross partition edge.
-	// In this case, defer to the normal Graph interface.
+func (g *OverlayGraphFile) EdgeOpposite(e Edge, v Vertex) Vertex {
 	if g.IsCutEdge(e) {
-		return g.GraphFile.EdgeSteps(e, from)
+		return g.GraphFile.EdgeOpposite(e, v)
 	}
-	return nil
-}
-
-func (g *OverlayGraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
-	// Return the normal weight if e is a cross partition edge,
-	// otherwise return the precomputed weight for t and m.
-	if g.IsCutEdge(e) {
-		return g.GraphFile.EdgeWeight(e, t, m)
-	}
-	// TODO improve
 	// binary search for cluster id
 	cluster := -1
 	upperBound := g.ClusterCount()
@@ -190,9 +158,31 @@ func (g *OverlayGraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
 		}
 	}
 	e = e - Edge(g.EdgeCounts[cluster])
-	i := int(e) / g.ClusterSize(cluster)
-	j := int(e) % g.ClusterSize(cluster)
-	return float64(g.Matrices[t][m][cluster][i][j])
+	vCheck := int(e) / g.ClusterSize(cluster)
+	if int(v) != vCheck {
+		panic("index of v is not as expected")
+	}
+	u := int(e) % g.ClusterSize(cluster)
+	return Vertex(u)
+}
+
+func (g *OverlayGraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
+	// Return nil unless the edge is a cross partition edge.
+	// In this case, defer to the normal Graph interface.
+	if g.IsCutEdge(e) {
+		return g.GraphFile.EdgeSteps(e, from)
+	}
+	return nil
+}
+
+func (g *OverlayGraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
+	// Return the normal weight if e is a cross partition edge,
+	// otherwise return the precomputed weight for t and m.
+	if g.IsCutEdge(e) {
+		return g.GraphFile.EdgeWeight(e, t, m)
+	}
+	edgeIndex := int(e) - g.GraphFile.EdgeCount()
+	return float64(g.Matrices[t][m][edgeIndex])
 }
 
 // Overlay Interface
