@@ -10,9 +10,11 @@ import (
 	"log"
 	"math"
 	"mm"
+	"os"
 	"path"
 	"route"
 	"runtime"
+	"runtime/pprof"
 	"time"
 )
 
@@ -21,18 +23,38 @@ const (
 )
 
 var (
-	FlagBaseDir string
-	FlagMetric  int
+	FlagBaseDir    string
+	FlagCpuProfile string
+	FlagMetric     int
 )
+
+type Job struct {
+	Graph         *graph.ClusterGraph
+	Matrices      [][]float32
+	Start, Stride int
+	Transport     graph.Transport
+	Metric        graph.Metric
+}
 
 func init() {
 	flag.StringVar(&FlagBaseDir, "dir", "", "directory of the graph")
+	flag.StringVar(&FlagCpuProfile, "cpuprofile", "", "write cpu profile to file")
 	flag.IntVar(&FlagMetric, "metric", -1, "restrict the preprocessing to one metric; -1 means all metrics")
 }
 
 func main() {
 	runtime.GOMAXPROCS(MaxThreads)
 	flag.Parse()
+	
+	if FlagCpuProfile != "" {
+		f, err := os.Create(FlagCpuProfile + ".pprof")
+		if err != nil {
+			println("Unable to open cpuprofile:", err.Error())
+			os.Exit(1)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	fmt.Printf("Metric preprocessing\n")
 
@@ -69,15 +91,28 @@ func preprocessOne(g *graph.ClusterGraph, metric int) {
 func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	time1 := time.Now()
 
-	// compute the matrices for all Cluster
+	// compute the matrices for all Clusters
 	matrices := make([][]float32, len(g.Cluster))
-	size := 0
-	for p, subgraph := range g.Cluster {
-		fmt.Printf("metric: %v, transport: %v, subgraph: %v\n", metric, trans, p)
+	ready := make(chan int, MaxThreads)
+	for i := 0; i < MaxThreads; i++ {
+		job := &Job{
+			Graph:     g,
+			Matrices:  matrices,
+			Start:     i,
+			Stride:    MaxThreads,
+			Transport: graph.Transport(trans),
+			Metric:    graph.Metric(metric),
+		}
+		go computeMatrixThreadRouter(ready, job)
+	}
+	for i := 0; i < MaxThreads; i++ {
+		<-ready
+	}
 
-		boundaryVertexCount := g.Overlay.ClusterSize(p)
-		matrices[p] = computeMatrix(subgraph, boundaryVertexCount, metric, trans)
-		size += boundaryVertexCount * boundaryVertexCount
+	// Compute the size of the complete file.
+	size := 0
+	for _, m := range matrices {
+		size += len(m)
 	}
 
 	// write all matrices in row-major layout in one file (sorted by partition ID)
@@ -100,6 +135,18 @@ func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 
 	time2 := time.Now()
 	fmt.Printf("Preprocessing time for metric %d: %v s\n", metric, time2.Sub(time1).Seconds())
+}
+
+func computeMatrixThread(ready chan<- int, job *Job) {
+	g := job.Graph
+	metric := job.Metric
+	trans := job.Transport
+	for i := job.Start; i < len(g.Cluster); i += job.Stride {
+		//fmt.Printf("%v, %v, Cluster: %v\n", metric, trans, i+1)
+		boundaryVertexCount := g.Overlay.ClusterSize(i)
+		job.Matrices[i] = computeMatrix(g.Cluster[i], boundaryVertexCount, int(metric), int(trans))
+	}
+	ready <- 1
 }
 
 // computeMatrix computes the metric matrix for the given subgraph and metric
@@ -133,6 +180,47 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 			} else {
 				matrix[boundaryVertexCount * i + j] = float32(math.Inf(1))
 			}
+		}
+	}
+
+	return matrix
+}
+
+func computeMatrixThreadRouter(ready chan<- int, job *Job) {
+	g      := job.Graph
+	metric := job.Metric
+	trans  := job.Transport
+	router := &route.Router{}
+	
+	for i := job.Start; i < len(g.Cluster); i += job.Stride {
+		//fmt.Printf("%v, %v, Cluster: %v\n", metric, trans, i+1)
+		boundaryVertexCount := g.Overlay.ClusterSize(i)
+		job.Matrices[i] = computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount, metric, trans)
+	}
+	
+	ready <- 1
+}
+
+// computeMatrix computes the metric matrix for the given subgraph and metric
+func computeMatrixRouter(router *route.Router, g graph.Graph,
+	boundaryVertexCount int, metric graph.Metric, trans graph.Transport) []float32 {
+	if boundaryVertexCount > g.VertexCount() {
+		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
+			boundaryVertexCount, g.VertexCount())
+	}
+
+	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
+
+	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
+	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
+	for i := 0; i < boundaryVertexCount; i++ {
+		// run Dijkstra starting at vertex i with the given metric
+		router.Reset(g)
+		router.AddSource(graph.Vertex(i), 0)
+		router.Run(true, trans, metric)
+		for j := 0; j < boundaryVertexCount; j++ {
+			index := boundaryVertexCount * i + j
+			matrix[index] = router.Distance(graph.Vertex(j))
 		}
 	}
 

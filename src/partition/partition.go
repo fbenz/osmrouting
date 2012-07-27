@@ -30,7 +30,7 @@ type PartitionInfo struct {
 }
 
 var (
-	U = math.Pow(2, 15)
+	U = math.Pow(2, 16)
 
 	FlagBaseDir string
 )
