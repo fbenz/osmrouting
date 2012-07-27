@@ -5,18 +5,20 @@ import (
 	"graph"
 )
 
+// Parameters for the encoding that is used for storing k-d trees space efficient
+// Encoded vertex: vertex index + MaxEdgeOffset + MaxStepOffset
+// Encoded step:   vertex index + edge offset   + step offset
 const (
-	TotalBits       = 34
-	TypeSize        = 64
 	VertexIndexBits = 18
 	EdgeOffsetBits  = 5
 	StepOffsetBits  = 11
-	MaxVertexIndex  = 0x3FFFF // (1 << VertexIndexBits) - 1
-	MaxEdgeOffset   = 0x1F    // (1 << EdgeOffsetBits) - 1
-	MaxStepOffset   = 0x7FF   // (1 << StepOffsetBits) - 1
+	TotalBits       = VertexIndexBits + EdgeOffsetBits + StepOffsetBits
+	TypeSize        = 64
+	MaxVertexIndex  = (1 << VertexIndexBits) - 1
+	MaxEdgeOffset   = (1 << EdgeOffsetBits) - 1
+	MaxStepOffset   = (1 << StepOffsetBits) - 1
 )
 
-// encoded step: vertex index (18bit) + edge offset (8bit) + step offset (8bit)
 type KdTree struct {
 	Graph        graph.Graph
 	EncodedSteps []uint64
@@ -70,7 +72,6 @@ func (t *KdTree) EncodedStep(i int) uint64 {
 	fMask := ((uint64(1) << first) - 1)
 	result := ((t.EncodedSteps[index] >> uint(offset)) & fMask) << second
 
-	//sShift := TypeSize - second
 	sMask := (uint64(1) << second) - 1
 	result |= t.EncodedSteps[index+1] & sMask
 	return result
