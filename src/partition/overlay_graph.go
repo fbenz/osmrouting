@@ -31,8 +31,10 @@ func (pi *PartitionInfo) createOverlayGraph(g *graph.GraphFile, base string) {
 	}
 	vertexCount := 0
 	partitions[0] = 0
+	total := 0
 	for i, v := range pi.BorderVertices {
-		partitions[i+1] = uint16(len(v))
+		partitions[i+1] = uint16(total)
+		total += len(v)
 		for _, globalIndex := range v {
 			vertexIndices[globalIndex] = vertexCount
 			vertexCount++
