@@ -1,8 +1,9 @@
-// TODO test the new implementation
-
 package kdtree
 
 import (
+	"geo"
+	"graph"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -16,27 +17,27 @@ const (
 var nodeData = createData(DataSetSize, false)
 var repeatsNodeData = createData(DataSetSize, true)
 
-func createData(size int, repeats bool) NodeDataSlice {
+func createData(size int, repeats bool) []geo.Coordinate {
 	rnd := rand.New(rand.NewSource(time.Now().Unix()))
 
-	nodeData := make(NodeDataSlice, size)
+	nodeData := make([]geo.Coordinate, size)
 	for i := 0; i < size; i++ {
 		lat, lng := rnd.Float64(), rnd.Float64()
-		nodeData[i] = NodeData{lat, lng}
+		nodeData[i] = geo.Coordinate{lat, lng}
 
 		// insert coordinates that have the same lat/lng (ugly corner case)
 		if repeats {
 			if rnd.Intn(5) == 0 {
 				up := i + 2 + rnd.Intn(100)
 				for i++; i < up && i < size; i++ {
-					nodeData[i] = NodeData{lat, rnd.Float64()}
+					nodeData[i] = geo.Coordinate{lat, rnd.Float64()}
 				}
 				i--
 			}
 			if rnd.Intn(5) == 0 {
 				up := i + 2 + rnd.Intn(100)
 				for i++; i < up && i < size; i++ {
-					nodeData[i] = NodeData{rnd.Float64(), lng}
+					nodeData[i] = geo.Coordinate{rnd.Float64(), lng}
 				}
 				i--
 			}
@@ -45,67 +46,50 @@ func createData(size int, repeats bool) NodeDataSlice {
 	return nodeData
 }
 
-func TestKdTree(t *testing.T) {
-	tree := NewKdTree(nodeData)
-
+func TestEncoding(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	for i := 0; i < Repeats; i++ {
-		refIndex := rnd.Intn(DataSetSize)
-		x := nodeData[refIndex]
+	maxNum := int64(math.Pow(2, TotalBits) - 1)
+	data := make([]uint64, DataSetSize)
+	for i, _ := range data {
+		data[i] = uint64(rnd.Int63n(maxNum))
+	}
 
-		index := tree.Search(x)
+	encodedSteps := make([]uint64, DataSetSize*TypeSize/TotalBits)
 
-		if index != refIndex {
-			t.Fatalf("Returned wrong index: expected %v but was %v", refIndex, index)
+	g := make([]graph.Graph, 1)
+	coordinates := make([]geo.Coordinate, 0)
+	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+
+	for i, _ := range data {
+		//if i < 2 {
+		tree.SetEncodedStep(i, data[i])
+		//}
+	}
+
+	for i, _ := range data {
+		if tree.EncodedStep(i) != data[i] {
+			t.Fatalf("encoding didn't respect identity: expected %v but was %v at position %d\n", data[i], tree.EncodedStep(i), i)
 		}
 	}
 }
 
-func TestKdTreeRepeats(t *testing.T) {
-	tree := NewKdTree(repeatsNodeData)
-
+func TestAppend(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	for i := 0; i < Repeats; i++ {
-		refIndex := rnd.Intn(DataSetSize)
-		x := repeatsNodeData[refIndex]
+	maxNum := int64(math.Pow(2, TotalBits) - 1)
 
-		index := tree.Search(x)
+	encodedSteps := make([]uint64, 0)
+	g := make([]graph.Graph, 1)
+	coordinates := make([]geo.Coordinate, 0)
+	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
 
-		if index != refIndex {
-			t.Fatalf("Returned wrong index: expected %v but was %v", refIndex, index)
+	for i := 0; i < DataSetSize; i++ {
+		s := uint64(rnd.Int63n(maxNum))
+		tree.AppendEncodedStep(s)
+		if tree.EncodedStepLen() != i+1 {
+			t.Fatalf("wrong length: expected %d but was %d\n", i+1, tree.EncodedStepLen())
 		}
-	}
-}
-
-func BenchmarkCreate(b *testing.B) {
-	b.StopTimer()
-	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	data := make(NodeDataSlice, b.N)
-	for i := 0; i < b.N; i++ {
-		lat, lng := rnd.Float64(), rnd.Float64()
-		data[i] = NodeData{lat, lng}
-	}
-	b.StartTimer()
-
-	tree := NewKdTree(data)
-
-	if len(tree.Nodes) != b.N {
-		b.Fatalf("Tree not created successfully")
-	}
-}
-
-func BenchmarkLockups(b *testing.B) {
-	b.StopTimer()
-	rnd := rand.New(rand.NewSource(time.Now().Unix()))
-	tree := NewKdTree(nodeData)
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-		refIndex := rnd.Intn(DataSetSize)
-		x := nodeData[refIndex]
-		index := tree.Search(x)
-		if index != refIndex {
-			b.Fatalf("Returned wrong index: expected %v but was %v", refIndex, index)
+		if tree.EncodedStep(i) != s {
+			t.Fatalf("wrong content at position %d: expected %d but was %d\n", i, s, tree.EncodedStep(i))
 		}
 	}
 }
