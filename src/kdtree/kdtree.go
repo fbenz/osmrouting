@@ -21,6 +21,10 @@ type KdTree struct {
 	Graph        graph.Graph
 	EncodedSteps []uint64
 	Coordinates  []geo.Coordinate
+	// It is inefficient to create a sub slice of EncodedSteps due to the used encoding.
+	// Thus, we use start and end pointer instead. 
+	EncodedStepsStart int
+	EncodedStepsEnd   int
 }
 
 type ClusterKdTree struct {
@@ -30,7 +34,7 @@ type ClusterKdTree struct {
 }
 
 func (t *KdTree) Len() int {
-	return len(t.EncodedSteps)
+	return len(t.Coordinates)
 }
 
 func (t *KdTree) Swap(i, j int) {
@@ -41,6 +45,9 @@ func (t *KdTree) Swap(i, j int) {
 }
 
 func (t *KdTree) EncodedStepLen() int {
+	if t.EncodedStepsEnd > 0 {
+		return t.EncodedStepsEnd + 1
+	}
 	l := (len(t.EncodedSteps) * TypeSize) / TotalBits
 	if l > 0 && t.EncodedStep(l-1) == (1<<TotalBits)-1 {
 		return l - 1
@@ -49,7 +56,7 @@ func (t *KdTree) EncodedStepLen() int {
 }
 
 func (t *KdTree) EncodedStep(i int) uint64 {
-	index := i * TotalBits / TypeSize
+	index := t.EncodedStepsStart + i*TotalBits/TypeSize
 	offset := i * TotalBits % TypeSize
 	if offset+TotalBits <= TypeSize {
 		// contained in one uint64
@@ -70,7 +77,7 @@ func (t *KdTree) EncodedStep(i int) uint64 {
 }
 
 func (t *KdTree) SetEncodedStep(i int, s uint64) {
-	index := i * TotalBits / TypeSize
+	index := t.EncodedStepsStart + i*TotalBits/TypeSize
 	offset := i * TotalBits % TypeSize
 	if offset+TotalBits <= TypeSize {
 		// contained in one uint64

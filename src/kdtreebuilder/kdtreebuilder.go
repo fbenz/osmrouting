@@ -86,7 +86,7 @@ func (x byLng) Less(i, j int) bool {
 }
 
 func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
-	estimatedSize := (kdtree.TypeSize * (g.VertexCount() + 4*g.EdgeCount())) / kdtree.TotalBits
+	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
 	encodedSteps := make([]uint64, 0, estimatedSize)
 	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
@@ -122,7 +122,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 }
 
 func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
-	estimatedSize := (kdtree.TypeSize * (g.VertexCount() + 4*g.EdgeCount())) / kdtree.TotalBits
+	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
 	encodedSteps := make([]uint64, 0, estimatedSize)
 	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
@@ -151,7 +151,9 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 }
 
 func subKdTree(t *kdtree.KdTree, from, to int) *kdtree.KdTree {
-	return &kdtree.KdTree{Graph: t.Graph, EncodedSteps: t.EncodedSteps[from:to], Coordinates: t.Coordinates[from:to]}
+	// The EncodedSteps slice is restricted by pointers and not with a new slice due to its encoding.
+	return &kdtree.KdTree{Graph: t.Graph, EncodedSteps: t.EncodedSteps, Coordinates: t.Coordinates[from:to],
+		EncodedStepsStart: t.EncodedStepsStart + from, EncodedStepsEnd: t.EncodedStepsStart + to - 1}
 }
 
 func createSubTree(t *kdtree.KdTree, compareLat bool) {
