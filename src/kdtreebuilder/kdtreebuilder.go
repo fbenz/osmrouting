@@ -70,7 +70,7 @@ func main() {
 }
 
 type byLat struct {
-	kdtree.KdTree
+	*kdtree.KdTree
 }
 
 func (x byLat) Less(i, j int) bool {
@@ -78,26 +78,28 @@ func (x byLat) Less(i, j int) bool {
 }
 
 type byLng struct {
-	kdtree.KdTree
+	*kdtree.KdTree
 }
 
 func (x byLng) Less(i, j int) bool {
 	return x.KdTree.Coordinates[i].Lng < x.KdTree.Coordinates[j].Lng
 }
 
-func createKdTreeSubgraph(g *graph.GraphFile) (kdtree.KdTree, geo.BBox) {
-	estimatedSize := g.VertexCount() + 4*g.EdgeCount()
-	EncodedSteps := make([]uint32, 0, estimatedSize)
+func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
+	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
+	encodedSteps := make([]uint64, 0, estimatedSize)
 	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
 	bbox := geo.NewBBoxPoint(g.VertexCoordinate(graph.Vertex(0)))
+
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps, Coordinates: coordinates}
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
-		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
+		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 		bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
 
 		edges = g.VertexRawEdges(vertex, edges)
@@ -110,49 +112,51 @@ func createKdTreeSubgraph(g *graph.GraphFile) (kdtree.KdTree, geo.BBox) {
 
 			for k, s := range steps {
 				coordinates = append(coordinates, s)
-				EncodedSteps = append(EncodedSteps, encodeCoordinate(i, j, k))
+				t.AppendEncodedStep(encodeCoordinate(i, j, k))
 				bbox.Union(geo.NewBBoxPoint(s))
 			}
 		}
 	}
-
-	t := kdtree.KdTree{Graph: g, EncodedSteps: EncodedSteps, Coordinates: coordinates}
 	createSubTree(t, true)
 	return t, bbox
 }
 
-func createKdTreeOverlay(g *graph.OverlayGraphFile) kdtree.KdTree {
-	estimatedSize := g.VertexCount() + 4*g.EdgeCount()
-	EncodedSteps := make([]uint32, 0, estimatedSize)
+func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
+	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
+	encodedSteps := make([]uint64, 0, estimatedSize)
 	coordinates := make([]geo.Coordinate, 0, estimatedSize)
+
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps, Coordinates: coordinates}
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
+	fmt.Printf("Vertex count: %d\n", g.VertexCount())
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
-		EncodedSteps = append(EncodedSteps, encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
+		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 
-		g.VertexRawEdges(vertex, edges)
+		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
 			steps := g.EdgeSteps(e, vertex)
 			for k, s := range steps {
 				coordinates = append(coordinates, s)
-				EncodedSteps = append(EncodedSteps, encodeCoordinate(i, j, k))
+				t.AppendEncodedStep(encodeCoordinate(i, j, k))
 			}
 		}
 	}
 
-	t := kdtree.KdTree{Graph: g, EncodedSteps: EncodedSteps, Coordinates: coordinates}
 	createSubTree(t, true)
 	return t
 }
 
-func subKdTree(t kdtree.KdTree, from, to int) kdtree.KdTree {
-	return kdtree.KdTree{Graph: t.Graph, EncodedSteps: t.EncodedSteps[from:to], Coordinates: t.Coordinates[from:to]}
+func subKdTree(t *kdtree.KdTree, from, to int) *kdtree.KdTree {
+	// The EncodedSteps slice is restricted by pointers and not with a new slice due to its encoding.
+	return &kdtree.KdTree{Graph: t.Graph, EncodedSteps: t.EncodedSteps, Coordinates: t.Coordinates[from:to],
+		EncodedStepsStart: t.EncodedStepsStart + from, EncodedStepsEnd: t.EncodedStepsStart + to - 1}
 }
 
-func createSubTree(t kdtree.KdTree, compareLat bool) {
+func createSubTree(t *kdtree.KdTree, compareLat bool) {
 	if t.Len() <= 1 {
 		return
 	}
@@ -188,7 +192,7 @@ func writeKdTreeOverlay(baseDir string, g *graph.OverlayGraphFile) {
 }
 
 // writeToFile stores the permitation created by the k-d tree
-func writeToFile(t kdtree.KdTree, baseDir string) error {
+func writeToFile(t *kdtree.KdTree, baseDir string) error {
 	output, err := os.Create(path.Join(baseDir, "kdtree.ftf"))
 	defer output.Close()
 	if err != nil {
@@ -201,7 +205,7 @@ func writeToFile(t kdtree.KdTree, baseDir string) error {
 	return nil
 }
 
-func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint32 {
+func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint64 {
 	if vertexIndex > kdtree.MaxVertexIndex {
 		panic("vertex index too large")
 	}
@@ -216,8 +220,8 @@ func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint32 {
 		}
 	}
 
-	ec := uint32(vertexIndex) << (kdtree.EdgeOffsetBits + kdtree.StepOffsetBits)
-	ec |= uint32(edgeOffset) << kdtree.StepOffsetBits
-	ec |= uint32(stepOffset)
+	ec := uint64(vertexIndex) << (kdtree.EdgeOffsetBits + kdtree.StepOffsetBits)
+	ec |= uint64(edgeOffset) << kdtree.StepOffsetBits
+	ec |= uint64(stepOffset)
 	return ec
 }

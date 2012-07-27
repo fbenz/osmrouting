@@ -73,7 +73,7 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
 			kdTree := clusterKdTree.Cluster[i]
-			stepIndex := binarySearch(kdTree, x, 0, t.EncodedStepSize()-1, true /* compareLat */, trans, &edges)
+			stepIndex := binarySearch(kdTree, x, 0, t.EncodedStepLen()-1, true /* compareLat */, trans, &edges)
 			coord := decodeCoordinate(kdTree.Graph, t.EncodedStep(stepIndex), trans, &edges)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
 			if dist < minDistance {
@@ -152,7 +152,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 		return recIndex
 	}
 	// stop if there is nothing right of the middle
-	if middle == kdTree.EncodedStepSize()-1 {
+	if middle == kdTree.EncodedStepLen()-1 {
 		return middle
 	}
 	// recursion on the right half
