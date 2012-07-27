@@ -30,18 +30,21 @@ type PartitionInfo struct {
 }
 
 var (
-	U = math.Pow(2, 16)
+	U float64
 
 	FlagBaseDir string
+	FlagUexp    int
 )
 
 func init() {
 	flag.StringVar(&FlagBaseDir, "dir", "", "directory of the graph")
+	flag.IntVar(&FlagUexp, "uexp", 16, "sets U = 2^uexp")
 }
 
 func main() {
 	runtime.GOMAXPROCS(MaxThreads)
 	flag.Parse()
+	U = math.Pow(2, float64(FlagUexp))
 
 	g, err := graph.OpenGraphFile(FlagBaseDir, false /* ignoreErrors */)
 	if err != nil {
