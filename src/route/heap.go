@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	D = 3
+	D = 2
 	BranchingFactor = 1 << D
 	CacheLineSize = 64 // bytes
 )

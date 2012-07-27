@@ -187,42 +187,55 @@ func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int)
 }
 
 func computeMatrixThreadRouter(ready chan<- int, job *Job) {
-	g      := job.Graph
-	metric := job.Metric
-	trans  := job.Transport
-	router := &route.Router{}
+	g := job.Graph
+	router := &route.Router{
+		Forward:   true,
+		Transport: job.Transport,
+		Metric:    job.Metric,
+	}
 	
 	for i := job.Start; i < len(g.Cluster); i += job.Stride {
-		//fmt.Printf("%v, %v, Cluster: %v\n", metric, trans, i+1)
 		boundaryVertexCount := g.Overlay.ClusterSize(i)
-		job.Matrices[i] = computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount, metric, trans)
+		job.Matrices[i] = computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount)
 	}
 	
 	ready <- 1
 }
 
 // computeMatrix computes the metric matrix for the given subgraph and metric
-func computeMatrixRouter(router *route.Router, g graph.Graph,
-	boundaryVertexCount int, metric graph.Metric, trans graph.Transport) []float32 {
+func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCount int) []float32 {
 	if boundaryVertexCount > g.VertexCount() {
 		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
 			boundaryVertexCount, g.VertexCount())
+	}
+	
+	if boundaryVertexCount == 0 {
+		log.Printf("Empty Cluster")
+		return nil
 	}
 
 	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
+	//pathLen := 0
 	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
 		router.Reset(g)
 		router.AddSource(graph.Vertex(i), 0)
-		router.Run(true, trans, metric)
+		router.Run()
 		for j := 0; j < boundaryVertexCount; j++ {
+			v := graph.Vertex(j)
 			index := boundaryVertexCount * i + j
-			matrix[index] = router.Distance(graph.Vertex(j))
+			matrix[index] = router.Distance(v)
+			//if router.Reachable(v) {
+			//	vs, _ := router.Path(v)
+			//	pathLen += len(vs)
+			//}
 		}
 	}
+
+	//fmt.Printf("Average path length: %v\n", float64(pathLen) / float64(len(matrix)))
 
 	return matrix
 }

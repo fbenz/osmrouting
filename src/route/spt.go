@@ -2,16 +2,19 @@
 package route
 
 import (
-	//"fmt"
+	"log"
 	"graph"
 	"math"
 )
 
 type Router struct {
-	Graph  graph.Graph
-	Parent []graph.Vertex
-	Dist   []float32
-	Heap   Heap
+	Graph     graph.Graph
+	Parent    []graph.Vertex
+	Dist      []float32
+	Heap      Heap
+	Forward   bool
+	Transport graph.Transport
+	Metric    graph.Metric
 }
 
 // Problem Setup
@@ -46,6 +49,7 @@ func (r *Router) Reset(g graph.Graph) {
 	(&r.Heap).Reset(vertexCount)
 }
 
+// Add a new Source if Forward == true, or a sink if Forward == false.
 func (r *Router) AddSource(v graph.Vertex, distance float32) {
 	// The Dist field will be set during Run.
 	(&r.Heap).Push(v, distance)
@@ -53,10 +57,12 @@ func (r *Router) AddSource(v graph.Vertex, distance float32) {
 
 // Dijkstra
 
-func (r *Router) Run(forward bool, t graph.Transport, m graph.Metric) {
-	g := r.Graph
-	h := &r.Heap
-	edges := []graph.Edge(nil)
+func (r *Router) Run() {
+	g, h    := r.Graph, &r.Heap
+	t, m    := r.Transport, r.Metric
+	forward := r.Forward
+	edges   := []graph.Edge(nil)
+	
 	for !h.Empty() {
 		curr, dist := h.Pop()
 		r.Dist[curr] = dist
@@ -101,4 +107,85 @@ func (r *Router) Reachable(v graph.Vertex) bool {
 
 func (r *Router) Processed(v graph.Vertex) bool {
 	return (&r.Heap).Color(v) == Black
+}
+
+func (r *Router) parent_edge(v graph.Vertex, buf []graph.Edge) (graph.Edge, []graph.Edge) {
+	g := r.Graph
+	u := r.Parent[v]
+	
+	// Since there are parallel edges in the graph we have to look for the edge of minimum
+	// weight between u and v.
+	minEdge   := graph.Edge(-1)
+	minWeight := math.Inf(1)
+	found := false
+	buf = g.VertexEdges(u, r.Forward, r.Transport, buf)
+	for _, e := range buf {
+		n := g.EdgeOpposite(e, u)
+		if n != v {
+			continue
+		}
+		weight := g.EdgeWeight(e, r.Transport, r.Metric)
+		if !found || weight < minWeight {
+			minEdge   = e
+			minWeight = weight
+		}
+		found = true
+	}
+	
+	if !found {
+		log.Fatalf("Found no edge between a vertex and its parent in the shortest path tree.")
+	}
+	
+	// Use this opportunity to check that our solution is dual feasible (=> optimal).
+	//w := r.Dist[v] - r.Dist[u]
+	//if math.Abs(float64(w - float32(minWeight))) > 0.1 {
+	//	log.Printf("Edge %v from %v to %v.\n", minEdge, u, v)
+	//	log.Fatalf("Dual infeasible solution in Dijkstra, dual: %v, weight: %v.",
+	//		w, float32(minWeight))
+	//}
+	
+	return minEdge, buf
+}
+
+// Returns a shortest path from a source vertex to the vertex t or nil
+// if t is not reachable from any source vertex.
+// If Forward == true then the returned path starts at a source vertex
+// and extends to t, otherwise it starts at t and leads to a source
+// vertex.
+// The return value contains n+1 vertices vs and n edges es such that
+// es[i] is the edge from vertex vs[i] to vs[i+1].
+func (r *Router) Path(t graph.Vertex) ([]graph.Vertex, []graph.Edge) {
+	stepCount, s := 0, t
+	for r.Parent[s] != s {
+		stepCount++
+		s = r.Parent[s]
+	}
+	
+	if stepCount == 0 {
+		// t is a source vertex
+		return []graph.Vertex{t}, []graph.Edge(nil)
+	}
+	
+	vertices := make([]graph.Vertex, stepCount+1)
+	path     := make([]graph.Edge,   stepCount)
+	
+	iv, ie, dir := stepCount, stepCount-1, -1
+	if !r.Forward {
+		iv, ie, dir = 0, 0, 1
+	}
+	
+	v   := t
+	buf := []graph.Edge(nil)
+	for r.Parent[v] != v {
+		var e graph.Edge
+		e, buf = r.parent_edge(v, buf)
+		vertices[iv] = v
+		path[ie] = e
+		v = r.Parent[v]
+		iv += dir
+		ie += dir
+	}
+	vertices[iv] = v
+	
+	return vertices, path
 }
