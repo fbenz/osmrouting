@@ -8,9 +8,16 @@ import (
 )
 
 const (
+	// A 4-heap seems to be the sweet spot between number of cache misses
+	// and number of comparions in the average case. We can fit 8 Items
+	// into a single cache line, so D = 3 would also make sense, but
+	// for the metric preprocessing this is better. As always it depends
+	// on the use case...
 	D = 2
 	BranchingFactor = 1 << D
-	CacheLineSize = 64 // bytes
+	//CacheLineSize = 4*64 // bytes
+	// Page aligned data leads to much faster running times.
+	CacheLineSize = 4096
 )
 
 // The color of a vertex represents its traversal state:
@@ -65,7 +72,9 @@ func (h *Heap) Reset(vertexCount int) {
 		items := make([]Item, vertexCount + itemsPerCacheLine)
 		data := (*reflect.SliceHeader)(unsafe.Pointer(&items)).Data
 		// Round up and back off.
-		skip := (CacheLineSize - (data & (CacheLineSize-1))) / 8 - 1
+		//skip := (CacheLineSize - (data & (CacheLineSize-1))) / 8 - 1
+		// Ensure that everything is on the same page of memory.
+		skip := (CacheLineSize - (data & (CacheLineSize-1))) / 8
 		h.Items = items[skip:skip]
 	} else {
 		h.Items = h.Items[:0]

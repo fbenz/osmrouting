@@ -11,6 +11,7 @@ import (
 
 type Router struct {
 	Graph     graph.Graph
+	//Graph     *graph.GraphFile
 	Parent    []graph.Vertex
 	Dist      []float32
 	Heap      Heap
@@ -65,15 +66,8 @@ func (r *Router) Run() {
 	forward := r.Forward
 	edges   := []graph.Edge(nil)
 	
-	//debugDist := map[graph.Vertex] float32 {}
-	
 	for !h.Empty() {
 		curr, dist := h.Pop()
-		//if r.Parent[curr] == curr {
-		//	println("Source Vertex.")
-		//} else if debugDist[curr] != dist {
-		//	panic("Bug in h.Pop")
-		//}
 		r.Dist[curr] = dist
 		edges = g.VertexEdges(curr, forward, t, edges)
 		for _, e := range edges {
@@ -85,11 +79,6 @@ func (r *Router) Run() {
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
 				h.Push(n, tmpDist)
 				r.Parent[n] = curr
-				
-				//debugDist[n] = tmpDist
-				//if h.Priority(n) != tmpDist {
-				//	panic("Bug in h.Push")
-				//}
 			} else if i > 1 { // Color == Gray
 				// Already in the heap
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
@@ -97,11 +86,6 @@ func (r *Router) Run() {
 				if tmpDist < h.Items[i-2].Priority {
 					h.DecreaseKey(n, tmpDist)
 					r.Parent[n] = curr
-					
-					//debugDist[n] = tmpDist
-					//if h.Priority(n) != tmpDist {
-					//	panic("Bug in h.DecreaseKey")
-					//}
 				}
 			}
 		}
@@ -201,14 +185,6 @@ func (r *Router) Path(t graph.Vertex) ([]graph.Vertex, []graph.Edge) {
 	return vertices, path
 }
 
-func feql(a, b float32) bool {
-	err := (a - b) / a
-	if err < 0 {
-		err = -err
-	}
-	return err < 4.88e-04
-}
-
 // Check that the distance function is dual feasible for all Reachable
 // vertices and that the parent pointers define a primal solution which
 // obeys the complementary slackness conditions. This implies that the
@@ -245,7 +221,7 @@ func (r *Router) CertifySolution() (bool, error) {
 			w := float32(g.EdgeWeight(e, r.Transport, r.Metric))
 			// There shouldn't be any zero weight edges either, but that needs to be
 			// ensured in the parser...
-			if /*w == 0 ||*/ math.IsInf(float64(w), 0) || math.IsNaN(float64(w)) {
+			if w == 0 || math.IsInf(float64(w), 0) || math.IsNaN(float64(w)) {
 				return false, errors.New(fmt.Sprintf("Edge %v has weight %v.", e, w))
 			}
 			

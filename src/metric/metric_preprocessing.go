@@ -193,17 +193,25 @@ func computeMatrixThreadRouter(ready chan<- int, job *Job) {
 		Transport: job.Transport,
 		Metric:    job.Metric,
 	}
+
+	queries  := 0
+	duration := time.Duration(0)
 	
 	for i := job.Start; i < len(g.Cluster); i += job.Stride {
 		boundaryVertexCount := g.Overlay.ClusterSize(i)
-		job.Matrices[i] = computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount)
+		matrix, diff := computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount)
+		job.Matrices[i] = matrix
+		duration += diff
+		queries  += len(matrix)
 	}
+	
+	log.Printf("Average Querytime: %.2f µs\n", float64(duration) / float64(time.Duration(queries) * time.Microsecond))
 	
 	ready <- 1
 }
 
 // computeMatrix computes the metric matrix for the given subgraph and metric
-func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCount int) []float32 {
+func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCount int) ([]float32, time.Duration) {
 	if boundaryVertexCount > g.VertexCount() {
 		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
 			boundaryVertexCount, g.VertexCount())
@@ -211,7 +219,7 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 	
 	if boundaryVertexCount == 0 {
 		log.Printf("Empty Cluster")
-		return nil
+		return nil, time.Duration(0)
 	}
 
 	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
@@ -219,15 +227,17 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
 	//pathLen := 0
+	duration := time.Duration(0)
 	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
+		t1 := time.Now()
 		router.Reset(g)
 		router.AddSource(graph.Vertex(i), 0)
-		//println("router.Run()")
 		router.Run()
-		if ok, err := router.CertifySolution(); !ok {
-			log.Fatalf(err.Error())
-		}
+		duration += time.Since(t1)
+		//if ok, err := router.CertifySolution(); !ok {
+		//	log.Fatalf(err.Error())
+		//}
 		
 		for j := 0; j < boundaryVertexCount; j++ {
 			v := graph.Vertex(j)
@@ -242,5 +252,5 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 
 	//fmt.Printf("Average path length: %v\n", float64(pathLen) / float64(len(matrix)))
 
-	return matrix
+	return matrix, duration
 }
