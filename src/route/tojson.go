@@ -194,16 +194,11 @@ func ComputeBounds(route Route) BoundingBox {
 }
 
 // Combine two legs into one leg
-func CombineLegs(a, b *Leg, e []Step) *Leg {
+func CombineLegs(a, b *Leg) *Leg {
 	distance := (*a).Distance.Value + (*b).Distance.Value
-	steps := (*a).Steps
-	for _, s := range e {
-		distance += s.Distance.Value
-		steps = append(steps, s)
-	}
+	steps := append((*a).Steps, (*b).Steps...)
 	start := (*a).StartLocation
 	end := (*b).EndLocation
-	steps = append(steps, (*b).Steps...)
 	return &Leg{
 		Distance:      FormatDistance(float64(distance)),
 		Duration:      MockupDuration(float64(distance)),
@@ -212,3 +207,19 @@ func CombineLegs(a, b *Leg, e []Step) *Leg {
 		Steps:         steps,
 	}
 }
+
+//Append a Step to a leg
+func AppendStep(a *Leg, b *Step) *Leg {
+	distance := (*a).Distance.Value + (*b).Distance.Value
+	steps := append((*a).Steps, *b)
+	start := (*a).StartLocation
+	end := (*b).EndLocation
+	return &Leg{
+		Distance:      FormatDistance(float64(distance)),
+		Duration:      MockupDuration(float64(distance)),
+		StartLocation: start,
+		EndLocation:   end,
+		Steps:         steps,
+	}
+}
+

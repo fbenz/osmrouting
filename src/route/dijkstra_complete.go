@@ -68,3 +68,28 @@ func ConstructForwardPath(spt []*Element, v graph.Vertex) ([]graph.Vertex, []gra
 	path[0] = curr
 	return path, edges
 }
+
+func ConstructBackwardPath(spt []*Element, v graph.Vertex) ([]graph.Vertex, []graph.Edge) {
+	stepCount := 0
+	curr := v
+	for elem := spt[curr]; elem != nil && elem.vertex != elem.p; elem = spt[curr] {
+		curr = elem.p
+		stepCount++
+	}
+	path := make([]graph.Vertex, stepCount+1)
+	edges := make([]graph.Edge, stepCount)
+	if stepCount == 0 {
+		log.Printf("WARNING: dijkstra found no path\n")
+		return nil, nil
+	}
+	position := 0
+	curr = v
+	path[0] = curr
+	for elem := spt[curr]; elem != nil && elem.vertex != elem.p; elem = spt[curr] {
+		path[position+1] = elem.vertex
+		edges[position] = elem.ep
+		curr = elem.p
+		position++
+	}
+	return path, edges
+}
