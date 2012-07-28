@@ -136,7 +136,7 @@ func (h *Heap) down(index int, item Item) {
 			}
 			// The rest is as above, except for the fact that we are
 			// done in any case.
-			if item.Priority < minPriority {
+			if item.Priority > minPriority {
 				h.move(h.Items[min], index)
 				index = min
 			}

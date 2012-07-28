@@ -46,10 +46,22 @@ func DefaultAccessMask(way Way) AccessType {
 		return AccessMotorcar
 	case "path", "track":
 		return AccessBicycle | AccessFoot
-	case "footway", "pedestrian", "steps", "service":
+	case "footway", "pedestrian", "steps":
 		return AccessFoot
 	case "cycleway":
 		return AccessBicycle
+	// These roads are either tagged explicitly or are too often
+	// wrong to be of any use... we do the unsafe thing and assume
+	// that any highway tagged as "service" is generally accessible.
+	case "service":
+		return AccessMotorcar | AccessBicycle | AccessFoot
+	}
+
+	// Ferry routes do not imply any special access permissions, but the
+	// access tags are often missing. We assume that ferry => acces foot,bike,
+	// otherwise you will never be able to travel to Sicily from mainland europe.
+	if way.Attributes["route"] == "ferry" {
+		return AccessBicycle | AccessFoot
 	}
 
 	return 0

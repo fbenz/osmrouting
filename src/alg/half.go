@@ -3,6 +3,13 @@ package alg
 
 import "math"
 
+// limits, but note that f > HalfMaxFloat does not necessarily imply that
+// Float32ToHalf(f) == Infinity, as we might be rounding down.
+const MaxHalf uint16 = 0x7bff
+const MinHalf uint16 = 0x0400 // Minimum positive normal number
+const MaxHalfFloat = 65504.0 
+const MinHalfFloat = 1.0 / float32(1 << 14)
+
 func Float32ToHalf(a float32) uint16 {
 	bits := math.Float32bits(a)
 	s := uint16(bits >> 16) & 0x8000

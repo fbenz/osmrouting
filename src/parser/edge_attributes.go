@@ -56,7 +56,18 @@ func EdgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
 		total += distance
 		prev = step
 	}
-	return alg.Float64ToHalf(total)
+	
+	w := alg.Float64ToHalf(total)
+	if alg.IsInfHalf(w) {
+		fmt.Printf("Edge length %v overflows half, rounding to %v.\n",
+			total, alg.MaxHalfFloat)
+		w = alg.MaxHalf
+	} else if w == 0 {
+		fmt.Printf("Edge length %v underflows half, rounding to %v.\n",
+			total, alg.MinHalfFloat)
+		w = alg.MinHalf
+	}
+	return w
 }
 
 func (v *EdgeAttributes) VisitNode(node osm.Node) {
@@ -132,6 +143,10 @@ func (v *EdgeAttributes) VisitWay(way osm.Way) {
 			continue
 		}
 		if nodeIndex, ok := v.Indices[nodeId]; ok {
+			// avoid self loops
+			if segmentIndex == nodeIndex {
+				continue
+			}
 			edge := v.NewEdge(segmentIndex, nodeIndex)
 			v.NewStep(way.Nodes[segmentStart:i+1], edge)
 			v.SetExtendedAttributes(way, edge)

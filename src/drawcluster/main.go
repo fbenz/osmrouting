@@ -180,7 +180,7 @@ func DrawCircle(x, y float64, c color.Color, img *image.RGBA) {
 	for py := y0; py <= y1; py++ {
 		for px := x0; px <= x1; px++ {
 			w := Kernel(float64(px) - ix) * Kernel(float64(py) - iy)
-			Blend(img, px, py, Alpha(0.25 * w / d, c))
+			Blend(img, px, py, Alpha(0.5 * w / d, c))
 		}
 	}
 }
@@ -202,7 +202,7 @@ func main() {
 	}
 	
 	println("Open cluster graph.")
-	h, err := graph.OpenClusterGraph(InputFile)
+	h, err := graph.OpenClusterGraph(InputFile, false)
 	if err != nil {
 		println(err.Error())
 		os.Exit(1)

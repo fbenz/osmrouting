@@ -223,7 +223,12 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 		// run Dijkstra starting at vertex i with the given metric
 		router.Reset(g)
 		router.AddSource(graph.Vertex(i), 0)
+		//println("router.Run()")
 		router.Run()
+		if ok, err := router.CertifySolution(); !ok {
+			log.Fatalf(err.Error())
+		}
+		
 		for j := 0; j < boundaryVertexCount; j++ {
 			v := graph.Vertex(j)
 			index := boundaryVertexCount * i + j

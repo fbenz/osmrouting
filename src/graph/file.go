@@ -7,6 +7,8 @@ import (
 	"path"
 )
 
+const Sentinel uint32 = 0xffffffff
+
 type GraphFile struct {
 	// vertex -> first out/in edge
 	FirstOut      []uint32
@@ -140,9 +142,9 @@ func (g *GraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf []Edge)
 		}
 	}
 	
-	// The in edges are stored as a linked list. -1 means no in edges.
+	// The in edges are stored as a linked list.
 	i := g.FirstIn[v]
-	if i == 0xffffffff {
+	if i == Sentinel {
 		return result
 	}
 	
@@ -222,7 +224,7 @@ func (g *GraphFile) VertexRawEdges(v Vertex, buf []Edge) []Edge {
 	}
 	
 	i := g.FirstIn[v]
-	if i == 0xffffffff {
+	if i == Sentinel {
 		return result
 	}
 	

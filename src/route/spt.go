@@ -2,6 +2,8 @@
 package route
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"graph"
 	"math"
@@ -63,8 +65,15 @@ func (r *Router) Run() {
 	forward := r.Forward
 	edges   := []graph.Edge(nil)
 	
+	//debugDist := map[graph.Vertex] float32 {}
+	
 	for !h.Empty() {
 		curr, dist := h.Pop()
+		//if r.Parent[curr] == curr {
+		//	println("Source Vertex.")
+		//} else if debugDist[curr] != dist {
+		//	panic("Bug in h.Pop")
+		//}
 		r.Dist[curr] = dist
 		edges = g.VertexEdges(curr, forward, t, edges)
 		for _, e := range edges {
@@ -76,6 +85,11 @@ func (r *Router) Run() {
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
 				h.Push(n, tmpDist)
 				r.Parent[n] = curr
+				
+				//debugDist[n] = tmpDist
+				//if h.Priority(n) != tmpDist {
+				//	panic("Bug in h.Push")
+				//}
 			} else if i > 1 { // Color == Gray
 				// Already in the heap
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
@@ -83,6 +97,11 @@ func (r *Router) Run() {
 				if tmpDist < h.Items[i-2].Priority {
 					h.DecreaseKey(n, tmpDist)
 					r.Parent[n] = curr
+					
+					//debugDist[n] = tmpDist
+					//if h.Priority(n) != tmpDist {
+					//	panic("Bug in h.DecreaseKey")
+					//}
 				}
 			}
 		}
@@ -136,14 +155,6 @@ func (r *Router) parent_edge(v graph.Vertex, buf []graph.Edge) (graph.Edge, []gr
 		log.Fatalf("Found no edge between a vertex and its parent in the shortest path tree.")
 	}
 	
-	// Use this opportunity to check that our solution is dual feasible (=> optimal).
-	//w := r.Dist[v] - r.Dist[u]
-	//if math.Abs(float64(w - float32(minWeight))) > 0.1 {
-	//	log.Printf("Edge %v from %v to %v.\n", minEdge, u, v)
-	//	log.Fatalf("Dual infeasible solution in Dijkstra, dual: %v, weight: %v.",
-	//		w, float32(minWeight))
-	//}
-	
 	return minEdge, buf
 }
 
@@ -188,4 +199,98 @@ func (r *Router) Path(t graph.Vertex) ([]graph.Vertex, []graph.Edge) {
 	vertices[iv] = v
 	
 	return vertices, path
+}
+
+func feql(a, b float32) bool {
+	err := (a - b) / a
+	if err < 0 {
+		err = -err
+	}
+	return err < 4.88e-04
+}
+
+// Check that the distance function is dual feasible for all Reachable
+// vertices and that the parent pointers define a primal solution which
+// obeys the complementary slackness conditions. This implies that the
+// solution is optimal, as we assumed positive edge weights.
+// More concretely we need to check for each edge e = (u,v) with weight w:
+//  * Dist[v] <= Dist[u] + w
+//  * Dist[v]  = Dist[u] + w  if u == Parent[v] and e is in the SPT.
+// The last check is deferred, since we may have parallel edge in the graph.
+//
+// TODO:
+// Additionally, we should check that Dist[s] <= Init[s] for source vertices,
+// and that equality holds for the roots of the shortest path forest. This would
+// be additional work though, as we currently do not store the source vertices.
+func (r *Router) CertifySolution() (bool, error) {
+	// Check dual feasibility along with reachability and the edge weights.
+	g := r.Graph
+	buf := []graph.Edge(nil)
+	for i := 0; i < g.VertexCount(); i++ {
+		u := graph.Vertex(i)
+		if !r.Reachable(u) {
+			continue
+		}
+		
+		buf = g.VertexEdges(u, r.Forward, r.Transport, buf)
+		for _, e := range buf {
+			v := g.EdgeOpposite(e, u)
+			if !r.Reachable(v) {
+				return false, errors.New(fmt.Sprintf("Reachable set is not closed: "+
+					"vertex %v is reachable, and there is an edge %v to vertex %v which "+
+					"is marked as unreachable.", u, e, v))
+			}
+			
+			// Check that the edge weights are sensible
+			w := float32(g.EdgeWeight(e, r.Transport, r.Metric))
+			// There shouldn't be any zero weight edges either, but that needs to be
+			// ensured in the parser...
+			if /*w == 0 ||*/ math.IsInf(float64(w), 0) || math.IsNaN(float64(w)) {
+				return false, errors.New(fmt.Sprintf("Edge %v has weight %v.", e, w))
+			}
+			
+			if r.Dist[v] > r.Dist[u] + w {
+				return false, errors.New(fmt.Sprintf("Solution is not dual feasible. "+
+					"For edge %v from %v to %v we have: "+
+					"Dist[%v] = %v > %v = %v + %v = Dist[%v] + Weight[%v].",
+					e, u, v, v, r.Dist[v], r.Dist[u] + w, r.Dist[u], w, u, e))
+			}
+		}
+	}
+	
+	// Check complementary slackness of the primal solution.
+	for i := 0; i < g.VertexCount(); i++ {
+		v := graph.Vertex(i)
+		if !r.Reachable(v) || r.Parent[v] == v {
+			continue
+		}
+		
+		// Find the weight of the tree edge from Parent[v] to v.
+		minEdge   := graph.Edge(-1)
+		minWeight := float32(math.Inf(1))
+		buf = g.VertexEdges(v, !r.Forward, r.Transport, buf)
+		for _, e := range buf {
+			u := g.EdgeOpposite(e, v)
+			if u != r.Parent[v] {
+				continue
+			}
+			w := float32(g.EdgeWeight(e, r.Transport, r.Metric))
+			if w < minWeight {
+				minWeight = w
+				minEdge = e
+			}
+		}
+		
+		// Check that this edge is tight.
+		u := r.Parent[v]
+		if r.Dist[v] != r.Dist[u] + minWeight {
+			return false, errors.New(fmt.Sprintf("Solution is not optimal. "+
+				"For the tree edge %v from %v to %v we have: "+
+				"Dist[%v] = %v != %v = %v + %v = Dist[%v] + Weight[%v].",
+				minEdge, u, v, v, r.Dist[v], r.Dist[u] + minWeight,
+				r.Dist[u], minWeight, u, minEdge))
+		}
+	}
+	
+	return true, nil
 }

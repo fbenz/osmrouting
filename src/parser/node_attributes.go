@@ -33,7 +33,7 @@ func (v *NodeAttributes) VisitWay(way osm.Way) {
 	prevIndex, _ := v.Indices[way.Nodes[0]]
 	for _, osmId := range way.Nodes[1:] {
 		nodeIndex, ok := v.Indices[osmId]
-		if !ok {
+		if !ok || prevIndex == nodeIndex{
 			continue
 		}
 		v.Degrees[prevIndex]++
