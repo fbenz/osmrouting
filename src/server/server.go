@@ -3,7 +3,6 @@
 package main
 
 import (
-	"alg"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -40,15 +39,11 @@ const (
 	TravelmodeBike = "bicycling"
 )
 
-type RoutingData struct {
-	graph  graph.Graph
-	kdtree *kdtree.KdTree
-}
-
 var (
 	featureResponse []byte
 
 	// command line flags
+	FlagDir        string
 	FlagPort       int
 	FlagLogging    bool
 	FlagCpuProfile string
@@ -56,10 +51,11 @@ var (
 
 	startupTime time.Time
 
-	osmData map[string]RoutingData
+	clusterGraph *graph.ClusterGraph
 )
 
 func init() {
+	flag.StringVar(&FlagDir, "dir", "", "base directory of the graph")
 	flag.IntVar(&FlagPort, "port", DefaultPort, "the port where the server is running")
 	flag.BoolVar(&FlagLogging, "logging", false, "enables logging of requests")
 	flag.StringVar(&FlagCpuProfile, "cpuprofile", "", "enables CPU profiling")
@@ -74,8 +70,7 @@ func main() {
 	flag.Parse()
 
 	if err := setup(); err != nil {
-		log.Fatal("Setup failed:", err)
-		return
+		log.Fatal("Setup failed: ", err)
 	}
 
 	// map URLs to functions
@@ -96,41 +91,22 @@ func main() {
 	}
 }
 
-func loadFiles(base string) (*RoutingData, error) {
-	g, err := graph.Open(base)
-	if err != nil {
-		log.Fatal("Loading graph: ", err)
-		return nil, err
-	}
-	t, err := alg.LoadKdTree(base, g.Positions())
-	if err != nil {
-		log.Fatal("Loading k-d tree: ", err)
-		return nil, err
-	}
-	return &RoutingData{g, t}, nil
-}
-
 // setup does some initialization before the HTTP server starts.
 func setup() error {
-	osmData = map[string]RoutingData{}
-
-	dat, err := loadFiles("car")
+	// Load the cluster graphs and the overlay graph as well as the
+	// precomputed matrices for the metrics.
+	var err error
+	clusterGraph, err = graph.OpenClusterGraph(FlagDir, true /* loadMatrices */)
 	if err != nil {
 		return err
 	}
-	osmData[TravelmodeCar] = *dat
 
-	dat, err = loadFiles("bike")
+	// Load the k-d trees for the cluster and the overlay graph. In addition,
+	// the bounding boxes for the clusters are loaded.
+	err = kdtree.LoadKdTree(clusterGraph, FlagDir)
 	if err != nil {
 		return err
 	}
-	osmData[TravelmodeBike] = *dat
-
-	dat, err = loadFiles("foot")
-	if err != nil {
-		return err
-	}
-	osmData[TravelmodeFoot] = *dat
 
 	if FlagLogging {
 		InitLogger()
@@ -139,7 +115,7 @@ func setup() error {
 		InitCache()
 	}
 
-	// create the feature response only once (no change at runtime)
+	// Create the feature response only once (no change at runtime).
 	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
 	supportedFeatures := &Features{TravelMode: supportedTravelmodes}
 	if fp, err := json.Marshal(supportedFeatures); err != nil {
@@ -198,6 +174,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	transport := getTransport(travelmode)
 
 	cachingKey := urlParameter[ParameterWaypoints][0] + travelmode
 	if FlagCaching {
@@ -209,10 +186,10 @@ func routes(w http.ResponseWriter, r *http.Request) {
 
 	// there is no need to handle the other parameters at the moment as
 	// the implementation should not fail for unknown parameters/values
-	data := osmData[travelmode]
-	
+
 	// Do the actual route computation.
-	result := route.ConcurrentRoutes(data.graph, data.kdtree, waypoints)
+	// TODO use route.ConcurrentRoues?
+	result := route.Routes(clusterGraph, waypoints, graph.Distance, transport)
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
@@ -222,7 +199,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	if FlagCaching {
 		CachePut(cachingKey, jsonResult)
 	}
-	
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write(jsonResult)
@@ -252,6 +229,18 @@ func getWaypoints(waypointString string) ([]route.Point, error) {
 		points[i] = route.Point{lat, lng}
 	}
 	return points, nil
+}
+
+func getTransport(travelmode string) graph.Transport {
+	switch travelmode {
+	case TravelmodeCar:
+		return graph.Car
+	case TravelmodeFoot:
+		return graph.Foot
+	case TravelmodeBike:
+		return graph.Bike
+	}
+	return graph.Car
 }
 
 // features handles feature requests.

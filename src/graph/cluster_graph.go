@@ -11,7 +11,7 @@ type ClusterGraph struct {
 }
 
 func OpenClusterGraph(base string, loadMatrices bool) (*ClusterGraph, error) {
-	overlay, err := OpenOverlay(path.Join(base, "/overlay"), loadMatrices, false /* ignoreErrors */)
+	overlay, err := OpenOverlay(base, loadMatrices, false /* ignoreErrors */)
 	if err != nil {
 		return nil, err
 	}
