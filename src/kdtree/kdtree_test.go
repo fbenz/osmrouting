@@ -71,6 +71,31 @@ func TestEncoding(t *testing.T) {
 	}
 }
 
+func TestEncoding2(t *testing.T) {
+	rnd := rand.New(rand.NewSource(time.Now().Unix()))
+	maxNum := int64(math.Pow(2, TotalBits) - 1)
+	data := make([]uint64, DataSetSize)
+	for i, _ := range data {
+		data[i] = uint64(rnd.Int63n(maxNum))
+	}
+
+	encodedSteps := make([]uint64, DataSetSize*TypeSize/TotalBits)
+
+	g := make([]graph.Graph, 1)
+	coordinates := make([]geo.Coordinate, 0)
+	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+
+	for _, i := range rnd.Perm(DataSetSize) {
+		tree.SetEncodedStep(i, data[i])
+	}
+
+	for i, _ := range data {
+		if tree.EncodedStep(i) != data[i] {
+			t.Fatalf("encoding didn't respect identity: expected %v but was %v at position %d\n", data[i], tree.EncodedStep(i), i)
+		}
+	}
+}
+
 func TestAppend(t *testing.T) {
 	rnd := rand.New(rand.NewSource(time.Now().Unix()))
 	maxNum := int64(math.Pow(2, TotalBits) - 1)
