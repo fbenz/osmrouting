@@ -20,13 +20,14 @@ type OverlayGraphFile struct {
 // I/O
 
 func computeVertexIndices(g *OverlayGraphFile) {
-	n, c := g.VertexCount(), 0
+	n, c := g.VertexCount()-1, 0
 	g.VertexIndices = make([]int, n)
+	g.VertexIndices[0] = 0
 	for i := 0; i < n; i++ {
-		for c+1 < len(g.Cluster) && i >= int(g.Cluster[c+1]) {
+		for c+1 < len(g.Cluster) && i+1 >= int(g.Cluster[c+1]) {
 			c++
 		}
-		g.VertexIndices[i] = c
+		g.VertexIndices[i+1] = c
 	}
 }
 
@@ -127,9 +128,17 @@ func (g *OverlayGraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf 
 	cluster, indexInCluster := g.VertexCluster(v)
 	clusterStart := g.EdgeCounts[cluster]
 	clusterSize := g.ClusterSize(cluster)
-	edgesStart := clusterStart + int(indexInCluster)*clusterSize
-	for i := 0; i < clusterSize; i++ {
-		result = append(result, Edge(edgesStart+i))
+	if forward {
+		// out edges
+		outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
+		for i := 0; i < clusterSize; i++ {
+			result = append(result, Edge(outEdgesStart+i))
+		}
+	} else {
+		// in edges
+		for i := 0; i < clusterSize; i++ {
+			result = append(result, Edge(i*clusterSize+int(indexInCluster)))
+		}
 	}
 	return result
 }
