@@ -70,7 +70,7 @@ func main() {
 	flag.Parse()
 
 	if err := setup(); err != nil {
-		log.Fatal("Setup failed:", err)
+		log.Fatal("Setup failed: ", err)
 	}
 
 	// map URLs to functions
@@ -93,12 +93,16 @@ func main() {
 
 // setup does some initialization before the HTTP server starts.
 func setup() error {
+	// Load the cluster graphs and the overlay graph as well as the
+	// precomputed matrices for the metrics.
 	var err error
 	clusterGraph, err = graph.OpenClusterGraph(FlagDir, true /* loadMatrices */)
 	if err != nil {
 		return err
 	}
 
+	// Load the k-d trees for the cluster and the overlay graph. In addition,
+	// the bounding boxes for the clusters are loaded.
 	err = kdtree.LoadKdTree(clusterGraph, FlagDir)
 	if err != nil {
 		return err
@@ -111,7 +115,7 @@ func setup() error {
 		InitCache()
 	}
 
-	// create the feature response only once (no change at runtime)
+	// Create the feature response only once (no change at runtime).
 	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
 	supportedFeatures := &Features{TravelMode: supportedTravelmodes}
 	if fp, err := json.Marshal(supportedFeatures); err != nil {
