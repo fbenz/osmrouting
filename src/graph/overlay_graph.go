@@ -150,13 +150,19 @@ func (g *OverlayGraphFile) EdgeOpposite(e Edge, v Vertex) Vertex {
 	}
 	// binary search for cluster id
 	cluster := sort.Search(g.ClusterCount(), func(i int) bool { return int(e) < g.EdgeCounts[i+1] })
+	clusterSize := g.ClusterSize(cluster)
 
 	e = e - Edge(g.EdgeCounts[cluster])
-	vCheck := int(e) / g.ClusterSize(cluster)
+	vCheck := int(e) / clusterSize
 	if int(v) != vCheck {
-		panic("index of v is not as expected")
+		// in edge of v
+		if int(e)%clusterSize != int(v) {
+			panic("index of v is not as expected")
+		}
+		return Vertex(vCheck)
 	}
-	u := int(e) % g.ClusterSize(cluster)
+	// out edge of v
+	u := int(e) % clusterSize
 	return Vertex(u)
 }
 
