@@ -6,12 +6,12 @@ import (
 	"kdtree"
 )
 
-func Routes(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
+func Routes(g *graph.ClusterGraph, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
 	distance := 0.0
 	duration := 0.0
 	legs := make([]*Leg, len(waypoints)-1)
 	for i := 0; i < len(waypoints)-1; i++ {
-		legs[i] = leg(g, kdt, waypoints, i, m, trans)
+		legs[i] = leg(g, waypoints, i, m, trans)
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
 	}
@@ -31,13 +31,11 @@ func Routes(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, m grap
 	return result
 }
 
-func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m graph.Metric, trans graph.Transport) *Leg {
-	//_, startWays := alg.NearestNeighbor(kdt, waypoints[i][0], waypoints[i][1], true /* forward */)
-	//_, endWays := alg.NearestNeighbor(kdt, waypoints[i+1][0], waypoints[i+1][1], false /* forward */)
-	startWays := make([]graph.Way, 0)
-	endWays := make([]graph.Way, 0)
-	startCluster := 0 //TODO kdt should return cluster index of the start vertex
-	endCluster := 0   //TODO kdt should return cluster index of the target vertex
+func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans graph.Transport) *Leg {
+	startCoord := geo.Coordinate{Lat: waypoints[i][0], Lng: waypoints[i][1]}
+	endCoord := geo.Coordinate{Lat: waypoints[i+1][0], Lng: waypoints[i+1][1]}
+	startCluster, startWays := kdtree.NearestNeighbor(startCoord, true /* forward */, trans)
+	endCluster, endWays := kdtree.NearestNeighbor(endCoord, false /* forward */, trans)
 
 	allequal := true
 	oneequal := false
@@ -179,7 +177,7 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 		}
 	} else { //They are in different Clusters or on the overlay graph
 		startboundary := []*Element(nil) // TODO Fix this
-		endboundary := []*Element(nil) // TODO Fix this
+		endboundary := []*Element(nil)   // TODO Fix this
 		startRunner := Router{Forward: true, Transport: trans, Metric: m}
 		endRunner := Router{Forward: false, Transport: trans, Metric: m}
 		// TODO check if start/end vertex is boundary note
@@ -195,13 +193,13 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 			}
 			endRunner.Run()
 			reachable := false
-			endboundary = make([]*Element,1)
+			endboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
 				v := graph.Vertex(i)
 				if endRunner.Reachable(v) {
 					reachable = true
 					e := NewElement(g.Overlay.ClusterVertex(endCluster, v), float64(endRunner.Distance(v))) // TODO remove cast
-					endboundary = append(endboundary,e)
+					endboundary = append(endboundary, e)
 				}
 			}
 			if !reachable {
@@ -210,17 +208,17 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 		case startCluster != -1 && endCluster == -1:
 			endboundary = []*Element(nil) // TODO fix this
 			startRunner.Reset(g.Cluster[startCluster])
-			for _,e := range startWays {
+			for _, e := range startWays {
 				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
 			}
 			startRunner.Run()
 			reachable := false
-			startboundary = make([]*Element,1)
-			for i:= 0; i < g.Overlay.ClusterSize(startCluster); i++ {
+			startboundary = make([]*Element, 1)
+			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(startCluster,v), float64(startRunner.Distance(v))) // TODO remove cast
+					e := NewElement(g.Overlay.ClusterVertex(startCluster, v), float64(startRunner.Distance(v))) // TODO remove cast
 					startboundary = append(startboundary, e)
 				}
 			}
@@ -230,7 +228,7 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 		case startCluster != -1 && endCluster != -1:
 			startRunner.Reset(g.Cluster[startCluster])
 			endRunner.Reset(g.Cluster[endCluster])
-			c := make(chan int,2)
+			c := make(chan int, 2)
 			go func() {
 				startRunner.Run()
 				c <- 1
@@ -239,26 +237,26 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 				endRunner.Run()
 				c <- 1
 			}()
-			<- c
-			<- c
+			<-c
+			<-c
 			reachable := false
-			startboundary = make([]*Element,1)
-			for i:= 0; i < g.Overlay.ClusterSize(startCluster); i++ {
+			startboundary = make([]*Element, 1)
+			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(startCluster,v), float64(startRunner.Distance(v))) // TODO remove cast
+					e := NewElement(g.Overlay.ClusterVertex(startCluster, v), float64(startRunner.Distance(v))) // TODO remove cast
 					startboundary = append(startboundary, e)
 				}
 			}
 			reachable = false
-			endboundary = make([]*Element,1)
+			endboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
 				v := graph.Vertex(i)
 				if endRunner.Reachable(v) {
 					reachable = true
 					e := NewElement(g.Overlay.ClusterVertex(endCluster, v), float64(endRunner.Distance(v))) // TODO remove cast
-					endboundary = append(endboundary,e)
+					endboundary = append(endboundary, e)
 				}
 			}
 			if !reachable {
@@ -272,7 +270,7 @@ func leg(g *graph.ClusterGraph, kdt *kdtree.KdTree, waypoints []Point, i int, m 
 		if vertices == nil {
 			return nil
 		}
-		
+
 		crossvertices := make([]int, 1)
 		for i := 0; i < len(vertices)-1; i++ {
 			c1, _ := g.Overlay.VertexCluster(vertices[i])
