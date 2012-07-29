@@ -62,15 +62,33 @@ func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 			return nil, err
 		}
 	}
+	
+	// Ugly hack: we can't have too many open files...
+	bitvectors := []*[]byte {
+		&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
+		&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
+		&g.Oneway,
+	}
+	for _, bv := range bitvectors {
+		p := *bv
+		*bv = make([]byte, len(p))
+		copy(*bv, p)
+		err := mm.Close(&p)
+		if err != nil {
+			return nil, err
+		}
+	}
+	
 	return g, nil
 }
 
 func CloseGraphFile(g *GraphFile) error {
 	files := []interface{} {
 		&g.FirstOut, &g.FirstIn, &g.Coordinates,
-		&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
-		&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
-		&g.Oneway, &g.NextIn, &g.Edges, &g.Weights[Distance],
+		//&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
+		//&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
+		//&g.Oneway,
+		&g.NextIn, &g.Edges, &g.Weights[Distance],
 		&g.Steps, &g.StepPositions,
 	}
 	for _, p := range files {
@@ -215,6 +233,10 @@ func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
 }
 
 // Raw Interface (used to implement other tools working with GraphFiles)
+
+func (g *GraphFile) EdgeAccessible(v Edge, t Transport) bool {
+	return alg.GetBit(g.AccessEdge[t], uint(v))
+}
 
 func (g *GraphFile) VertexRawEdges(v Vertex, buf []Edge) []Edge {
 	result := buf[:0]
