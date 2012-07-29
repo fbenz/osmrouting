@@ -31,10 +31,10 @@ func computeVertexIndices(g *OverlayGraphFile) {
 }
 
 func computeEdgeCounts(g *OverlayGraphFile) {
-	g.EdgeCounts = make([]int, g.ClusterCount())
+	g.EdgeCounts = make([]int, g.ClusterCount()+1)
 	g.EdgeCounts[0] = g.GraphFile.EdgeCount()
-	for i := 1; i < g.ClusterCount(); i++ {
-		g.EdgeCounts[i] = g.EdgeCounts[i-1] + g.ClusterSize(i)*g.ClusterSize(i)
+	for i := 0; i < g.ClusterCount(); i++ {
+		g.EdgeCounts[i+1] = g.EdgeCounts[i] + g.ClusterSize(i)*g.ClusterSize(i)
 	}
 }
 
@@ -143,23 +143,7 @@ func (g *OverlayGraphFile) EdgeOpposite(e Edge, v Vertex) Vertex {
 		return g.GraphFile.EdgeOpposite(e, v)
 	}
 	// binary search for cluster id
-	/*cluster := -1
-	upperBound := g.ClusterCount()-1
-	l := 0
-	r := upperBound
-	for l < r {
-		m := (r - l) / 2 + l
-		if int(e) >= g.EdgeCounts[m] && (m == upperBound || int(e) < g.EdgeCounts[m]) {
-			cluster = m
-			break
-		}
-		if int(e) < g.EdgeCounts[m] {
-			r = m - 1
-		} else {
-			l = m + 1
-		}
-	}*/
-	cluster := sort.Search(g.ClusterCount(), func(i int) bool { return int(e) >= g.EdgeCounts[i] })
+	cluster := sort.Search(g.ClusterCount(), func(i int) bool { return int(e) < g.EdgeCounts[i+1] })
 
 	e = e - Edge(g.EdgeCounts[cluster])
 	vCheck := int(e) / g.ClusterSize(cluster)
