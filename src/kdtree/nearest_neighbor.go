@@ -1,11 +1,14 @@
 package kdtree
 
 import (
+	"alg"
 	"ellipsoid"
 	"errors"
 	"fmt"
 	"geo"
 	"graph"
+	"log"
+	"math"
 	"mm"
 	"path"
 )
@@ -64,19 +67,20 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int, []graph.Way) {
 	edges := []graph.Edge(nil)
 
+	// first search on the overlay graph
 	t := clusterKdTree.Overlay
-	bestStepIndex := binarySearch(t, x, 0, len(t.EncodedSteps)-1, true /* compareLat */, trans, &edges)
-	coordOverlay := decodeCoordinate(t.Graph, t.EncodedStep(bestStepIndex), trans, &edges)
+	bestStepIndex, coordOverlay, foundPoint := binarySearch(t, x, 0, len(t.EncodedSteps)-1, true /* compareLat */, trans, &edges)
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
 
+	// then search on all clusters where the point is inside the bounding box of the cluster
 	clusterIndex := -1
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
 			kdTree := clusterKdTree.Cluster[i]
-			stepIndex := binarySearch(kdTree, x, 0, t.EncodedStepLen()-1, true /* compareLat */, trans, &edges)
-			coord := decodeCoordinate(kdTree.Graph, t.EncodedStep(stepIndex), trans, &edges)
+			stepIndex, coord, ok := binarySearch(kdTree, x, 0, t.EncodedStepLen()-1, true /* compareLat */, trans, &edges)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
-			if dist < minDistance {
+			if ok && (!foundPoint || dist < minDistance) {
+				foundPoint = true
 				minDistance = dist
 				bestStepIndex = stepIndex
 				clusterIndex = i
@@ -84,48 +88,65 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 		}
 	}
 
-	g := clusterKdTree.Cluster[clusterIndex].Graph
-	return clusterIndex, decodeWays(g, t.EncodedStep(bestStepIndex), forward, trans, &edges)
+	if clusterIndex >= 0 {
+		g := clusterKdTree.Cluster[clusterIndex].Graph
+		return clusterIndex, decodeWays(g, t.EncodedStep(bestStepIndex), forward, trans, &edges)
+	}
+	log.Printf("no matching bounding box found for (%v, %v)", x.Lat, x.Lng)
+	return clusterIndex, decodeWays(t.Graph, t.EncodedStep(bestStepIndex), forward, trans, &edges)
 }
 
 func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat bool,
-	trans graph.Transport, edges *[]graph.Edge) int {
+	trans graph.Transport, edges *[]graph.Edge) (int, geo.Coordinate, bool) {
 	g := kdTree.Graph
 	if end-start < 0 {
 		panic("nearestNeighbor: recursion to dead end")
 	} else if end-start == 0 {
-		return start
+		startCoord, startAccessible := decodeCoordinate(g, kdTree.EncodedStep(start), trans, edges)
+		return start, startCoord, startAccessible
 	}
 	middle := (end-start)/2 + start
 
 	// exact hit
-	middleCoord := decodeCoordinate(g, kdTree.EncodedStep(middle), trans, edges)
-	if x.Lat == middleCoord.Lat && x.Lng == middleCoord.Lng {
-		return middle
+	middleCoord, middleAccessible := decodeCoordinate(g, kdTree.EncodedStep(middle), trans, edges)
+	if middleAccessible && x.Lat == middleCoord.Lat && x.Lng == middleCoord.Lng {
+		return middle, middleCoord, middleAccessible
 	}
 
 	// corner case where the nearest point can be on both sides of the middle
-	if (compareLat && x.Lat == middleCoord.Lat) || (!compareLat && x.Lng == middleCoord.Lng) {
+	if !middleAccessible || (compareLat && x.Lat == middleCoord.Lat) || (!compareLat && x.Lng == middleCoord.Lng) {
 		// recursion on both halfs
-		leftRecIndex := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
-		rightRecIndex := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
-		leftCoord := decodeCoordinate(g, kdTree.EncodedStep(leftRecIndex), trans, edges)
-		rightCoord := decodeCoordinate(g, kdTree.EncodedStep(rightRecIndex), trans, edges)
+		leftRecIndex, leftCoord, leftAccessible := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
+		rightRecIndex, rightCoord, rightAccessible := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
 
-		// TODO exact distance on Coordinates?
-		distMiddle, _ := e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
-		distRecursionLeft, _ := e.To(x.Lat, x.Lng, leftCoord.Lat, leftCoord.Lng)
-		distRecursionRight, _ := e.To(x.Lat, x.Lng, rightCoord.Lat, rightCoord.Lng)
+		if !middleAccessible && !leftAccessible && !rightAccessible {
+			return middle, middleCoord, middleAccessible
+		}
+
+		// Infinity is used if a vertex/step it is not accessible as we know that at least one is accessible.
+		distMiddle := math.Inf(1)
+		distRecursionLeft := math.Inf(1)
+		distRecursionRight := math.Inf(1)
+		if middleAccessible {
+			distMiddle, _ = e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
+		}
+		if leftAccessible {
+			distRecursionLeft, _ = e.To(x.Lat, x.Lng, leftCoord.Lat, leftCoord.Lng)
+		}
+		if rightAccessible {
+			distRecursionRight, _ = e.To(x.Lat, x.Lng, rightCoord.Lat, rightCoord.Lng)
+		}
+
 		if distRecursionLeft < distRecursionRight {
 			if distRecursionLeft < distMiddle {
-				return leftRecIndex
+				return leftRecIndex, leftCoord, leftAccessible
 			}
-			return middle
+			return middle, middleCoord, middleAccessible
 		}
 		if distRecursionRight < distMiddle {
-			return rightRecIndex
+			return rightRecIndex, rightCoord, rightAccessible
 		}
-		return middle
+		return middle, middleCoord, middleAccessible
 	}
 
 	var left bool
@@ -136,57 +157,61 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 	}
 	if left {
 		// stop if there is nothing left of the middle
-		if middle == 0 {
-			return middle
+		if middle == start {
+			return middle, middleCoord, middleAccessible
 		}
 		// recursion on the left half
-		recIndex := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
-		recCoord := decodeCoordinate(g, kdTree.EncodedStep(recIndex), trans, edges)
+		recIndex, recCoord, recAccessible := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
 
 		// compare middle and result from the left
 		distMiddle, _ := e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
 		distRecursion, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
-		if distMiddle < distRecursion {
-			return middle
+		if !recAccessible || distMiddle < distRecursion {
+			return middle, middleCoord, middleAccessible
 		}
-		return recIndex
+		return recIndex, recCoord, recAccessible
 	}
 	// stop if there is nothing right of the middle
-	if middle == kdTree.EncodedStepLen()-1 {
-		return middle
+	if middle == end {
+		return middle, middleCoord, middleAccessible
 	}
 	// recursion on the right half
-	recIndex := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
-	recCoord := decodeCoordinate(g, kdTree.EncodedStep(recIndex), trans, edges)
+	recIndex, recCoord, recAccessible := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
 
 	// compare middle and result from the right
 	distMiddle, _ := e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
 	distRecursion, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
-	if distMiddle < distRecursion {
-		return middle
+	if !recAccessible || distMiddle < distRecursion {
+		return middle, middleCoord, middleAccessible
 	}
-	return recIndex
+	return recIndex, recCoord, recAccessible
 }
 
-func decodeCoordinate(g graph.Graph, ec uint64, trans graph.Transport, edges *[]graph.Edge) geo.Coordinate {
+// decodeCoordinate returns the coordinate of the encoded vertex/step and if it is accessible by the
+// given transport mode
+func decodeCoordinate(g graph.Graph, ec uint64, trans graph.Transport, edges *[]graph.Edge) (geo.Coordinate, bool) {
 	vertexIndex := ec >> (EdgeOffsetBits + StepOffsetBits)
 	edgeOffset := (ec >> StepOffsetBits) & MaxEdgeOffset
 	stepOffset := ec & MaxStepOffset
 	vertex := graph.Vertex(vertexIndex)
 	if edgeOffset == MaxEdgeOffset && stepOffset == MaxStepOffset {
 		// it is a vertex and not a step
-		return g.VertexCoordinate(vertex)
+		return g.VertexCoordinate(vertex), g.VertexAccessible(vertex, trans)
 	}
 
-	(*edges) = g.VertexEdges(vertex, true /* out */, trans, *edges)
-	for i, e := range *edges {
-		if i == int(edgeOffset) {
-			steps := g.EdgeSteps(e, vertex)
-			return steps[stepOffset]
-		}
-		i++
+	var edge graph.Edge
+	var edgeAccessible bool
+	switch t := g.(type) {
+	case *graph.GraphFile:
+	case *graph.OverlayGraphFile:
+		(*edges) = t.VertexRawEdges(vertex, *edges)
+		edge = (*edges)[edgeOffset]
+		edgeAccessible = t.EdgeAccessible(edge, trans)
+	default:
+		panic("unexpected graph implementation")
 	}
-	panic("incorrect encoding: no matching edge found")
+	steps := g.EdgeSteps(edge, vertex)
+	return steps[stepOffset], edgeAccessible
 }
 
 func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, edges *[]graph.Edge) []graph.Way {
@@ -204,14 +229,20 @@ func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, e
 	}
 
 	var edge graph.Edge
-	(*edges) = g.VertexEdges(vertex, true /* out */, trans, *edges)
-	for i, e := range *edges {
-		if i == int(edgeOffset) {
-			edge = e
-			break
-		}
-		i++
+	oneway := false
+	switch t := g.(type) {
+	case *graph.GraphFile:
+	case *graph.OverlayGraphFile:
+		(*edges) = t.VertexRawEdges(vertex, *edges)
+		edge := (*edges)[edgeOffset]
+		oneway = alg.GetBit(t.Oneway, uint(edge))
+	default:
+		panic("unexpected graph implementation")
 	}
+	if trans == graph.Foot {
+		oneway = false
+	}
+
 	t1 := vertex                       // start vertex
 	t2 := g.EdgeOpposite(edge, vertex) // end vertex
 
@@ -246,9 +277,6 @@ func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, e
 	} else {
 		reverse(b1)
 	}
-
-	// TODO check oneway based on transport
-	oneway := true
 
 	var w []graph.Way
 	if !oneway {
