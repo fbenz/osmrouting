@@ -98,19 +98,19 @@ func (r *Router) Run() {
 	g, h    := r.Graph, &r.Heap
 	t, m    := r.Transport, r.Metric
 	forward := r.Forward
-	edges   := []graph.Edge(nil)
+	darts   := []graph.Dart(nil)
 	
 	for !h.Empty() {
 		curr, dist := h.Pop()
 		r.Dist[curr] = dist
-		edges = g.VertexEdges(curr, forward, t, edges)
-		for _, e := range edges {
-			n := g.EdgeOpposite(e, curr)
+		darts = g.VertexNeighbors(curr, forward, t, m, darts)
+		for _, d := range darts {
+			n := d.Vertex
 			if h.Processed(n) {
 				continue
 			}
 			
-			if h.Update(n, dist + float32(g.EdgeWeight(e, t, m))) {
+			if h.Update(n, dist + d.Weight) {
 				r.Parent[n] = curr
 			}
 		}

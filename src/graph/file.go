@@ -232,6 +232,86 @@ func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
 	return alg.HalfToFloat64(g.Weights[m][e])
 }
 
+// Dijkstra interface
+
+func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metric, buf []Dart) []Dart {
+	// This is copy pasted from Vertex Edges, and in a perfect world there would never
+	// be a reason to do something like this. Alas the world of go is not perfect yet.
+	result := buf[:0]
+	
+	// Add the out edges for v
+	first := g.FirstOut[v]
+	last  := g.FirstOut[v+1]
+	access := g.AccessEdge[t]
+	if forward || t == Foot {
+		// No need to consider the oneway flags
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 {
+				continue
+			}
+			u := Vertex(g.Edges[i]) ^ v
+			w := alg.HalfToFloat32(g.Weights[m][i])
+			result = append(result, Dart{u, w})
+		}
+	} else {
+		// Consider the oneway flags...
+		oneway := g.Oneway
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 || oneway[index] & bit != 0 {
+				continue
+			}
+			u := Vertex(g.Edges[i]) ^ v
+			w := alg.HalfToFloat32(g.Weights[m][i])
+			result = append(result, Dart{u, w})
+		}
+	}
+	
+	// The in edges are stored as a linked list.
+	i := g.FirstIn[v]
+	if i == Sentinel {
+		return result
+	}
+	
+	if !forward || t == Foot {
+		// As above, no need to consider the oneway flags
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 {
+				u := Vertex(g.Edges[i]) ^ v
+				w := alg.HalfToFloat32(g.Weights[m][i])
+				result = append(result, Dart{u, w})
+			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
+		}
+	} else {
+		// Need to consider the oneway flags.
+		oneway := g.Oneway
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 && oneway[index] & bit == 0 {
+				u := Vertex(g.Edges[i]) ^ v
+				w := alg.HalfToFloat32(g.Weights[m][i])
+				result = append(result, Dart{u, w})
+			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
+		}
+	}
+	
+	return result
+}
+
 // Raw Interface (used to implement other tools working with GraphFiles)
 
 func (g *GraphFile) EdgeAccessible(v Edge, t Transport) bool {

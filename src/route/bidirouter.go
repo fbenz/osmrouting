@@ -89,10 +89,10 @@ func (r *BidiRouter) AddTarget(v graph.Vertex, distance float32) {
 // Dijkstra
 
 func (r *BidiRouter) Run() {
-	g       := r.Graph
-	sh, th  := &r.SHeap, &r.THeap
-	t, m    := r.Transport, r.Metric
-	edges   := []graph.Edge(nil)
+	g      := r.Graph
+	sh, th := &r.SHeap, &r.THeap
+	t, m   := r.Transport, r.Metric
+	darts  := []graph.Dart(nil)
 	
 	// Maintain an upper bound on the optimal distance.
 	upperBound := r.MDistance
@@ -109,14 +109,14 @@ func (r *BidiRouter) Run() {
 			// Source step
 			curr, dist := sh.Pop()
 			r.SDist[curr] = dist
-			edges = g.VertexEdges(curr, true /* forward */, t, edges)
-			for _, e := range edges {
-				n := g.EdgeOpposite(e, curr)
+			darts = g.VertexNeighbors(curr, true /* forward */, t, m, darts)
+			for _, d := range darts {
+				n := d.Vertex
 				if sh.Processed(n) {
 					continue
 				}
 				
-				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
+				tmpDist := dist + d.Weight
 				if sh.Update(n, tmpDist) {
 					r.SParent[n] = curr
 					
@@ -139,14 +139,14 @@ func (r *BidiRouter) Run() {
 			// Target step
 			curr, dist := th.Pop()
 			r.TDist[curr] = dist
-			edges = g.VertexEdges(curr, false /* forward */, t, edges)
-			for _, e := range edges {
-				n := g.EdgeOpposite(e, curr)
+			darts = g.VertexNeighbors(curr, false /* forward */, t, m, darts)
+			for _, d := range darts {
+				n := d.Vertex
 				if th.Processed(n) {
 					continue
 				}
 				
-				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
+				tmpDist := dist + d.Weight
 				if th.Update(n, tmpDist) {
 					r.TParent[n] = curr
 					
@@ -209,7 +209,7 @@ func (r *BidiRouter) parent_edge(u, v graph.Vertex, forward bool, buf []graph.Ed
 }
 
 // Returns a shortest path from a source vertex to a target vertex.
-func (r *BidiRouter) Path(t graph.Vertex) ([]graph.Vertex, []graph.Edge) {
+func (r *BidiRouter) Path() ([]graph.Vertex, []graph.Edge) {
 	// Determine the length of the path along with the source vertex s
 	// and target vertex t.
 	sourceSteps, targetSteps := 0, 0

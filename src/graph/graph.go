@@ -30,6 +30,12 @@ type Way struct {
 	Forward bool
 }
 
+// A half edge + weight, for use by Dijkstra.
+type Dart struct {
+	Vertex Vertex
+	Weight float32
+}
+
 type Graph interface {
 	VertexCount() int
 	EdgeCount() int
@@ -37,6 +43,8 @@ type Graph interface {
 	VertexAccessible(Vertex, Transport) bool
 	VertexCoordinate(Vertex) geo.Coordinate
 	VertexEdges(Vertex, bool, Transport, []Edge) []Edge
+	
+	VertexNeighbors(Vertex, bool, Transport, Metric, []Dart) []Dart
 
 	EdgeOpposite(Edge, Vertex) Vertex
 	EdgeSteps(Edge, Vertex) []geo.Coordinate
