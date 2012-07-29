@@ -55,7 +55,8 @@ func loadAllMatrices(g *OverlayGraphFile, base string) error {
 }
 
 func OpenOverlay(base string, loadMatrices, ignoreErrors bool) (*OverlayGraphFile, error) {
-	g, err := OpenGraphFile(base, ignoreErrors)
+	overlayBaseDir := path.Join(base, "/overlay")
+	g, err := OpenGraphFile(overlayBaseDir, ignoreErrors)
 	if err != nil && !ignoreErrors {
 		return nil, err
 	}
@@ -69,7 +70,7 @@ func OpenOverlay(base string, loadMatrices, ignoreErrors bool) (*OverlayGraphFil
 	}
 
 	for _, file := range files {
-		err = mm.Open(path.Join(base, file.name), file.p)
+		err = mm.Open(path.Join(overlayBaseDir, file.name), file.p)
 		if err != nil && !ignoreErrors {
 			return nil, err
 		}
