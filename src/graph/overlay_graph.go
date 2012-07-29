@@ -20,14 +20,11 @@ type OverlayGraphFile struct {
 // I/O
 
 func computeVertexIndices(g *OverlayGraphFile) {
-	n, c := g.VertexCount()-1, 0
-	g.VertexIndices = make([]int, n)
-	g.VertexIndices[0] = 0
-	for i := 0; i < n; i++ {
-		for c+1 < len(g.Cluster) && i+1 >= int(g.Cluster[c+1]) {
-			c++
+	g.VertexIndices = make([]int, g.VertexCount())
+	for i := 0; i < g.ClusterCount(); i++ {
+		for j := g.Cluster[i]; j < g.Cluster[i+1]; j++ {
+			g.VertexIndices[j] = i
 		}
-		g.VertexIndices[i+1] = c
 	}
 }
 
