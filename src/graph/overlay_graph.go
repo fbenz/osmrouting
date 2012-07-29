@@ -133,8 +133,9 @@ func (g *OverlayGraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf 
 		}
 	} else {
 		// in edges
+		inEdgesStart := clusterStart + int(indexInCluster)
 		for i := 0; i < clusterSize; i++ {
-			result = append(result, Edge(i*clusterSize+int(indexInCluster)))
+			result = append(result, Edge(inEdgesStart + i*clusterSize))
 		}
 	}
 	return result
