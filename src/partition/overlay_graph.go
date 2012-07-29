@@ -19,7 +19,7 @@ func (pi *PartitionInfo) createOverlayGraph(g *graph.GraphFile, base string) {
 		log.Fatal("Creating dir for overlay graph: ", err)
 	}
 
-	var partitions []uint16
+	var partitions []uint32
 	err = mm.Create(path.Join(dir, "partitions.ftf"), pi.Count+1, &partitions)
 	if err != nil {
 		log.Fatal("mm.Create failed: ", err)
@@ -34,7 +34,7 @@ func (pi *PartitionInfo) createOverlayGraph(g *graph.GraphFile, base string) {
 	total := 0
 	for i, v := range pi.BorderVertices {
 		total += len(v)
-		partitions[i+1] = uint16(total)
+		partitions[i+1] = uint32(total)
 		for _, globalIndex := range v {
 			vertexIndices[globalIndex] = vertexCount
 			vertexCount++

@@ -11,7 +11,7 @@ import (
 
 type OverlayGraphFile struct {
 	*GraphFile
-	Cluster          []uint16      // cluster id -> vertex indices
+	Cluster          []uint32      // cluster id -> vertex indices
 	VertexIndices    []int         // vertex indices -> cluster id
 	Matrices         [][][]float32 // transport mode -> metric -> (cluster id, i, j) -> weight
 	ClusterEdgeCount int           // combined boundary edge count of the clusters 
@@ -123,24 +123,24 @@ func (g *OverlayGraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf 
 	// This only returns the cut edges, because shortcuts lack most edge attributes.
 	return g.GraphFile.VertexEdges(v, forward, t, buf)
 	/*
-	// Add the precomputed edges.
-	cluster, indexInCluster := g.VertexCluster(v)
-	clusterStart := g.EdgeCounts[cluster]
-	clusterSize := g.ClusterSize(cluster)
-	if forward {
-		// out edges
-		outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
-		for i := 0; i < clusterSize; i++ {
-			result = append(result, Edge(outEdgesStart+i))
+		// Add the precomputed edges.
+		cluster, indexInCluster := g.VertexCluster(v)
+		clusterStart := g.EdgeCounts[cluster]
+		clusterSize := g.ClusterSize(cluster)
+		if forward {
+			// out edges
+			outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
+			for i := 0; i < clusterSize; i++ {
+				result = append(result, Edge(outEdgesStart+i))
+			}
+		} else {
+			// in edges
+			inEdgesStart := clusterStart + int(indexInCluster)
+			for i := 0; i < clusterSize; i++ {
+				result = append(result, Edge(inEdgesStart + i*clusterSize))
+			}
 		}
-	} else {
-		// in edges
-		inEdgesStart := clusterStart + int(indexInCluster)
-		for i := 0; i < clusterSize; i++ {
-			result = append(result, Edge(inEdgesStart + i*clusterSize))
-		}
-	}
-	return result
+		return result
 	*/
 }
 
@@ -149,15 +149,15 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 	// Add the shortcuts
 	cluster, indexInCluster := g.VertexCluster(v)
 	clusterStart := g.EdgeCounts[cluster] - g.GraphFile.EdgeCount()
-	clusterSize  := g.ClusterSize(cluster)
+	clusterSize := g.ClusterSize(cluster)
 	clusterIndex := int(g.Cluster[cluster])
-	matrix       := g.Matrices[t][m]
-	inf          := float32(math.Inf(1))
+	matrix := g.Matrices[t][m]
+	inf := float32(math.Inf(1))
 	if forward {
 		// out edges
 		outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
 		for i := 0; i < clusterSize; i++ {
-			w := matrix[outEdgesStart + i]
+			w := matrix[outEdgesStart+i]
 			u := Vertex(clusterIndex + i)
 			if i == int(indexInCluster) || w == inf {
 				continue
@@ -168,7 +168,7 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 		// in edges
 		inEdgesStart := clusterStart + int(indexInCluster)
 		for i := 0; i < clusterSize; i++ {
-			w := matrix[inEdgesStart + i*clusterSize]
+			w := matrix[inEdgesStart+i*clusterSize]
 			u := Vertex(clusterIndex + i)
 			if i == int(indexInCluster) || w == inf {
 				continue
