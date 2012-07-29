@@ -23,9 +23,11 @@ func init() {
 }
 
 func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
-	// TODO precompute coordinates for faster live queries?
+	// TODO Does the precomputation of the coordinates lead to faster live queries?
+	// It is not yet clear whether this pays off. The downside is increased memory usage.
 	dummyCoordinates := make([]geo.Coordinate, 0)
 
+	// Load the k-d tree of all clusters
 	clusterKdTrees := make([]*KdTree, len(clusterGraph.Cluster))
 	for i, g := range clusterGraph.Cluster {
 		clusterDir := fmt.Sprintf("cluster%d/kdtree.ftf", i+1)
@@ -37,6 +39,7 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 		clusterKdTrees[i] = &KdTree{Graph: g, EncodedSteps: encodedSteps, Coordinates: dummyCoordinates}
 	}
 
+	// Load the k-d tree of the overlay graph
 	var encodedSteps []uint64
 	err := mm.Open(path.Join(base, "/overlay/kdtree.ftf"), &encodedSteps)
 	if err != nil {
@@ -44,6 +47,7 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 	}
 	overlayKdTree := &KdTree{Graph: clusterGraph.Overlay, EncodedSteps: encodedSteps, Coordinates: dummyCoordinates}
 
+	// Load the bounding boxes of the clusters
 	var bboxesFile []int32
 	err = mm.Open(path.Join(base, "bboxes.ftf"), &bboxesFile)
 	if err != nil {
@@ -65,20 +69,30 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 // No fail strategy: a nearest point on the overlay graph is always returned if no point
 // is found in the clusters.
 func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int, []graph.Way) {
+	fmt.Printf("nearest neighbor for (%v, %v)\n", x.Lat, x.Lng)
+
 	edges := []graph.Edge(nil)
 
 	// first search on the overlay graph
-	t := clusterKdTree.Overlay
-	bestStepIndex, coordOverlay, foundPoint := binarySearch(t, x, 0, len(t.EncodedSteps)-1, true /* compareLat */, trans, &edges)
+	overlay := clusterKdTree.Overlay
+	bestStepIndex, coordOverlay, foundPoint := binarySearch(overlay, x, 0, overlay.EncodedStepLen()-1,
+		true /* compareLat */, trans, &edges)
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
+
+	fmt.Printf("overlay (%v, %v) -> %v, %v\n", coordOverlay.Lat, coordOverlay.Lng, minDistance, foundPoint)
 
 	// then search on all clusters where the point is inside the bounding box of the cluster
 	clusterIndex := -1
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
+			fmt.Printf("cluster %d\n", i)
+
 			kdTree := clusterKdTree.Cluster[i]
-			stepIndex, coord, ok := binarySearch(kdTree, x, 0, t.EncodedStepLen()-1, true /* compareLat */, trans, &edges)
+			stepIndex, coord, ok := binarySearch(kdTree, x, 0, kdTree.EncodedStepLen()-1, true /* compareLat */, trans, &edges)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
+
+			fmt.Printf("cluster %d (%v, %v) -> %v, %v\n", i, coord.Lat, coord.Lng, dist, ok)
+
 			if ok && (!foundPoint || dist < minDistance) {
 				foundPoint = true
 				minDistance = dist
@@ -89,22 +103,30 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 	}
 
 	if clusterIndex >= 0 {
-		g := clusterKdTree.Cluster[clusterIndex].Graph
-		return clusterIndex, decodeWays(g, t.EncodedStep(bestStepIndex), forward, trans, &edges)
+		kdTree := clusterKdTree.Cluster[clusterIndex]
+		return clusterIndex, decodeWays(kdTree.Graph, kdTree.EncodedStep(bestStepIndex), forward, trans, &edges)
 	}
 	log.Printf("no matching bounding box found for (%v, %v)", x.Lat, x.Lng)
-	return clusterIndex, decodeWays(t.Graph, t.EncodedStep(bestStepIndex), forward, trans, &edges)
+	return clusterIndex, decodeWays(overlay.Graph, overlay.EncodedStep(bestStepIndex), forward, trans, &edges)
 }
 
+// binarySearch in one k-d tree. The index, the coordinate, and if the returned step/vertex
+// is accessible are returned.
 func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat bool,
 	trans graph.Transport, edges *[]graph.Edge) (int, geo.Coordinate, bool) {
 	g := kdTree.Graph
-	if end-start < 0 {
+
+	if end-start <= 0 {
+		startCoord, startAccessible := decodeCoordinate(g, kdTree.EncodedStep(start), trans, edges)
+		return start, startCoord, startAccessible
+	}
+
+	/*if end-start < 0 {
 		panic("nearestNeighbor: recursion to dead end")
 	} else if end-start == 0 {
 		startCoord, startAccessible := decodeCoordinate(g, kdTree.EncodedStep(start), trans, edges)
 		return start, startCoord, startAccessible
-	}
+	}*/
 	middle := (end-start)/2 + start
 
 	// exact hit
@@ -211,9 +233,14 @@ func decodeCoordinate(g graph.Graph, ec uint64, trans graph.Transport, edges *[]
 		panic("unexpected graph implementation")
 	}
 	steps := g.EdgeSteps(edge, vertex)
+	if int(stepOffset) >= len(steps) {
+		fmt.Printf("step out of bound (%v, %v, %v) len steps %v\n", vertexIndex, edgeOffset, stepOffset, len(steps))
+	}
 	return steps[stepOffset], edgeAccessible
 }
 
+// decodeWays returns one or two partital edges that are therefore called ways. Even for a vertex a
+// way is returned so that later code only has to consider ways. The other cases are explained below.
 func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, edges *[]graph.Edge) []graph.Way {
 	vertexIndex := ec >> (EdgeOffsetBits + StepOffsetBits)
 	edgeOffset := (ec >> StepOffsetBits) & MaxEdgeOffset
@@ -258,6 +285,9 @@ func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, e
 	// search in the form of edge.StartPoint, but let's keep this simple
 	// for now.
 	steps := g.EdgeSteps(edge, vertex)
+
+	fmt.Printf("way: vertex %v, edge offset: %v, step offset: %v (%v)\n", vertex, edgeOffset, offset, len(steps))
+
 	b1 := make([]geo.Coordinate, len(steps[:offset]))
 	b2 := make([]geo.Coordinate, len(steps[offset+1:]))
 	copy(b1, steps[:offset])
