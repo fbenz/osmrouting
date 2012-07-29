@@ -215,11 +215,11 @@ func (h *Heap) Pop() (graph.Vertex, float32) {
 
 func (h *Heap) Update(vertex graph.Vertex, prio float32) bool {
 	index := h.Index[int(vertex)]
-	if index == White {
+	if index == int(White) {
 		// Not in the heap yet.
 		h.Push(vertex, prio)
 		return true
-	} else if index > Black {
+	} else if index > int(Black) {
 		// In the heap, see if we need to update it.
 		if prio < h.Items[index-2].Priority {
 			h.DecreaseKey(vertex, prio)

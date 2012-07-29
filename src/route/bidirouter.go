@@ -112,35 +112,26 @@ func (r *BidiRouter) Run() {
 			edges = g.VertexEdges(curr, true /* forward */, t, edges)
 			for _, e := range edges {
 				n := g.EdgeOpposite(e, curr)
-				if sh.Color(n) == Black {
+				if sh.Processed(n) {
 					continue
 				}
 				
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
-				
-				switch sh.Color(n) {
-				case White:
-					sh.Push(n, tmpDist)
+				if sh.Update(n, tmpDist) {
 					r.SParent[n] = curr
-				case Gray:
-					if tmpDist < sh.Priority(n) {
-						sh.DecreaseKey(n, tmpDist)
-						r.SParent[n] = curr
-					}
-				}
-				
-				// Update the distance upper bound.
-				c := th.Color(n)
-				if c != White {
-					tdist := float32(0)
-					if c == Black {
-						tdist = r.TDist[n]
-					} else {
-						tdist = th.Priority(n)
-					}
-					if tmpDist + tdist < upperBound {
-						upperBound = tmpDist + tdist
-						meetVertex = n
+					
+					// Update the distance upper bound
+					if !th.Unvisited(n) {
+						tdist := float32(0)
+						if th.Processed(n) {
+							tdist = r.TDist[n]
+						} else {
+							tdist = th.Priority(n)
+						}
+						if tmpDist + tdist < upperBound {
+							upperBound = tmpDist + tdist
+							meetVertex = n
+						}
 					}
 				}
 			}
@@ -151,44 +142,35 @@ func (r *BidiRouter) Run() {
 			edges = g.VertexEdges(curr, false /* forward */, t, edges)
 			for _, e := range edges {
 				n := g.EdgeOpposite(e, curr)
-				if th.Color(n) == Black {
+				if th.Processed(n) {
 					continue
 				}
 				
 				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
-				
-				switch th.Color(n) {
-				case White:
-					th.Push(n, tmpDist)
+				if th.Update(n, tmpDist) {
 					r.TParent[n] = curr
-				case Gray:
-					if tmpDist < th.Priority(n) {
-						th.DecreaseKey(n, tmpDist)
-						r.TParent[n] = curr
-					}
-				}
-				
-				// Update the distance upper bound.
-				c := sh.Color(n)
-				if c != White {
-					sdist := float32(0)
-					if c == Black {
-						sdist = r.SDist[n]
-					} else {
-						sdist = sh.Priority(n)
-					}
-					if tmpDist + sdist < upperBound {
-						upperBound = tmpDist + sdist
-						meetVertex = n
+					
+					// Update the distance upper bound
+					if !sh.Unvisited(n) {
+						sdist := float32(0)
+						if sh.Processed(n) {
+							sdist = r.SDist[n]
+						} else {
+							sdist = sh.Priority(n)
+						}
+						if tmpDist + sdist < upperBound {
+							upperBound = tmpDist + sdist
+							meetVertex = n
+						}
 					}
 				}
 			}
 		}
-		
-		// Record the shortest path
-		r.MeetVertex = meetVertex
-		r.MDistance  = upperBound
 	}
+	
+	// Record the shortest path
+	r.MeetVertex = meetVertex
+	r.MDistance  = upperBound
 }
 
 // Result Queries

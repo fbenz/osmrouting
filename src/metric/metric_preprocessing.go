@@ -205,7 +205,7 @@ func computeMatrixThreadRouter(ready chan<- int, job *Job) {
 		queries  += boundaryVertexCount
 	}
 	
-	log.Printf("Average Querytime: %.2f µs\n", float64(duration) / float64(time.Duration(queries) * time.Millisecond))
+	log.Printf("Average Querytime: %.2f ms\n", float64(duration) / float64(time.Duration(queries) * time.Millisecond))
 	
 	ready <- 1
 }
@@ -224,16 +224,16 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 
 	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
 	
-	bidirouter := &route.BidiRouter{
-		Metric:    router.Metric,
-		Transport: router.Transport,
-	}
+	//bidirouter := &route.BidiRouter{
+	//	Metric:    router.Metric,
+	//	Transport: router.Transport,
+	//}
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
 	//pathLen := 0
 	uniduration := time.Duration(0)
-	duration := time.Duration(0)
+	//duration := time.Duration(0)
 	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
 		t1 := time.Now()
@@ -250,6 +250,7 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 			index := boundaryVertexCount * i + j
 			matrix[index] = router.Distance(v)
 			
+			/*
 			t1 := time.Now()
 			bidirouter.Reset(g)
 			bidirouter.AddSource(graph.Vertex(i), 0)
@@ -265,6 +266,8 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 				log.Fatalf("Bug in Bidirouter: Distance %v should be %v.\n",
 					dist, matrix[index])
 			}
+			*/
+			
 			//if router.Reachable(v) {
 			//	vs, _ := router.Path(v)
 			//	pathLen += len(vs)
@@ -272,10 +275,10 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 		}
 	}
 	
-	queries := time.Duration(boundaryVertexCount * boundaryVertexCount)
-	log.Printf("Average Querytime Bidi: %.2f ms\n", float64(duration) / float64(queries * time.Millisecond))
-	queries = time.Duration(boundaryVertexCount)
+	queries := time.Duration(boundaryVertexCount)
 	log.Printf("Average Querytime Uni:  %.2f ms\n", float64(uniduration) / float64(queries * time.Millisecond))
+	//queries = time.Duration(boundaryVertexCount * boundaryVertexCount)
+	//log.Printf("Average Querytime Bidi: %.2f ms\n", float64(duration) / float64(queries * time.Millisecond))
 
 	//fmt.Printf("Average path length: %v\n", float64(pathLen) / float64(len(matrix)))
 

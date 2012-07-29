@@ -60,6 +60,7 @@ func (r *Router) AddSource(v graph.Vertex, distance float32) {
 
 // Dijkstra
 
+/*
 func (r *Router) Run() {
 	g, h    := r.Graph, &r.Heap
 	t, m    := r.Transport, r.Metric
@@ -87,6 +88,30 @@ func (r *Router) Run() {
 					h.DecreaseKey(n, tmpDist)
 					r.Parent[n] = curr
 				}
+			}
+		}
+	}
+}
+*/
+
+func (r *Router) Run() {
+	g, h    := r.Graph, &r.Heap
+	t, m    := r.Transport, r.Metric
+	forward := r.Forward
+	edges   := []graph.Edge(nil)
+	
+	for !h.Empty() {
+		curr, dist := h.Pop()
+		r.Dist[curr] = dist
+		edges = g.VertexEdges(curr, forward, t, edges)
+		for _, e := range edges {
+			n := g.EdgeOpposite(e, curr)
+			if h.Processed(n) {
+				continue
+			}
+			
+			if h.Update(n, dist + float32(g.EdgeWeight(e, t, m))) {
+				r.Parent[n] = curr
 			}
 		}
 	}
