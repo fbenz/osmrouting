@@ -90,8 +90,15 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	fmt.Printf("Writing Metis file: %v s\n", time2.Sub(time1).Seconds())
 
 	// run Metis
-	cmd := exec.Command("./gpmetis" /* other option go here, like -niter=10 -ncuts=1 */, MetisGraphFile, strconv.Itoa(pi.Count))
-	err := cmd.Run()
+	// Options:
+	//  -contig: produce connected partitions, otherwise the matrix format wastes space.
+	//  -niter:  defaults to 10, but we can afford to spend more time in the preprocessing if it improves the partitoning.
+	//  -ncuts:  defaults to 1, as above, we just try 4 different partitions and pick the best one.
+	cmd := exec.Command("./gpmetis", "-contig", "-niter=50", "-ncuts=4", MetisGraphFile, strconv.Itoa(pi.Count))
+	//cmd := exec.Command("./gpmetis" /* other option go here, like -niter=10 -ncuts=1 */, MetisGraphFile, strconv.Itoa(pi.Count))
+	noise, err := cmd.CombinedOutput()
+	println(string(noise))
+	//err := cmd.Run()
 	if err != nil {
 		log.Fatal(err)
 	}

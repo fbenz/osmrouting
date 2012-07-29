@@ -176,29 +176,6 @@ func (r *BidiRouter) Run() {
 // Result Queries
 
 func (r *BidiRouter) Distance() float32 {
-	/*
-	sdist, tdist := float32(0), float32(0)
-	
-	c := (&r.SHeap).Color(r.MeetVertex)
-	if c == Black {
-		sdist = r.SDist[int(r.MeetVertex)]
-	} else if c == Gray {
-		sdist = (&r.SHeap).Priority(r.MeetVertex)
-	} else {
-		return float32(math.Inf(1))
-	}
-	
-	c = (&r.THeap).Color(r.MeetVertex)
-	if c == Black {
-		tdist = r.TDist[int(r.MeetVertex)]
-	} else if c == Gray {
-		tdist = (&r.THeap).Priority(r.MeetVertex)
-	} else {
-		return float32(math.Inf(1))
-	}
-	
-	return sdist + tdist
-	*/
 	return r.MDistance
 }
 
@@ -231,13 +208,7 @@ func (r *BidiRouter) parent_edge(u, v graph.Vertex, forward bool, buf []graph.Ed
 	return minEdge, buf
 }
 
-// Returns a shortest path from a source vertex to the vertex t or nil
-// if t is not reachable from any source vertex.
-// If Forward == true then the returned path starts at a source vertex
-// and extends to t, otherwise it starts at t and leads to a source
-// vertex.
-// The return value contains n+1 vertices vs and n edges es such that
-// es[i] is the edge from vertex vs[i] to vs[i+1].
+// Returns a shortest path from a source vertex to a target vertex.
 func (r *BidiRouter) Path(t graph.Vertex) ([]graph.Vertex, []graph.Edge) {
 	// Determine the length of the path along with the source vertex s
 	// and target vertex t.

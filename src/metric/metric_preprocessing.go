@@ -275,8 +275,8 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 		}
 	}
 	
-	queries := time.Duration(boundaryVertexCount)
-	log.Printf("Average Querytime Uni:  %.2f ms\n", float64(uniduration) / float64(queries * time.Millisecond))
+	//queries := time.Duration(boundaryVertexCount)
+	//log.Printf("Average Querytime Uni:  %.2f ms\n", float64(uniduration) / float64(queries * time.Millisecond))
 	//queries = time.Duration(boundaryVertexCount * boundaryVertexCount)
 	//log.Printf("Average Querytime Bidi: %.2f ms\n", float64(duration) / float64(queries * time.Millisecond))
 
