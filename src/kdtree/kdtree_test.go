@@ -61,9 +61,7 @@ func TestEncoding(t *testing.T) {
 	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
 
 	for i, _ := range data {
-		//if i < 2 {
 		tree.SetEncodedStep(i, data[i])
-		//}
 	}
 
 	for i, _ := range data {
@@ -90,6 +88,35 @@ func TestAppend(t *testing.T) {
 		}
 		if tree.EncodedStep(i) != s {
 			t.Fatalf("wrong content at position %d: expected %d but was %d\n", i, s, tree.EncodedStep(i))
+		}
+	}
+}
+
+func TestAppend2(t *testing.T) {
+	rnd := rand.New(rand.NewSource(time.Now().Unix()))
+	maxNum := int64(math.Pow(2, TotalBits) - 1)
+	data := make([]uint64, DataSetSize)
+	for i, _ := range data {
+		data[i] = uint64(rnd.Int63n(maxNum))
+	}
+
+	encodedSteps := make([]uint64, 0, DataSetSize*TypeSize/TotalBits)
+
+	g := make([]graph.Graph, 1)
+	coordinates := make([]geo.Coordinate, 0)
+	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+
+	for i, _ := range data {
+		tree.AppendEncodedStep(data[i])
+	}
+
+	if tree.EncodedStepLen() != len(data) {
+		t.Fatalf("wrong length: expected %d but was %d\n", len(data), tree.EncodedStepLen())
+	}
+
+	for i, _ := range data {
+		if tree.EncodedStep(i) != data[i] {
+			t.Fatalf("encoding didn't respect identity: expected %v but was %v at position %d\n", data[i], tree.EncodedStep(i), i)
 		}
 	}
 }
