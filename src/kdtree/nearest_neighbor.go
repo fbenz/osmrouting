@@ -225,17 +225,20 @@ func decodeCoordinate(g graph.Graph, ec uint64, trans graph.Transport, edges *[]
 	var edgeAccessible bool
 	switch t := g.(type) {
 	case *graph.GraphFile:
+		(*edges) = t.VertexRawEdges(vertex, *edges)
+		edgeAccessible = t.EdgeAccessible(edge, trans)
 	case *graph.OverlayGraphFile:
 		(*edges) = t.VertexRawEdges(vertex, *edges)
-		edge = (*edges)[edgeOffset]
 		edgeAccessible = t.EdgeAccessible(edge, trans)
 	default:
 		panic("unexpected graph implementation")
 	}
+	edge = (*edges)[edgeOffset]
 	steps := g.EdgeSteps(edge, vertex)
 	if int(stepOffset) >= len(steps) {
 		fmt.Printf("step out of bound (%v, %v, %v) len steps %v\n", vertexIndex, edgeOffset, stepOffset, len(steps))
 	}
+
 	return steps[stepOffset], edgeAccessible
 }
 
@@ -259,13 +262,15 @@ func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, e
 	oneway := false
 	switch t := g.(type) {
 	case *graph.GraphFile:
+		(*edges) = t.VertexRawEdges(vertex, *edges)
+		oneway = alg.GetBit(t.Oneway, uint(edge))
 	case *graph.OverlayGraphFile:
 		(*edges) = t.VertexRawEdges(vertex, *edges)
-		edge := (*edges)[edgeOffset]
 		oneway = alg.GetBit(t.Oneway, uint(edge))
 	default:
 		panic("unexpected graph implementation")
 	}
+	edge = (*edges)[edgeOffset]
 	if trans == graph.Foot {
 		oneway = false
 	}
@@ -285,8 +290,6 @@ func decodeWays(g graph.Graph, ec uint64, forward bool, trans graph.Transport, e
 	// search in the form of edge.StartPoint, but let's keep this simple
 	// for now.
 	steps := g.EdgeSteps(edge, vertex)
-
-	fmt.Printf("way: vertex %v, edge offset: %v, step offset: %v (%v)\n", vertex, edgeOffset, offset, len(steps))
 
 	b1 := make([]geo.Coordinate, len(steps[:offset]))
 	b2 := make([]geo.Coordinate, len(steps[offset+1:]))
