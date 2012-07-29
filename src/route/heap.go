@@ -13,7 +13,7 @@ const (
 	// into a single cache line, so D = 3 would also make sense, but
 	// for the metric preprocessing this is better. As always it depends
 	// on the use case...
-	D = 2
+	D               = 2
 	BranchingFactor = 1 << D
 	//CacheLineSize = 4*64 // bytes
 	// Page aligned data leads to much faster running times.
@@ -25,6 +25,7 @@ const (
 // - Gray  is visited, but not yet finished
 // - Black is processed
 type Color int
+
 const (
 	White Color = iota
 	Black
@@ -62,19 +63,19 @@ func (h *Heap) Reset(vertexCount int) {
 			h.Index[i] = 0
 		}
 	}
-	
+
 	// The Items array starts out empty, so we never need to clear it. On the
 	// other hand, the allocation is more complicated since we have to ensure
 	// the proper alignment.
 	if h.Items == nil || cap(h.Items) < vertexCount {
 		itemsPerCacheLine := CacheLineSize / 8
 		//fmt.Printf("Reallocating the Heap with capacity %v.\n", vertexCount+itemsPerCacheLine)
-		items := make([]Item, vertexCount + itemsPerCacheLine)
+		items := make([]Item, vertexCount+itemsPerCacheLine)
 		data := (*reflect.SliceHeader)(unsafe.Pointer(&items)).Data
 		// Round up and back off.
 		//skip := (CacheLineSize - (data & (CacheLineSize-1))) / 8 - 1
 		// Ensure that everything is on the same page of memory.
-		skip := (CacheLineSize - (data & (CacheLineSize-1))) / 8
+		skip := (CacheLineSize - (data & (CacheLineSize - 1))) / 8
 		h.Items = items[skip:skip]
 	} else {
 		h.Items = h.Items[:0]
@@ -84,14 +85,14 @@ func (h *Heap) Reset(vertexCount int) {
 // Algorithms
 
 func (h *Heap) move(item Item, to int) {
-	h.Index[int(item.Vertex)] = to+2
+	h.Index[int(item.Vertex)] = to + 2
 	h.Items[to] = item
 }
 
 func (h *Heap) up(index int, item Item) {
 	for index > 0 {
 		parentIndex := (index - 1) >> D
-		parentItem  := h.Items[parentIndex]
+		parentItem := h.Items[parentIndex]
 		if parentItem.Priority <= item.Priority {
 			break
 		}
@@ -108,12 +109,12 @@ func (h *Heap) down(index int, item Item) {
 		// Note: compile with -gcflags '-B', otherwise the compiler will make
 		// a mess of this.
 		child := (index << D) + 1
-		for child + BranchingFactor <= len(h.Items) {
+		for child+BranchingFactor <= len(h.Items) {
 			// Compute the child with minimum priority.
 			min := child
 			minPriority := h.Items[child].Priority
 			for i := 1; i < BranchingFactor; i++ {
-				priority := h.Items[child + i].Priority
+				priority := h.Items[child+i].Priority
 				if priority < minPriority {
 					min = child + i
 					minPriority = priority
@@ -129,7 +130,7 @@ func (h *Heap) down(index int, item Item) {
 			index = min
 			child = (index << D) + 1
 		}
-		
+
 		// Handle the leftovers.
 		if child < len(h.Items) {
 			// Find the child of minimum priority among the last array
@@ -194,7 +195,7 @@ func (h *Heap) Push(vertex graph.Vertex, prio float32) {
 
 // Pre-Condition: h.Color(vertex) == Gray, h.Priority(vertex) >= prio
 func (h *Heap) DecreaseKey(vertex graph.Vertex, prio float32) {
-	index := h.Index[int(vertex)]-2
+	index := h.Index[int(vertex)] - 2
 	h.up(index, Item{prio, uint32(vertex)})
 }
 

@@ -223,3 +223,18 @@ func AppendStep(a *Leg, b *Step) *Leg {
 	}
 }
 
+func WayToLeg(way *graph.Way, g graph.Graph, forward bool, target graph.Vertex) *Leg {
+	var step Step
+	if forward {
+		step = PartwayToStep(way.Steps, way.Target, g.VertexCoordinate(target), way.Length)
+	} else {
+		step = PartwayToStep(way.Steps, g.VertexCoordinate(target), way.Target, way.Length)
+	}
+	return &Leg{
+		Distance:      step.Distance,
+		Duration:      step.Duration,
+		StartLocation: step.StartLocation,
+		EndLocation:   step.EndLocation,
+		Steps:         []Step{step},
+	}
+}

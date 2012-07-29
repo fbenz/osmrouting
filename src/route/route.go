@@ -145,17 +145,16 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 
 	// Both are in the same Cluster
 	if startCluster == endCluster && startCluster != -1 {
-		startElements := make([]*Element, len(startWays))
-		endElements := make([]*Element, len(endWays))
-		for i, n := range startWays {
-			e := NewElement(n.Vertex, n.Length)
-			startElements[i] = e
+		router := BidiRouter{Transport: trans, Metric: m}
+		router.Reset(g.Cluster[startCluster])
+		for _, n := range startWays {
+			router.AddSource(n.Vertex, float32(n.Length)) // TODO remove cast
 		}
-		for i, n := range endWays {
-			e := NewElement(n.Vertex, n.Length)
-			endElements[i] = e
+		for _, n := range endWays {
+			router.AddTarget(n.Vertex, float32(n.Length)) // TODO remove cast
 		}
-		distance, vertices, edges := DijkstraStarter(g.Cluster[startCluster], startElements, endElements, m, trans)
+		router.Run()
+		vertices, edges := router.Path()
 		indexstart := -1
 		for i, n := range startWays {
 			if vertices[0] == n.Vertex {
@@ -171,55 +170,59 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			}
 		}
 		if indexstart != -1 && indexend != -1 {
-			return PathToLeg(g.Cluster[startCluster], distance, vertices, edges, &startWays[indexstart], &endWays[indexend])
+			return PathToLeg(g.Cluster[startCluster], float64(router.Distance()), vertices, edges, &startWays[indexstart], &endWays[indexend]) // TODO remove cast
 		} else {
 			return nil
 		}
 	} else { //They are in different Clusters or on the overlay graph
-		startboundary := []*Element(nil) // TODO Fix this
-		endboundary := []*Element(nil)   // TODO Fix this
 		startRunner := Router{Forward: true, Transport: trans, Metric: m}
 		endRunner := Router{Forward: false, Transport: trans, Metric: m}
+		overlayRunner := BidiRouter{Transport: trans, Metric: m}
+		overlayRunner.Reset(g.Overlay)
 		// TODO check if start/end vertex is boundary note
 		switch {
 		case startCluster == -1 && endCluster == -1:
-			startboundary = []*Element(nil) // TODO fix this
-			endboundary = []*Element(nil)   // TODO fix this
+			for _, s := range startWays {
+				overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
+			}
+			for _, t := range endWays {
+				overlayRunner.AddTarget(t.Vertex, float32(t.Length))
+			}
 		case startCluster == -1 && endCluster != -1:
-			startboundary = []*Element(nil) //TODO fix this
+			for _, s := range startWays {
+				overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
+			}
 			endRunner.Reset(g.Cluster[endCluster])
 			for _, e := range endWays {
 				endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
 			}
 			endRunner.Run()
 			reachable := false
-			endboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
 				v := graph.Vertex(i)
 				if endRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(endCluster, v), float64(endRunner.Distance(v))) // TODO remove cast
-					endboundary = append(endboundary, e)
+					overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
 				}
 			}
 			if !reachable {
 				return nil
 			}
 		case startCluster != -1 && endCluster == -1:
-			endboundary = []*Element(nil) // TODO fix this
+			for _, t := range endWays {
+				overlayRunner.AddTarget(t.Vertex, float32(t.Length))
+			}
 			startRunner.Reset(g.Cluster[startCluster])
 			for _, e := range startWays {
 				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
 			}
 			startRunner.Run()
 			reachable := false
-			startboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(startCluster, v), float64(startRunner.Distance(v))) // TODO remove cast
-					startboundary = append(startboundary, e)
+					overlayRunner.AddSource(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
 				}
 			}
 			if !reachable {
@@ -240,23 +243,22 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			<-c
 			<-c
 			reachable := false
-			startboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(startCluster, v), float64(startRunner.Distance(v))) // TODO remove cast
-					startboundary = append(startboundary, e)
+					overlayRunner.AddSource(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
 				}
 			}
+			if !reachable {
+				return nil
+			}
 			reachable = false
-			endboundary = make([]*Element, 1)
 			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
 				v := graph.Vertex(i)
 				if endRunner.Reachable(v) {
 					reachable = true
-					e := NewElement(g.Overlay.ClusterVertex(endCluster, v), float64(endRunner.Distance(v))) // TODO remove cast
-					endboundary = append(endboundary, e)
+					overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
 				}
 			}
 			if !reachable {
@@ -264,7 +266,8 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			}
 		}
 
-		distance, vertices, edges := DijkstraStarter(g.Overlay, startboundary, endboundary, m, trans)
+		overlayRunner.Run()
+		vertices, edge := overlayRunner.Path()
 
 		// No path found
 		if vertices == nil {
@@ -280,40 +283,118 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			}
 		}
 
-		if len(crossvertices) > 0 {
-			tmplegs := make([]*Leg, len(crossvertices))
-			if len(crossvertices) == 1 {
-				cluster, svertex := g.Overlay.VertexCluster(vertices[crossvertices[0]])
-				startvertex := []*Element{NewElement(svertex, 0)}
-				_, evertex := g.Overlay.VertexCluster(vertices[crossvertices[0]+1])
-				endvertex := []*Element{NewElement(evertex, 0)}
-				dist, path, edpath := DijkstraStarter(g.Cluster[cluster], startvertex, endvertex, m, trans)
-				tmplegs[0] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
-			} else {
-				c := make(chan int, len(crossvertices))
-				for i := 0; i < len(crossvertices); i++ {
-					go func(j int) {
-						cluster, svertex := g.Overlay.VertexCluster(vertices[crossvertices[j]])
+		tmplegs := []*Leg(nil)
+		switch len(crossvertices) {
+		case 0: // No intermediate routes
+		case 1: // Just two intermediate routes, don't create a goroutine
+			tmplegs = make([]*Leg, len(crossvertices))
+			cluster, svertex := g.Overlay.VertexCluster(vertices[crossvertices[0]])
+			_, evertex := g.Overlay.VertexCluster(vertices[crossvertices[0]+1])
+			router := BidiRouter{Transport: trans, Metric: m}
+			router.Reset(g.Cluster[cluster])
+			router.AddSource(svertex, 0)
+			router.AddTarget(evertex, 0)
+			router.Run()
+			path, edpath := router.Path()
+			dist := float64(router.Distance()) // TODO remove cast
+			tmplegs[0] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
+		default: // More than two intermediate results
+			tmplegs = make([]*Leg, len(crossvertices))
+			c := make(chan int, len(crossvertices))
+			for i := 0; i < len(crossvertices); i++ {
+				go func(j int) {
+					cluster, svertex := g.Overlay.VertexCluster(vertices[crossvertices[j]])
+					_, evertex := g.Overlay.VertexCluster(vertices[crossvertices[j]+1])
 
-						startvertex := []*Element{NewElement(svertex, 0)}
-						_, evertex := g.Overlay.VertexCluster(vertices[crossvertices[j]+1])
-						endvertex := []*Element{NewElement(evertex, 0)}
-						dist, path, edpath := DijkstraStarter(g.Cluster[cluster], startvertex, endvertex, m, trans)
-						tmplegs[j] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
-						c <- j
-					}(i)
-				}
-				for i := 0; i < len(crossvertices); i++ {
-					<-c
+					router := BidiRouter{Transport: trans, Metric: m}
+					router.Reset(g.Cluster[cluster])
+					router.AddSource(svertex, 0)
+					router.AddTarget(evertex, 0)
+					router.Run()
+					path, edpath := router.Path()
+					dist := float64(router.Distance()) // TODO remove cast
+					tmplegs[j] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
+					c <- j
+				}(i)
+			}
+			// Wait till everyone is finished
+			for i := 0; i < len(crossvertices); i++ {
+				<-c
+			}
+		}
+		// Compute the start leg
+		startLeg := (*Leg)(nil)
+		if startCluster == -1 { // Start is on overlay graph
+			if len(startWays) == 1 { // Exactly one startvertex on the overlay graph
+				startLeg = WayToLeg(&startWays[0], g.Overlay, true, vertices[0])
+			} else { // The start is on an edge between two overlay graphs
+				for _, w := range startWays {
+					if w.Vertex == vertices[0] {
+						startLeg = WayToLeg(&w, g.Overlay, true, vertices[0])
+						break
+					}
 				}
 			}
-			// TODO append the computed intermediate routes
-			_ = tmplegs
-			_ = distance
-			_ = edges
-		} else { // Adjacent Clusters, etc.
-
+		} else {
+			endvertex := g.Overlay.ClusterVertex(startCluster, vertices[0])
+			path, pathedges := startRunner.Path(endvertex)
+			startWay := (*graph.Way)(nil)
+			for _, w := range startWays {
+				if w.Vertex == endvertex {
+					startWay = &w
+					break
+				}
+			}
+			startLeg = PathToLeg(g.Cluster[startCluster], float64(startRunner.Distance(endvertex)), path, pathedges, startWay, nil) // TODO remove cast
 		}
+
+		// Compute the end leg
+		endLeg := (*Leg)(nil)
+		if endCluster == -1 { // End is on overlay graph
+			if len(endWays) == 1 { // Exactly one startvertex on the overlay graph
+				endLeg = WayToLeg(&endWays[0], g.Overlay, false, vertices[len(vertices)-1])
+			} else { // The start is on an edge between two overlay graphs
+				for _, w := range endWays {
+					if w.Vertex == vertices[len(vertices)-1] {
+						endLeg = WayToLeg(&w, g.Overlay, false, vertices[len(vertices)-1])
+						break
+					}
+				}
+			}
+		} else {
+			endvertex := g.Overlay.ClusterVertex(endCluster, vertices[len(vertices)-1])
+			path, pathedges := endRunner.Path(endvertex)
+			endWay := (*graph.Way)(nil)
+			for _, w := range endWays {
+				if w.Vertex == endvertex {
+					endWay = &w
+					break
+				}
+			}
+			endLeg = PathToLeg(g.Cluster[startCluster], float64(endRunner.Distance(endvertex)), path, pathedges, nil, endWay) // TODO remove cast
+		}
+
+		// Put the route together
+		leg := startLeg
+		if tmplegs == nil {// No intermediate cluster
+			for i := 0; i < len(vertices)-1; i++ {
+				step := EdgeToStep(g.Overlay,edge[i],vertices[i],vertices[i+1])
+				leg = AppendStep(leg, &step)
+			}
+		} else {
+			for i, j := 0, 0; i < len(vertices)-1; i++ {
+				if tmplegs != nil && crossvertices[j] == i { // The path crosses a cluster
+					leg = CombineLegs(leg, tmplegs[j])
+					j++
+				} else { // It is just an edge
+					step := EdgeToStep(g.Overlay, edge[i], vertices[i], vertices[i+1])
+					leg = AppendStep(leg, &step)
+				}
+			}
+		}
+		leg = CombineLegs(leg, endLeg)
+
+		return leg
 	}
 	return nil
 
