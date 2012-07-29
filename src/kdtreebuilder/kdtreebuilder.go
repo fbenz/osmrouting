@@ -101,7 +101,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 		vertex := graph.Vertex(i)
 		coordinates = append(coordinates, g.VertexCoordinate(vertex))
 		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
-		bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
+		bbox = bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
 
 		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
@@ -114,7 +114,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 			for k, s := range steps {
 				coordinates = append(coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, j, k))
-				bbox.Union(geo.NewBBoxPoint(s))
+				bbox = bbox.Union(geo.NewBBoxPoint(s))
 			}
 		}
 	}
