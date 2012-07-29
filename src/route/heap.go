@@ -168,6 +168,14 @@ func (h *Heap) Color(vertex graph.Vertex) Color {
 	return Gray
 }
 
+func (h *Heap) Processed(vertex graph.Vertex) bool {
+	return h.Index[int(vertex)] == int(Black)
+}
+
+func (h *Heap) Unvisited(vertex graph.Vertex) bool {
+	return h.Index[int(vertex)] == int(White)
+}
+
 // Pre-Condition: Color(vertex) == Gray
 func (h *Heap) Priority(vertex graph.Vertex) float32 {
 	return h.Items[h.Index[int(vertex)]-2].Priority
@@ -203,4 +211,20 @@ func (h *Heap) Pop() (graph.Vertex, float32) {
 		h.Items = h.Items[:0]
 	}
 	return graph.Vertex(root.Vertex), root.Priority
+}
+
+func (h *Heap) Update(vertex graph.Vertex, prio float32) bool {
+	index := h.Index[int(vertex)]
+	if index == White {
+		// Not in the heap yet.
+		h.Push(vertex, prio)
+		return true
+	} else if index > Black {
+		// In the heap, see if we need to update it.
+		if prio < h.Items[index-2].Priority {
+			h.DecreaseKey(vertex, prio)
+			return true
+		}
+	}
+	return false
 }

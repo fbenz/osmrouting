@@ -202,10 +202,10 @@ func computeMatrixThreadRouter(ready chan<- int, job *Job) {
 		matrix, diff := computeMatrixRouter(router, g.Cluster[i], boundaryVertexCount)
 		job.Matrices[i] = matrix
 		duration += diff
-		queries  += len(matrix)
+		queries  += boundaryVertexCount
 	}
 	
-	log.Printf("Average Querytime: %.2f µs\n", float64(duration) / float64(time.Duration(queries) * time.Microsecond))
+	log.Printf("Average Querytime: %.2f µs\n", float64(duration) / float64(time.Duration(queries) * time.Millisecond))
 	
 	ready <- 1
 }
@@ -223,10 +223,16 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 	}
 
 	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
+	
+	bidirouter := &route.BidiRouter{
+		Metric:    router.Metric,
+		Transport: router.Transport,
+	}
 
 	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
 	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
 	//pathLen := 0
+	uniduration := time.Duration(0)
 	duration := time.Duration(0)
 	for i := 0; i < boundaryVertexCount; i++ {
 		// run Dijkstra starting at vertex i with the given metric
@@ -234,7 +240,7 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 		router.Reset(g)
 		router.AddSource(graph.Vertex(i), 0)
 		router.Run()
-		duration += time.Since(t1)
+		uniduration += time.Since(t1)
 		//if ok, err := router.CertifySolution(); !ok {
 		//	log.Fatalf(err.Error())
 		//}
@@ -243,14 +249,35 @@ func computeMatrixRouter(router *route.Router, g graph.Graph, boundaryVertexCoun
 			v := graph.Vertex(j)
 			index := boundaryVertexCount * i + j
 			matrix[index] = router.Distance(v)
+			
+			t1 := time.Now()
+			bidirouter.Reset(g)
+			bidirouter.AddSource(graph.Vertex(i), 0)
+			bidirouter.AddTarget(graph.Vertex(j), 0)
+			bidirouter.Run()
+			duration += time.Since(t1)
+			
+			// Since floating point addition is not associative, we can expect some
+			// round off error. The relative error should be within epsilon, though.
+			dist := bidirouter.Distance()
+			if math.Abs(float64(dist - matrix[index]) / float64(dist)) > 4.88e-04 {
+			//if dist != matrix[index] {
+				log.Fatalf("Bug in Bidirouter: Distance %v should be %v.\n",
+					dist, matrix[index])
+			}
 			//if router.Reachable(v) {
 			//	vs, _ := router.Path(v)
 			//	pathLen += len(vs)
 			//}
 		}
 	}
+	
+	queries := time.Duration(boundaryVertexCount * boundaryVertexCount)
+	log.Printf("Average Querytime Bidi: %.2f ms\n", float64(duration) / float64(queries * time.Millisecond))
+	queries = time.Duration(boundaryVertexCount)
+	log.Printf("Average Querytime Uni:  %.2f ms\n", float64(uniduration) / float64(queries * time.Millisecond))
 
 	//fmt.Printf("Average path length: %v\n", float64(pathLen) / float64(len(matrix)))
 
-	return matrix, duration
+	return matrix, uniduration
 }
