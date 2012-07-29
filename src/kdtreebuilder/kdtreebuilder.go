@@ -17,6 +17,7 @@ import (
 
 const (
 	MaxThreads = 8
+	BBoxMargin = 0.002
 )
 
 var (
@@ -177,7 +178,12 @@ func writeKdTreeSubgraph(ready chan<- int, baseDir string, g *graph.GraphFile, b
 	if err != nil {
 		log.Fatal("Creating k-d tree: ", err)
 	}
-	// TODO add margin?
+	// a very simple margin is added
+	bbox.Min.Lat -= BBoxMargin
+	bbox.Min.Lng -= BBoxMargin
+	bbox.Max.Lat += BBoxMargin
+	bbox.Max.Lng += BBoxMargin
+
 	bboxes[pos] = bbox
 	ready <- 1
 }
