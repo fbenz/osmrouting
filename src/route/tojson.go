@@ -62,14 +62,25 @@ func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polylin
 }
 
 // Convert the path from start - steps - stop to a json Step
-func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, duration float64) Step {
+func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed int, c Config) Step {
 	instruction := fmt.Sprintf(
 		"Walk from (%.4f, %.4f) to (%.4f, %.4f)",
 		start.Lat, start.Lng, stop.Lat, stop.Lng)
-	length := geo.StepLength(steps)
-	if duration == 0 {
-		duration = length / 1.1 // Hack.
+	length := geo.StepLength(append(append([]geo.Coordinate{start}, steps...), stop))
+	
+	// For cars, we know how fast they can go... otherwise, we make something up.
+	duration := float64(0)
+	if c.Transport == graph.Car && maxSpeed != 0 {
+		// length is in meter, maxSpeed is in km/h, duration is in seconds.
+		duration = length * (3600.0 / 1000.0) / maxSpeed
+	} else if c.Transport == graph.Car {
+		duration = length * 0.12 // 30 km/h
+	} else if c.Transport == graph.Foot {
+		duration = length / 1.1
+	} else {
+		duration = length / 13.0
 	}
+	
 	return Step{
 		Distance:      FormatDistance(length),
 		Duration:      FormatDuration(duration),
@@ -83,8 +94,8 @@ func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, duration 
 // Convert a Path (start - steps - stop) into a json Step structure.
 // This contains some additional information, which might or might
 // not be accurate.
-func WayToStep(steps graph.Way, start, stop geo.Coordinate) Step {
-	return PartwayToStep(steps.Steps, start, stop, 0)
+func WayToStep(steps graph.Way, start, stop geo.Coordinate, c Config) Step {
+	return PartwayToStep(steps.Steps, start, stop, 0, c)
 }
 
 // Convert an Edge (u,v) into a json Step
@@ -92,8 +103,8 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex, c Config) Ste
 	step := g.EdgeSteps(edge, u, nil)
 	upos := g.VertexCoordinate(u)
 	vpos := g.VertexCoordinate(v)
-	duration := g.EdgeWeight(edge, c.Transport, c.Metric)
-	return PartwayToStep(step, upos, vpos, duration)
+	speed := g.EdgeMaxSpeed(edge)
+	return PartwayToStep(step, upos, vpos, speed, c)
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.

@@ -20,7 +20,7 @@ func DefaultMaxSpeed(way Way) float64 {
 	// Ferries obviously have intrinsically different speeds, but the tags
 	// are usually just plain missing. We go with an average speed of 12 km/h
 	// here, because that happened to be correct for a sample size of 1 ferry.
-	if way.Attributes["route"] != "ferry" {
+	if way.Attributes["route"] == "ferry" {
 		return 12
 	}
 

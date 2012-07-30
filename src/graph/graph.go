@@ -51,8 +51,10 @@ type Graph interface {
 	EdgeSteps(Edge, Vertex, []geo.Coordinate) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
 	
-	// true if this edge represents a ferry.
-	EdgeFerry(Edge) bool
+	// direct access to edge attributes
+	EdgeFerry(Edge)    bool
+	EdgeMaxSpeed(Edge) int
+	EdgeOneway(Edge)   bool
 }
 
 type OverlayGraph interface {

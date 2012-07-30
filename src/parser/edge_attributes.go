@@ -121,12 +121,12 @@ func SetBit(ary []byte, i uint32) {
 
 func (v *EdgeAttributes) SetExtendedAttributes(way osm.Way, edge uint32) {
 	// Osm Attributes
-	// Store MaxSpeed in m/s instead of km/h, since Distances are in meters.
-	speed := osm.MaxSpeed(way) * 0.277778
+	// Store MaxSpeed in km/h.
+	speed := osm.MaxSpeed(way)
 	if speed == 0 {
 		speed = 1 // Shouldn't happen, but let's be on the safe side.
 	}
-	v.MaxSpeeds[edge] = alg.Float64ToHalf(speed)
+	v.MaxSpeeds[edge] = uint16(speed)
 	
 	// Bitvectors
 	if way.Attributes["oneway"] == "true" {

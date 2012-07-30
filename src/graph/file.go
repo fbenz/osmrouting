@@ -240,8 +240,10 @@ func (g *GraphFile) EdgeWeight32(e Edge, t Transport, m Metric) float32 {
 	if m == Distance {
 		return dist
 	}
-	// speed is more complicated and depends on the transport mode.
-	speed := alg.HalfToFloat32(g.MaxSpeeds[e])
+	// Time in seconds, for a car.
+	speed := float32(g.MaxSpeeds[e])
+	return dist / speed // not a sensible unit.
+	/*
 	if t == Car || g.EdgeFerry(e) {
 		// For cars and ferries the speeds are correct.
 		return dist / speed
@@ -269,6 +271,7 @@ func (g *GraphFile) EdgeWeight32(e Edge, t Transport, m Metric) float32 {
 		speed = 6.6 + (speed - 6.6) * (8.4 / 7.3)
 	}
 	return dist / speed
+	*/
 }
 
 func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
@@ -361,6 +364,14 @@ func (g *GraphFile) EdgeAccessible(e Edge, t Transport) bool {
 
 func (g *GraphFile) EdgeFerry(e Edge) bool {
 	return alg.GetBit(g.Ferries, uint(e))
+}
+
+func (g *GraphFile) EdgeMaxSpeed(e Edge) int {
+	return int(g.MaxSpeeds[e])
+}
+
+func (g *GraphFile) EdgeOneway(e Edge) bool {
+	return alg.GetBit(g.Oneway, uint(e))
 }
 
 // Raw Interface (used to implement other tools working with GraphFiles)

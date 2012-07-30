@@ -225,7 +225,7 @@ func writeEdgeAttributes(input, output *GraphFile, edgeIndices []int) {
 		
 		// Distances
 		output.Distances[f] = input.Distances[e]
-		output.MaxSpeeds[f] = input.MaxSpeeds[f]
+		output.MaxSpeeds[f] = input.MaxSpeeds[e]
 	}
 }
 
