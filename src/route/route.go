@@ -54,101 +54,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, config Config) *Leg {
 		overlayRunner := BidiRouter{Transport: trans, Metric: m}
 		overlayRunner.Reset(g.Overlay)
 		// TODO check if start/end vertex is boundary note
-		switch {
-		case startCluster == -1 && endCluster == -1:
-			for _, s := range startWays {
-				overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
-			}
-			for _, t := range endWays {
-				overlayRunner.AddTarget(t.Vertex, float32(t.Length))
-			}
-		case startCluster == -1 && endCluster != -1:
-			for _, s := range startWays {
-				overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
-			}
-			endRunner.Reset(g.Cluster[endCluster])
-			for _, e := range endWays {
-				endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
-			}
-			endRunner.Run()
-			reachable := false
-			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
-				v := graph.Vertex(i)
-				if endRunner.Reachable(v) {
-					reachable = true
-					overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
-				}
-			}
-			if !reachable {
-				panic("No boundary vertices can reach the target.")
-			}
-		case startCluster != -1 && endCluster == -1:
-			startRunner.Reset(g.Cluster[startCluster])
-			for _, t := range endWays {
-				overlayRunner.AddTarget(t.Vertex, float32(t.Length))
-			}
-			for _, e := range startWays {
-				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
-			}
-			startRunner.Run()
-			reachable := false
-			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
-				v := graph.Vertex(i)
-				if startRunner.Reachable(v) {
-					reachable = true
-					overlayRunner.AddSource(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
-				}
-			}
-			if !reachable {
-				panic("No boundary vertices are reachable from the source.")
-			}
-		case startCluster != -1 && endCluster != -1:
-			startRunner.Reset(g.Cluster[startCluster])
-			endRunner.Reset(g.Cluster[endCluster])
-			for _, e := range startWays {
-				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
-			}
-			for _, e := range endWays {
-				endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
-			}
-			c := make(chan int, 2)
-			go func() {
-				startRunner.Run()
-				c <- 1
-			}()
-			go func() {
-				endRunner.Run()
-				c <- 1
-			}()
-			<-c
-			<-c
-			reachable := false
-			for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
-				v := graph.Vertex(i)
-				if startRunner.Reachable(v) {
-					reachable = true
-					overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), startRunner.Distance(v))
-				}
-			}
-			if !reachable {
-				panic("No boundary vertices are reachable from the source.")
-			}
-			reachable = false
-			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
-				v := graph.Vertex(i)
-				if endRunner.Reachable(v) {
-					reachable = true
-					overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
-				}
-			}
-			if !reachable {
-				fmt.Printf(" * endCluster: %v\n", endCluster)
-				fmt.Printf(" * endClusterSize: %v\n", g.Overlay.ClusterSize(endCluster))
-				fmt.Printf(" * endWays: %v\n", endWays)
-				panic("No boundary vertices can reach the target.")
-			}
-		}
-
+		intializeRouter(g, &startRunner, &endRunner, startCluster, endCluster, startWays, endWays, &overlayRunner)
 		overlayRunner.Run()
 		vertices := overlayRunner.VPath()
 
@@ -435,4 +341,101 @@ func sameCluster(g *graph.ClusterGraph, startWays, endWays []graph.Way, cluster 
 		panic("Did not find a path between two points in the same cluster.")
 	}	
 	return PathToLeg(g.Cluster[cluster], vertices, edges, &startWays[indexstart], &endWays[indexend], c)
+}
+
+func intializeRouter(g *graph.ClusterGraph, startRunner, endRunner *Router, startCluster, endCluster int, startWays, endWays []graph.Way, overlayRunner *BidiRouter) {
+	switch {
+	case startCluster == -1 && endCluster == -1:
+		for _, s := range startWays {
+			overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
+		}
+		for _, t := range endWays {
+			overlayRunner.AddTarget(t.Vertex, float32(t.Length))
+		}
+	case startCluster == -1 && endCluster != -1:
+		for _, s := range startWays {
+			overlayRunner.AddSource(s.Vertex, float32(s.Length)) // TODO remove cast
+		}
+		endRunner.Reset(g.Cluster[endCluster])
+		for _, e := range endWays {
+			endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+		}
+		endRunner.Run()
+		reachable := false
+		for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
+			v := graph.Vertex(i)
+			if endRunner.Reachable(v) {
+				reachable = true
+				overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
+			}
+		}
+		if !reachable {
+			panic("No boundary vertices can reach the target.")
+		}
+	case startCluster != -1 && endCluster == -1:
+		startRunner.Reset(g.Cluster[startCluster])
+		for _, t := range endWays {
+			overlayRunner.AddTarget(t.Vertex, float32(t.Length))
+		}
+		for _, e := range startWays {
+			startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+		}
+		startRunner.Run()
+		reachable := false
+		for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
+			v := graph.Vertex(i)
+			if startRunner.Reachable(v) {
+				reachable = true
+				overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), startRunner.Distance(v))
+			}
+		}
+		if !reachable {
+			panic("No boundary vertices are reachable from the source.")
+		}
+	case startCluster != -1 && endCluster != -1:
+		startRunner.Reset(g.Cluster[startCluster])
+		endRunner.Reset(g.Cluster[endCluster])
+		for _, e := range startWays {
+			startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+		}
+		for _, e := range endWays {
+			endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+		}
+		c := make(chan int, 2)
+		go func() {
+			startRunner.Run()
+			c <- 1
+		}()
+		go func() {
+			endRunner.Run()
+			c <- 1
+		}()
+		<-c
+		<-c
+		reachable := false
+		for i := 0; i < g.Overlay.ClusterSize(startCluster); i++ {
+			v := graph.Vertex(i)
+			if startRunner.Reachable(v) {
+				reachable = true
+				overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), startRunner.Distance(v))
+			}
+		}
+		if !reachable {
+			panic("No boundary vertices are reachable from the source.")
+		}
+		reachable = false
+		for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
+			v := graph.Vertex(i)
+			if endRunner.Reachable(v) {
+				reachable = true
+				overlayRunner.AddTarget(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
+			}
+		}
+		if !reachable {
+			fmt.Printf(" * endCluster: %v\n", endCluster)
+			fmt.Printf(" * endClusterSize: %v\n", g.Overlay.ClusterSize(endCluster))
+			fmt.Printf(" * endWays: %v\n", endWays)
+			panic("No boundary vertices can reach the target.")
+		}
+	}
 }
