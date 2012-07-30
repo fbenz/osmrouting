@@ -188,7 +188,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	// the implementation should not fail for unknown parameters/values
 
 	// Do the actual route computation.
-	result := route.ConcurrentRoutes(clusterGraph, waypoints, graph.Distance, transport)
+	result := route.Routes(clusterGraph, waypoints, graph.Distance, transport)
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
