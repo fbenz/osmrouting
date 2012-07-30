@@ -252,7 +252,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 					break
 				}
 			}
-			endLeg = PathToLeg(g.Cluster[startCluster], float64(endRunner.Distance(endvertex)), path, pathedges, nil, endWay) // TODO remove cast
+			endLeg = PathToLeg(g.Cluster[endCluster], float64(endRunner.Distance(endvertex)), path, pathedges, nil, endWay) // TODO remove cast
 		}
 
 		// Put the route together
