@@ -173,7 +173,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 		if indexstart != -1 && indexend != -1 {
 			return PathToLeg(g.Cluster[startCluster], float64(router.Distance()), vertices, edges, &startWays[indexstart], &endWays[indexend]) // TODO remove cast
 		} else {
-			return nil
+			panic("Did not find a path between two points in the same cluster.")
 		}
 	} else { //They are in different Clusters or on the overlay graph
 		startRunner := Router{Forward: true, Transport: trans, Metric: m}
@@ -207,7 +207,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 			if !reachable {
-				return nil
+				panic("No boundary vertices can reach the target.")
 			}
 		case startCluster != -1 && endCluster == -1:
 			startRunner.Reset(g.Cluster[startCluster])
@@ -227,7 +227,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 			if !reachable {
-				return nil
+				panic("No boundary vertices are reachable from the source.")
 			}
 		case startCluster != -1 && endCluster != -1:
 			startRunner.Reset(g.Cluster[startCluster])
@@ -258,7 +258,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 			if !reachable {
-				return nil
+				panic("No boundary vertices are reachable from the source.")
 			}
 			reachable = false
 			for i := 0; i < g.Overlay.ClusterSize(endCluster); i++ {
@@ -269,19 +269,19 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 			if !reachable {
-				return nil
+				panic("No boundary vertices can reach the target.")
 			}
 		}
 
 		overlayRunner.Run()
-		vertices, edge := overlayRunner.Path()
+		vertices := overlayRunner.VPath()
 
 		// No path found
 		if math.IsInf(float64(overlayRunner.Distance()), 0)  {
-			return nil
+			panic("Overlay runner found no path.")
 		}
 
-		crossvertices := make([]int, 1)
+		crossvertices := []int(nil)
 		for i := 0; i < len(vertices)-1; i++ {
 			c1, _ := g.Overlay.VertexCluster(vertices[i])
 			c2, _ := g.Overlay.VertexCluster(vertices[i+1])
@@ -385,7 +385,8 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 		leg := startLeg
 		if tmplegs == nil {// No intermediate cluster
 			for i := 0; i < len(vertices)-1; i++ {
-				step := EdgeToStep(g.Overlay,edge[i],vertices[i],vertices[i+1])
+				edge := overlayRunner.EdgeBetween(vertices[i], vertices[i+1])
+				step := EdgeToStep(g.Overlay,edge,vertices[i],vertices[i+1])
 				leg = AppendStep(leg, &step)
 			}
 		} else {
@@ -394,7 +395,8 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 					leg = CombineLegs(leg, tmplegs[j])
 					j++
 				} else { // It is just an edge
-					step := EdgeToStep(g.Overlay, edge[i], vertices[i], vertices[i+1])
+					edge := overlayRunner.EdgeBetween(vertices[i], vertices[i+1])
+					step := EdgeToStep(g.Overlay, edge, vertices[i], vertices[i+1])
 					leg = AppendStep(leg, &step)
 				}
 			}

@@ -265,3 +265,78 @@ func (r *BidiRouter) Path() ([]graph.Vertex, []graph.Edge) {
 
 	return vpath, epath
 }
+
+// Convenience function to find a forward edge (of minimum weight) from
+// vertex u to vertex v. Useful for reconstructing cut edges.
+func (r *BidiRouter) EdgeBetween(u, v graph.Vertex) graph.Edge {
+	g         := r.Graph
+	minEdge   := graph.Edge(-1)
+	minWeight := math.Inf(1)
+	for _, e := range g.VertexEdges(u, true, r.Transport, nil) {
+		n := g.EdgeOpposite(e, u)
+		if n != v {
+			continue
+		}
+		weight := g.EdgeWeight(e, r.Transport, r.Metric)
+		if weight < minWeight {
+			minEdge = e
+			minWeight = weight
+		}
+	}
+
+	if int(minEdge) == -1 {
+		log.Fatalf("Found no edge between the two given vertices.")
+	}
+
+	return minEdge
+}
+
+// Returns the vertices on a shortest path from a source vertex to a target vertex.
+// Has the great advantage that it actually works for OverlayGraphs.
+func (r *BidiRouter) VPath() []graph.Vertex {
+	// Determine the length of the path along with the source vertex s
+	// and target vertex t.
+	sourceSteps, targetSteps := 0, 0
+	s, t := r.MeetVertex, r.MeetVertex
+	for r.SParent[s] != s {
+		sourceSteps++
+		s = r.SParent[s]
+	}
+	for r.TParent[t] != t {
+		targetSteps++
+		t = r.TParent[t]
+	}
+
+	stepCount := sourceSteps + targetSteps
+	if stepCount == 0 {
+		// The meet vertex is both a source and a target vertex.
+		return []graph.Vertex{t}
+	}
+	vpath := make([]graph.Vertex, stepCount+1)
+
+	// Path from a source vertex to the meet vertex
+	if sourceSteps != 0 {
+		v := r.MeetVertex
+		i := sourceSteps
+		for r.SParent[v] != v {
+			vpath[i] = v
+			v = r.SParent[v]
+			i--
+		}
+		vpath[0] = v
+	}
+
+	// Path from the meet vertex to a target vertex.
+	if targetSteps != 0 {
+		v := r.MeetVertex
+		i := sourceSteps
+		for r.TParent[v] != v {
+			vpath[i] = v
+			v = r.TParent[v]
+			i++
+		}
+		vpath[i] = v
+	}
+
+	return vpath
+}

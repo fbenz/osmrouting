@@ -59,40 +59,6 @@ func (r *Router) AddSource(v graph.Vertex, distance float32) {
 
 // Dijkstra
 
-/*
-func (r *Router) Run() {
-	g, h    := r.Graph, &r.Heap
-	t, m    := r.Transport, r.Metric
-	forward := r.Forward
-	edges   := []graph.Edge(nil)
-
-	for !h.Empty() {
-		curr, dist := h.Pop()
-		r.Dist[curr] = dist
-		edges = g.VertexEdges(curr, forward, t, edges)
-		for _, e := range edges {
-			n := g.EdgeOpposite(e, curr)
-			// switch h.Color(n) {
-			i := h.Index[n]
-			if i == 0 { // Color == White
-				// New vertex
-				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
-				h.Push(n, tmpDist)
-				r.Parent[n] = curr
-			} else if i > 1 { // Color == Gray
-				// Already in the heap
-				tmpDist := dist + float32(g.EdgeWeight(e, t, m))
-				// if tmpDist < h.Priority(n) {
-				if tmpDist < h.Items[i-2].Priority {
-					h.DecreaseKey(n, tmpDist)
-					r.Parent[n] = curr
-				}
-			}
-		}
-	}
-}
-*/
-
 func (r *Router) Run() {
 	g, h    := r.Graph, &r.Heap
 	t, m    := r.Transport, r.Metric

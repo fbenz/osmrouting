@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	MaxSources = 5
-	MaxTargets = 5
-	MaxInitialWeight = 100
+	MaxSources = 1
+	MaxTargets = 1
+	MaxInitialWeight = 1000
 )
 
 var (
@@ -69,8 +69,8 @@ func BenchmarkBidirectional(g graph.Graph) {
 	minDuration := time.Duration(time.Hour)
 	maxDuration := time.Duration(0)
 	for i := 0; i < NumRuns; i++ {
-		numSources := rand.Intn(MaxSources)
-		numTargets := rand.Intn(MaxTargets)
+		numSources := 1+rand.Intn(MaxSources)
+		numTargets := 1+rand.Intn(MaxTargets)
 		t1 := time.Now()
 		router.Reset(g)
 		for j := 0; j < numSources; j++ {

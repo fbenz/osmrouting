@@ -119,30 +119,12 @@ func (g *OverlayGraphFile) EdgeCount() int {
 	return g.GraphFile.EdgeCount() + g.ClusterEdgeCount
 }
 
+/*
 func (g *OverlayGraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf []Edge) []Edge {
 	// This only returns the cut edges, because shortcuts lack most edge attributes.
 	return g.GraphFile.VertexEdges(v, forward, t, buf)
-	/*
-		// Add the precomputed edges.
-		cluster, indexInCluster := g.VertexCluster(v)
-		clusterStart := g.EdgeCounts[cluster]
-		clusterSize := g.ClusterSize(cluster)
-		if forward {
-			// out edges
-			outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
-			for i := 0; i < clusterSize; i++ {
-				result = append(result, Edge(outEdgesStart+i))
-			}
-		} else {
-			// in edges
-			inEdgesStart := clusterStart + int(indexInCluster)
-			for i := 0; i < clusterSize; i++ {
-				result = append(result, Edge(inEdgesStart + i*clusterSize))
-			}
-		}
-		return result
-	*/
 }
+*/
 
 func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metric, buf []Dart) []Dart {
 	result := g.GraphFile.VertexNeighbors(v, forward, t, m, buf)
@@ -153,30 +135,55 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 	clusterIndex := int(g.Cluster[cluster])
 	matrix := g.Matrices[t][m]
 	inf := float32(math.Inf(1))
+	
+	// ensure that the result slice has sufficient capacity
+	writeIndex := len(result)
+	if cap(result) >= clusterSize + len(result) {
+		result = result[:len(result)+clusterSize]
+	} else {
+		realloc := make([]Dart, len(result) + clusterSize)
+		copy(realloc, result)
+		result = realloc
+	}
+	
 	if forward {
 		// out edges
-		outEdgesStart := clusterStart + int(indexInCluster)*clusterSize
+		outEdges := clusterStart + int(indexInCluster)*clusterSize
 		for i := 0; i < clusterSize; i++ {
-			w := matrix[outEdgesStart+i]
-			u := Vertex(clusterIndex + i)
+			u := Vertex(clusterIndex)
+			w := matrix[outEdges]
+			clusterIndex++
+			outEdges++
+			
 			if i == int(indexInCluster) || w == inf {
 				continue
 			}
-			result = append(result, Dart{u, w})
+			//result[writeIndex] = Dart{u,w}
+			result[writeIndex].Vertex = u
+			result[writeIndex].Weight = w
+			writeIndex++
+			//result = append(result, Dart{u, w})
 		}
 	} else {
 		// in edges
-		inEdgesStart := clusterStart + int(indexInCluster)
+		inEdges := clusterStart + int(indexInCluster)
 		for i := 0; i < clusterSize; i++ {
-			w := matrix[inEdgesStart+i*clusterSize]
-			u := Vertex(clusterIndex + i)
+			u := Vertex(clusterIndex)
+			w := matrix[inEdges]
+			clusterIndex++
+			inEdges += clusterSize
+			
 			if i == int(indexInCluster) || w == inf {
 				continue
 			}
-			result = append(result, Dart{u, w})
+			//result[writeIndex] = Dart{u,w}
+			result[writeIndex].Vertex = u
+			result[writeIndex].Weight = w
+			writeIndex++
+			//result = append(result, Dart{u, w})
 		}
 	}
-	return result
+	return result[:writeIndex]
 }
 
 func (g *OverlayGraphFile) IsCutEdge(e Edge) bool {
