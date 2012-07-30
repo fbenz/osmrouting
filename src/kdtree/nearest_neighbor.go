@@ -160,7 +160,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	middleDist := math.Inf(1)
 	if middleAccessible {
-		middleDist, _ = e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
+		middleDist = x.Distance(middleCoord) //e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
 	}
 
 	// recursion one half and if no accessible point is returned also on the other half
@@ -191,7 +191,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 			bothHalfs = true
 		}
 	}
-	bestDistance, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
+	bestDistance := x.Distance(recCoord) //e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
 
 	// we are finished if both have already been searched
 	if bothHalfs {
@@ -204,17 +204,19 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	distToPlane := 0.0
 	if compareLat {
-		distToPlane, _ = e.To(middleCoord.Lat, x.Lng, x.Lat, x.Lng)
+		//distToPlane, _ = e.To(middleCoord.Lat, x.Lng, x.Lat, x.Lng)
+		distToPlane = x.Distance(geo.Coordinate{middleCoord.Lat, x.Lng})
 	} else {
-		distToPlane, _ = e.To(x.Lat, middleCoord.Lng, x.Lat, x.Lng)
+		//distToPlane, _ = e.To(x.Lat, middleCoord.Lng, x.Lat, x.Lng)
+		distToPlane = x.Distance(geo.Coordinate{x.Lat, middleCoord.Lng})
 	}
 
 	var recIndex2 int
 	var recCoord2 geo.Coordinate
 	recAccessible2 := false
 	// test whether the current best distance circle crosses the plane
-	//distToPlane -= 0.002
-	if bestDistance >= distToPlane {
+	//_ = distToPlane
+	if 1.5*bestDistance >= distToPlane {
 		// search on the other half
 		if !left {
 			// left
@@ -227,7 +229,8 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	bestDistance2 := math.Inf(1)
 	if recAccessible2 {
-		bestDistance2, _ = e.To(x.Lat, x.Lng, recCoord2.Lat, recCoord2.Lng)
+		//bestDistance2, _ = e.To(x.Lat, x.Lng, recCoord2.Lat, recCoord2.Lng)
+		bestDistance2 = x.Distance(recCoord2)
 	}
 
 	if bestDistance < bestDistance2 {
