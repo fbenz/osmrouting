@@ -155,7 +155,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			panic("Overlay runner found no path.")
 		}
 
-		crossvertices := []int(nil)
+		crossvertices := make([]int,1)
 		for i := 0; i < len(vertices)-1; i++ {
 			c1, _ := g.Overlay.VertexCluster(vertices[i])
 			c2, _ := g.Overlay.VertexCluster(vertices[i+1])
