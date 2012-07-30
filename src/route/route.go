@@ -265,7 +265,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 			}
 		} else {
 			for i, j := 0, 0; i < len(vertices)-1; i++ {
-				if tmplegs != nil && crossvertices[j] == i { // The path crosses a cluster
+				if tmplegs != nil && j < len(crossvertices) && crossvertices[j] == i { // The path crosses a cluster
 					leg = CombineLegs(leg, tmplegs[j])
 					j++
 				} else { // It is just an edge
