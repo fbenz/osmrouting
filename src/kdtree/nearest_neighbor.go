@@ -85,7 +85,7 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
 
 	// for debugging
-	bestCoord := coordOverlay
+	//bestCoord := coordOverlay
 
 	// then search on all clusters where the point is inside the bounding box of the cluster
 	clusterIndex := -1
@@ -102,13 +102,13 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 				clusterIndex = i
 
 				// for debugging
-				bestCoord = coord
+				//bestCoord = coord
 			}
 		}
 	}
 
 	// for debugging: linear search
-	minD := math.Inf(1)
+	/*minD := math.Inf(1)
 	minI := -1
 	minCluster := -1
 	var minC geo.Coordinate
@@ -129,7 +129,7 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 	}
 	fmt.Printf("nearest neighbor for %v\n", x)
 	fmt.Printf("binary search: min distance: %v at %v in cluster %v  %v\n", minDistance, bestStepIndex, clusterIndex, bestCoord)
-	fmt.Printf("linear search: min distance: %v at %v in cluster %v  %v\n", minD, minI, minCluster, minC)
+	fmt.Printf("linear search: min distance: %v at %v in cluster %v  %v\n", minD, minI, minCluster, minC)*/
 
 	if clusterIndex >= 0 {
 		kdTree := clusterKdTree.Cluster[clusterIndex]
@@ -144,93 +144,103 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat bool,
 	trans graph.Transport, edges *[]graph.Edge) (int, geo.Coordinate, bool) {
 
-	if end-start <= 0 {
+	if end <= start {
+		// end of the recursion
 		startCoord, startAccessible := decodeCoordinate(kdTree, start, trans, edges)
 		return start, startCoord, startAccessible
 	}
 
 	middle := (end-start)/2 + start
+	middleCoord, middleAccessible := decodeCoordinate(kdTree, middle, trans, edges)
 
 	// exact hit
-	middleCoord, middleAccessible := decodeCoordinate(kdTree, middle, trans, edges)
 	if middleAccessible && x.Lat == middleCoord.Lat && x.Lng == middleCoord.Lng {
 		return middle, middleCoord, middleAccessible
 	}
 
-	// corner case where the nearest point can be on both sides of the middle
-	if !middleAccessible || (compareLat && x.Lat == middleCoord.Lat) || (!compareLat && x.Lng == middleCoord.Lng) {
-		// recursion on both halfs
-		leftRecIndex, leftCoord, leftAccessible := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
-		rightRecIndex, rightCoord, rightAccessible := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
-
-		if !middleAccessible && !leftAccessible && !rightAccessible {
-			return middle, middleCoord, middleAccessible
-		}
-
-		// Infinity is used if a vertex/step it is not accessible as we know that at least one is accessible.
-		distMiddle := math.Inf(1)
-		distRecursionLeft := math.Inf(1)
-		distRecursionRight := math.Inf(1)
-		if middleAccessible {
-			distMiddle, _ = e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
-		}
-		if leftAccessible {
-			distRecursionLeft, _ = e.To(x.Lat, x.Lng, leftCoord.Lat, leftCoord.Lng)
-		}
-		if rightAccessible {
-			distRecursionRight, _ = e.To(x.Lat, x.Lng, rightCoord.Lat, rightCoord.Lng)
-		}
-
-		if distRecursionLeft < distRecursionRight {
-			if distRecursionLeft < distMiddle {
-				return leftRecIndex, leftCoord, leftAccessible
-			}
-			return middle, middleCoord, middleAccessible
-		}
-		if distRecursionRight < distMiddle {
-			return rightRecIndex, rightCoord, rightAccessible
-		}
-		return middle, middleCoord, middleAccessible
+	middleDist := math.Inf(1)
+	if middleAccessible {
+		middleDist, _ = e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
 	}
 
+	// recursion one half and if no accessible point is returned also on the other half
 	var left bool
 	if compareLat {
 		left = x.Lat < middleCoord.Lat
 	} else {
 		left = x.Lng < middleCoord.Lng
 	}
+	var recIndex int
+	var recCoord geo.Coordinate
+	var recAccessible bool
+	bothHalfs := false
 	if left {
-		// stop if there is nothing left of the middle
-		if middle == start {
-			return middle, middleCoord, middleAccessible
+		// left
+		recIndex, recCoord, recAccessible = binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
+		if !recAccessible {
+			// other half -> right
+			recIndex, recCoord, recAccessible = binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
+			bothHalfs = true
 		}
-
-		// recursion on the left half
-		recIndex, recCoord, recAccessible := binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
-
-		// compare middle and result from the left
-		distMiddle, _ := e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
-		distRecursion, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
-		if !recAccessible || distMiddle < distRecursion {
-			return middle, middleCoord, middleAccessible
+	} else {
+		// right
+		recIndex, recCoord, recAccessible = binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
+		if !recAccessible {
+			// other half -> left
+			recIndex, recCoord, recAccessible = binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
+			bothHalfs = true
 		}
-		return recIndex, recCoord, recAccessible
 	}
-	// stop if there is nothing right of the middle
-	if middle == end {
+	bestDistance, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
+
+	// we are finished if both have already been searched
+	if bothHalfs {
+		if middleDist < bestDistance {
+			return middle, middleCoord, middleAccessible
+		} else {
+			return recIndex, recCoord, recAccessible
+		}
+	}
+
+	distToPlane := 0.0
+	if compareLat {
+		distToPlane, _ = e.To(middleCoord.Lat, x.Lng, x.Lat, x.Lng)
+	} else {
+		distToPlane, _ = e.To(x.Lat, middleCoord.Lng, x.Lat, x.Lng)
+	}
+
+	var recIndex2 int
+	var recCoord2 geo.Coordinate
+	recAccessible2 := false
+	// test whether the current best distance circle crosses the plane
+	//distToPlane -= 0.002
+	if bestDistance >= distToPlane {
+		// search on the other half
+		if !left {
+			// left
+			recIndex2, recCoord2, recAccessible2 = binarySearch(kdTree, x, start, middle-1, !compareLat, trans, edges)
+		} else {
+			// right
+			recIndex2, recCoord2, recAccessible2 = binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
+		}
+	}
+
+	bestDistance2 := math.Inf(1)
+	if recAccessible2 {
+		bestDistance2, _ = e.To(x.Lat, x.Lng, recCoord2.Lat, recCoord2.Lng)
+	}
+
+	if bestDistance < bestDistance2 {
+		if middleDist < bestDistance {
+			return middle, middleCoord, middleAccessible
+		} else {
+			return recIndex, recCoord, recAccessible
+		}
+	}
+	if middleDist < bestDistance2 {
 		return middle, middleCoord, middleAccessible
 	}
-
-	// recursion on the right half
-	recIndex, recCoord, recAccessible := binarySearch(kdTree, x, middle+1, end, !compareLat, trans, edges)
-
-	// compare middle and result from the right
-	distMiddle, _ := e.To(x.Lat, x.Lng, middleCoord.Lat, middleCoord.Lng)
-	distRecursion, _ := e.To(x.Lat, x.Lng, recCoord.Lat, recCoord.Lng)
-	if !recAccessible || distMiddle < distRecursion {
-		return middle, middleCoord, middleAccessible
-	}
-	return recIndex, recCoord, recAccessible
+	return recIndex2, recCoord2, recAccessible2
 }
 
 // decodeCoordinate returns the coordinate of the encoded vertex/step and if it is accessible by the
