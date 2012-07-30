@@ -84,6 +84,9 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 		true /* compareLat */, trans, &edges)
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
 
+	// for debugging
+	bestCoord := coordOverlay
+
 	// then search on all clusters where the point is inside the bounding box of the cluster
 	clusterIndex := -1
 	for i, b := range clusterKdTree.BBoxes {
@@ -97,9 +100,36 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 				minDistance = dist
 				bestStepIndex = stepIndex
 				clusterIndex = i
+
+				// for debugging
+				bestCoord = coord
 			}
 		}
 	}
+
+	// for debugging: linear search
+	minD := math.Inf(1)
+	minI := -1
+	minCluster := -1
+	var minC geo.Coordinate
+	for i, b := range clusterKdTree.BBoxes {
+		if b.Contains(x) {
+			kdTree := clusterKdTree.Cluster[i]
+			for j := 0; j < kdTree.EncodedStepLen(); j++ {
+				c, oki := decodeCoordinate(kdTree, j, trans, &edges)
+				dd, _ := e.To(x.Lat, x.Lng, c.Lat, c.Lng)
+				if oki && dd < minD {
+					minD = dd
+					minI = j
+					minC = c
+					minCluster = i
+				}
+			}
+		}
+	}
+	fmt.Printf("nearest neighbor for %v\n", x)
+	fmt.Printf("binary search: min distance: %v at %v in cluster %v  %v\n", minDistance, bestStepIndex, clusterIndex, bestCoord)
+	fmt.Printf("linear search: min distance: %v at %v in cluster %v  %v\n", minD, minI, minCluster, minC)
 
 	if clusterIndex >= 0 {
 		kdTree := clusterKdTree.Cluster[clusterIndex]
