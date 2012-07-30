@@ -217,7 +217,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 		} else {
-			endvertex := g.Overlay.ClusterVertex(startCluster, vertices[0])
+			_, endvertex := g.Overlay.VertexCluster(vertices[0])
 			path, pathedges := startRunner.Path(endvertex)
 			startWay := (*graph.Way)(nil)
 			for _, w := range startWays {
@@ -243,7 +243,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 		} else {
-			endvertex := g.Overlay.ClusterVertex(endCluster, vertices[len(vertices)-1])
+			_, endvertex := g.Overlay.VertexCluster(vertices[len(vertices)-1])
 			path, pathedges := endRunner.Path(endvertex)
 			endWay := (*graph.Way)(nil)
 			for _, w := range endWays {
