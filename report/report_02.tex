@@ -66,6 +66,9 @@
 \maketitle
 
 \section{Overview}
+
+\subsection{Pre-processing}
+
 First, we pre-process the OSM data to extract a single street graph consisting of intersections in the original graph.
 For each travel mode, we extract whether a vertex or an edge is accessible.
 Our graph format consists of a compressed sparse row representation of the graph.
@@ -89,11 +92,22 @@ The result for Europe is shown in Figure~\ref{fig:part}.
 Up to now, the pre-processing is independent of the used metrics.
 This has the advantage that only the metric-specific pre-processing is needed
 for changes or additional metrics.
-For each cluster, metric, and transport mode, we precompute a matrix of the shortest
+For each cluster, metric, and transport mode, we pre-compute a matrix of the shortest
 paths of all boundary vertices to all other boundary vertices of the cluster.
 
-The whole idea of metric-independent partitioning and the metric matrices has
-been presented by Delling et al~\cite{del11}.
+The whole idea of metric-independent partitioning and the metric matrices is based
+on the approach presented by Delling et al~\cite{del11}.
+This is the approach used for Microsoft Bing.
+However, the idea is not new. 
+The earlier benchmarks by Schütz~\cite{sch04} show that a good partitioning leads
+to better performance. Especially in contrast to a simple grid.
+
+One advantage of the partition-based approach is that in contrast to many other 
+approaches arbitrary metrics  are supported and take advantage of fast queries.
+Another advantage of the separated pre-processing steps is that updates can 
+be made so fast that real-time traffic updates are possible. 
+
+\subsection{Queries}
 
 During the startup of the server, all files are mapped into the server's address space.
 As a result our startup overhead is negligible and we do not have to load data from disk afterwards.
@@ -107,19 +121,21 @@ Finally, the resulting JSON object is created and returned.
 
 The street graph is significantly smaller than the original OSM graph.
 Furthermore, it is sparse; the average out-degree is around 2.4.
-This means that Dijkstra's algorithm is efficient with a simple binary heap.
+To improve the efficiency of Dijkstra's algorithm on street graphs, we use a 4-heap
+that is optimized for the memory characteristics on the server.
 
-To find the nearest neighbor, we use a precomputed k-d tree.
+To find the nearest neighbor, we use precomputed k-d trees.
 This results in very fast queries during runtime.
-The construction algorithm is reminiscent of quicksort and can be parallelized efficiently.
-On disk the k-d tree is stored as a permutation of vertex and step indices.
-A k-d tree are created for each cluster and for the overlay graph.
+The construction algorithm is reminiscent of quicksort.
+On disk the k-d tree is stored as a permutation of encoded vertex indices, edge offset, and step offsets.
+A k-d tree is created for each cluster and for the overlay graph.
 To find the matching cluster for a waypoint, we use precomputed bounding boxes.
 
 We use Go as our implementation language.
 Go is a modern, concurrent and statically compiled programming language.
 As the standard library comes with an HTTP server and JSON marshaling,
 the initial implementation went very smoothly.
+In addition, it is a joy to parallelize computations.
 
 \section{Encountered Problems}
 
@@ -127,7 +143,6 @@ The OSM data turned out to be astonishingly clean, compared to the output of a m
 By default the data is sorted by creation date, which is nice if you want to build a history viewer.
 For our purposes, this ordering is useless if you want to apply any kind of graph algorithm
 directly to the OSM files.
-
 
 Due to the Go garbage collector, the addressable memory on a 64 bit machine is limited to 16 GB.
 Our parser needs more memory to process the whole of Germany for pedestrian routing.
@@ -143,6 +158,8 @@ this has already been useful in troubleshooting performance problems.
 Additionally, we have created a small JavaScript based frontend that 
 gives us an easy way to test and visualize the results of our implementation
 (see http://urania.mpi-inf.mpg.de:23401/awesome).
+As a reference route, the result of Google Directions is shown side-by-side.
+Google Places autocompelte is included for convenience.
 
 \begin{thebibliography}{9}
   
@@ -150,7 +167,10 @@ gives us an easy way to test and visualize the results of our implementation
 	D. Delling, A. V. Goldberg, T. Pajor, R. F. Werneck, \emph{Customizable route planning}. SEA'11. 
 	
 \bibitem{met12}
-    Metis, http://glaros.dtc.umn.edu/gkhome/metis/metis/overview.
+    \emph{Metis}, http://glaros.dtc.umn.edu/gkhome/metis/metis/overview.
+
+\bibitem{sch04}
+	B. Schütz, \emph{artition-Based Speed-Up of Dijkstra's Algorithm}. 2004, http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.115.3514.
 
 \end{thebibliography}
 
