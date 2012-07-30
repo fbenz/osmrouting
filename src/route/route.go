@@ -33,21 +33,21 @@ func Routes(g *graph.ClusterGraph, waypoints []Point, c Config) *Result {
 	return result
 }
 
-func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
+func leg(g *graph.ClusterGraph, waypoints []Point, i int, config Config) *Leg {
 	startCoord := geo.Coordinate{Lat: waypoints[i][0], Lng: waypoints[i][1]}
 	endCoord := geo.Coordinate{Lat: waypoints[i+1][0], Lng: waypoints[i+1][1]}
-	trans := c.Transport
-	m := c.Metric
+	trans := config.Transport
+	m := config.Metric
 	startCluster, startWays := kdtree.NearestNeighbor(startCoord, true /* forward */, trans)
 	endCluster, endWays := kdtree.NearestNeighbor(endCoord, false /* forward */, trans)
 	
-	if ok,l := edgeLeg(g, startWays, endWays, startCluster, endCluster); ok {
+	if ok,l := edgeLeg(g, startWays, endWays, startCluster, endCluster, config); ok {
 		return l
 	}
 
 	// Both are in the same Cluster
 	if startCluster == endCluster && startCluster != -1 {
-		return sameCluster(g, startWays, endWays, startCluster, trans, m)
+		return sameCluster(g, startWays, endWays, startCluster, config)
 	} else { //They are in different Clusters or on the overlay graph
 		startRunner := Router{Forward: true, Transport: trans, Metric: m}
 		endRunner := Router{Forward: false, Transport: trans, Metric: m}
@@ -127,7 +127,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), endRunner.Distance(v))
+					overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), startRunner.Distance(v))
 				}
 			}
 			if !reachable {
@@ -179,8 +179,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 			router.AddTarget(evertex, 0)
 			router.Run()
 			path, edpath := router.Path()
-			dist := float64(router.Distance()) // TODO remove cast
-			tmplegs[0] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
+			tmplegs[0] = PathToLeg(g.Cluster[cluster], path, edpath, nil, nil, config)
 		default: // More than two intermediate results
 			tmplegs = make([]*Leg, len(crossvertices))
 			c := make(chan int, len(crossvertices))
@@ -195,8 +194,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 					router.AddTarget(evertex, 0)
 					router.Run()
 					path, edpath := router.Path()
-					dist := float64(router.Distance()) // TODO remove cast
-					tmplegs[j] = PathToLeg(g.Cluster[cluster], dist, path, edpath, nil, nil)
+					tmplegs[j] = PathToLeg(g.Cluster[cluster], path, edpath, nil, nil, config)
 					c <- j
 				}(i)
 			}
@@ -228,7 +226,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 					break
 				}
 			}
-			startLeg = PathToLeg(g.Cluster[startCluster], float64(startRunner.Distance(endvertex)), path, pathedges, startWay, nil) // TODO remove cast
+			startLeg = PathToLeg(g.Cluster[startCluster], path, pathedges, startWay, nil, config)
 		}
 
 		// Compute the end leg
@@ -254,7 +252,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 					break
 				}
 			}
-			endLeg = PathToLeg(g.Cluster[endCluster], float64(endRunner.Distance(endvertex)), path, pathedges, nil, endWay) // TODO remove cast
+			endLeg = PathToLeg(g.Cluster[endCluster], path, pathedges, nil, endWay, config)
 		}
 
 		// Put the route together
@@ -262,7 +260,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 		if tmplegs == nil {// No intermediate cluster
 			for i := 0; i < len(vertices)-1; i++ {
 				edge := overlayRunner.EdgeBetween(vertices[i], vertices[i+1])
-				step := EdgeToStep(g.Overlay,edge,vertices[i],vertices[i+1])
+				step := EdgeToStep(g.Overlay,edge,vertices[i],vertices[i+1], config)
 				leg = AppendStep(leg, &step)
 			}
 		} else {
@@ -272,7 +270,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 					j++
 				} else { // It is just an edge
 					edge := overlayRunner.EdgeBetween(vertices[i], vertices[i+1])
-					step := EdgeToStep(g.Overlay, edge, vertices[i], vertices[i+1])
+					step := EdgeToStep(g.Overlay, edge, vertices[i], vertices[i+1], config)
 					leg = AppendStep(leg, &step)
 				}
 			}
@@ -299,7 +297,7 @@ func getDistance(g graph.Graph, v1 graph.Vertex, v2 graph.Vertex) float64 {
 }
 
 // Compute the Leg, when start and endvertex share an edge
-func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster, endCluster int) (bool, *Leg) {
+func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster, endCluster int, c Config) (bool, *Leg) {
 	allequal := true
 	oneequal := false
 	if len(startWays) != len(endWays) {
@@ -348,8 +346,8 @@ func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster
 				// TODO no route was found
 				// It is fine to output an empty polyline at the moment
 			}
-			stepDistance := geo.StepLength(polyline)
-			step := PartwayToStep(polyline, correctStartWay.Target, correctEndWay.Target, stepDistance)
+			//stepDistance := geo.StepLength(polyline)
+			step := PartwayToStep(polyline, correctStartWay.Target, correctEndWay.Target, 0)
 			steps := make([]Step, 1)
 			steps[0] = step
 			return true,&Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
@@ -368,7 +366,7 @@ func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster
 			for i, item := range correctEndWay.Steps {
 				polyline[n-i-1] = item
 			}
-			step := PartwayToStep(polyline, startWays[0].Target, correctEndWay.Target, correctEndWay.Length)
+			step := PartwayToStep(polyline, startWays[0].Target, correctEndWay.Target, 0)
 			steps := make([]Step, 1)
 			steps[0] = step
 			return true,&Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
@@ -380,7 +378,7 @@ func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster
 					break
 				}
 			}
-			step := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, endWays[0].Target, correctStartWay.Length)
+			step := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, endWays[0].Target, 0)
 			steps := make([]Step, 1)
 			steps[0] = step
 			return true, &Leg{step.Distance, step.Duration, step.StartLocation, step.EndLocation, steps}
@@ -395,9 +393,9 @@ func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster
 				}
 			}
 			step1 := PartwayToStep(correctStartWay.Steps, correctStartWay.Target, g.Cluster[startCluster].VertexCoordinate(correctStartWay.Vertex),
-				correctStartWay.Length)
+				0)
 			step2 := PartwayToStep(correctEndWay.Steps, g.Cluster[endCluster].VertexCoordinate(correctEndWay.Vertex), correctEndWay.Target,
-				correctEndWay.Length)
+				0)
 			steps := make([]Step, 2)
 			steps[0] = step1
 			steps[1] = step2
@@ -408,8 +406,8 @@ func edgeLeg(g *graph.ClusterGraph, startWays, endWays []graph.Way, startCluster
 	return false,nil
 }
 
-func sameCluster(g *graph.ClusterGraph, startWays, endWays []graph.Way, cluster int, trans graph.Transport, m graph.Metric) *Leg {
-	router := BidiRouter{Transport: trans, Metric: m}
+func sameCluster(g *graph.ClusterGraph, startWays, endWays []graph.Way, cluster int, c Config) *Leg {
+	router := BidiRouter{Transport: c.Transport, Metric: c.Metric}
 	router.Reset(g.Cluster[cluster])
 	for _, n := range startWays {
 		router.AddSource(n.Vertex, float32(n.Length)) // TODO remove cast
@@ -436,5 +434,5 @@ func sameCluster(g *graph.ClusterGraph, startWays, endWays []graph.Way, cluster 
 	if indexstart == -1 || indexend == -1 {
 		panic("Did not find a path between two points in the same cluster.")
 	}	
-	return PathToLeg(g.Cluster[cluster], float64(router.Distance()), vertices, edges, &startWays[indexstart], &endWays[indexend]) // TODO remove cast
+	return PathToLeg(g.Cluster[cluster], vertices, edges, &startWays[indexstart], &endWays[indexend], c)
 }

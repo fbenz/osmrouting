@@ -42,18 +42,10 @@ func DefaultMaxSpeed(way Way) float64 {
 		return 50
 	// These are all different depending on whether we are inside an urban
 	// area. We don't have that information unless it is explicitly tagged,
-	// in which case it will override whatever we return here. So in order
-	// to prefer higher ranked roads we return the average between the outside
-	// place and inside place values.
-	case "trunk":
-		return 90
-	case "primary", "primary_link":
-		return 75
-	case "secondary", "secondary_link":
-		return 70
-	case "tertiary", "unclassified":
-		return 65
-	case "tertiary_link":
+	// so we default to the lower value.
+	case "trunk", "primary", "primary_link",
+	     "secondary", "secondary_link", "tertiary",
+		 "unclassified", "tertiary_link":
 		return 50
 	}
 

@@ -62,13 +62,17 @@ func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polylin
 }
 
 // Convert the path from start - steps - stop to a json Step
-func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, length float64) Step {
+func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, duration float64) Step {
 	instruction := fmt.Sprintf(
 		"Walk from (%.4f, %.4f) to (%.4f, %.4f)",
 		start.Lat, start.Lng, stop.Lat, stop.Lng)
+	length := geo.StepLength(steps)
+	if duration == 0 {
+		duration = length / 1.1 // Hack.
+	}
 	return Step{
 		Distance:      FormatDistance(length),
-		Duration:      MockupDuration(length),
+		Duration:      FormatDuration(duration),
 		StartLocation: StepToPoint(start),
 		EndLocation:   StepToPoint(stop),
 		Polyline:      StepsToPolyline(steps, start, stop),
@@ -80,18 +84,20 @@ func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, length fl
 // This contains some additional information, which might or might
 // not be accurate.
 func WayToStep(steps graph.Way, start, stop geo.Coordinate) Step {
-	return PartwayToStep(steps.Steps, start, stop, steps.Length)
+	return PartwayToStep(steps.Steps, start, stop, 0)
 }
 
 // Convert an Edge (u,v) into a json Step
-func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
-	// transport (here graph.Car) does not matter for the metric distance
-	// TODO only allocate once ([]geo.Coordinate(nil))
-	return PartwayToStep(g.EdgeSteps(edge, u, []geo.Coordinate(nil)), g.VertexCoordinate(u), g.VertexCoordinate(v), g.EdgeWeight(edge, graph.Car, graph.Distance))
+func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex, c Config) Step {
+	step := g.EdgeSteps(edge, u, nil)
+	upos := g.VertexCoordinate(u)
+	vpos := g.VertexCoordinate(v)
+	duration := g.EdgeWeight(edge, c.Transport, c.Metric)
+	return PartwayToStep(step, upos, vpos, duration)
 }
 
 // Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges []graph.Edge, start, stop *graph.Way) *Leg {
+func PathToLeg(g graph.Graph, vertices []graph.Vertex, edges []graph.Edge, start, stop *graph.Way, c Config) *Leg {
 	// Determine the number of steps on this path.
 	var startPoint, endPoint Point
 	totalSteps := len(edges)
@@ -103,11 +109,17 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges [
 	}
 	steps := make([]Step, totalSteps)
 
+	distance := 0
+	duration := 0
+
 	// Add the initial step, if present
 	i := 0
 	if start != nil && start.Length > 1e-7 {
 		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
-		steps[0] = WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]))
+		step := WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]))
+		distance += step.Distance.Value
+		duration += step.Duration.Value
+		steps[i] = step
 		i++
 	}
 
@@ -115,14 +127,21 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges [
 	for j, edge := range edges {
 		from := vertices[j]
 		to := vertices[j+1]
-		steps[i] = EdgeToStep(g, edge, from, to)
+		step := EdgeToStep(g, edge, from, to, c)
+		distance += step.Distance.Value
+		duration += step.Duration.Value
+		steps[i] = step
 		i++
 	}
 
 	// Add the final step, if present
 	if stop != nil && stop.Length > 1e-7 {
 		prev := vertices[len(vertices)-1]
-		steps[i] = WayToStep(*stop, g.VertexCoordinate(prev), stop.Target)
+		step := WayToStep(*stop, g.VertexCoordinate(prev), stop.Target)
+		distance += step.Distance.Value
+		duration += step.Duration.Value
+		steps[i] = step
+		i++
 	}
 	
 	if start != nil {
@@ -138,8 +157,8 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges [
 	}
 	
 	return &Leg{
-		Distance:      FormatDistance(distance),
-		Duration:      MockupDuration(distance),
+		Distance:      FormatDistance(float64(distance)),
+		Duration:      FormatDuration(float64(duration)),
 		StartLocation: startPoint,
 		EndLocation:   endPoint,
 		Steps:         steps,
@@ -209,13 +228,14 @@ func ComputeBounds(route Route) BoundingBox {
 
 // Combine two legs into one leg
 func CombineLegs(a, b *Leg) *Leg {
-	distance := (*a).Distance.Value + (*b).Distance.Value
-	steps := append((*a).Steps, (*b).Steps...)
-	start := (*a).StartLocation
-	end := (*b).EndLocation
+	distance := a.Distance.Value + b.Distance.Value
+	duration := a.Duration.Value + b.Duration.Value
+	steps := append(a.Steps, b.Steps...)
+	start := a.StartLocation
+	end := b.EndLocation
 	return &Leg{
 		Distance:      FormatDistance(float64(distance)),
-		Duration:      MockupDuration(float64(distance)),
+		Duration:      FormatDuration(float64(duration)),
 		StartLocation: start,
 		EndLocation:   end,
 		Steps:         steps,
@@ -224,13 +244,14 @@ func CombineLegs(a, b *Leg) *Leg {
 
 //Append a Step to a leg
 func AppendStep(a *Leg, b *Step) *Leg {
-	distance := (*a).Distance.Value + (*b).Distance.Value
-	steps := append((*a).Steps, *b)
-	start := (*a).StartLocation
-	end := (*b).EndLocation
+	distance := a.Distance.Value + b.Distance.Value
+	duration := a.Duration.Value + b.Duration.Value
+	steps := append(a.Steps, *b)
+	start := a.StartLocation
+	end := b.EndLocation
 	return &Leg{
 		Distance:      FormatDistance(float64(distance)),
-		Duration:      MockupDuration(float64(distance)),
+		Duration:      FormatDuration(float64(duration)),
 		StartLocation: start,
 		EndLocation:   end,
 		Steps:         steps,
