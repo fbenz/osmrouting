@@ -47,6 +47,9 @@ func main() {
 	for _, _ = range clusterGraph.Cluster {
 		<-ready
 	}
+	for _, g := range clusterGraph.Cluster {
+		graph.CloseGraphFile(g.(*graph.GraphFile))
+	}
 
 	// write bounding boxes to file
 	fmt.Printf("Write bounding boxes\n")
@@ -87,13 +90,8 @@ func (x byLng) Less(i, j int) bool {
 }
 
 func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
-	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
-	encodedSteps := make([]uint64, 0, estimatedSize)
-
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: []uint64(nil), Coordinates: []geo.Coordinate(nil)}
 	bbox := geo.NewBBoxPoint(g.VertexCoordinate(graph.Vertex(0)))
-
-	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps}
-	t.Coordinates = make([]geo.Coordinate, 0, estimatedSize)
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
@@ -123,15 +121,11 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 }
 
 func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
-	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
-	encodedSteps := make([]uint64, 0, estimatedSize)
-
-	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps}
-	t.Coordinates = make([]geo.Coordinate, 0, estimatedSize)
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: []uint64(nil), Coordinates: []geo.Coordinate(nil)}
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
-	fmt.Printf("Vertex count: %d\n", g.VertexCount())
+	fmt.Printf("Overlay vertex count: %d\n", g.VertexCount())
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		t.Coordinates = append(t.Coordinates, g.VertexCoordinate(vertex))
@@ -220,7 +214,6 @@ func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint64 {
 			panic("edge offset too large")
 		}
 		if stepOffset >= kdtree.MaxStepOffset {
-			fmt.Printf("vertex: %d, edge offset: %v, step offset: %v\n", vertexIndex, edgeOffset, stepOffset)
 			panic("step offset too large")
 		}
 	}
