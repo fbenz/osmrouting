@@ -93,6 +93,7 @@ func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
 // Convert a single path as returned by Dijkstra to a json Leg.
 func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges []graph.Edge, start, stop *graph.Way) *Leg {
 	// Determine the number of steps on this path.
+	var startPoint, endPoint Point
 	totalSteps := len(edges)
 	if start != nil && start.Length > 1e-7 {
 		totalSteps++
@@ -123,12 +124,24 @@ func PathToLeg(g graph.Graph, distance float64, vertices []graph.Vertex, edges [
 		prev := vertices[len(vertices)-1]
 		steps[i] = WayToStep(*stop, g.VertexCoordinate(prev), stop.Target)
 	}
+	
+	if start != nil {
+		startPoint = StepToPoint(start.Target)
+	} else {
+		startPoint = steps[0].StartLocation
+	}
 
+	if stop != nil {
+		endPoint = StepToPoint(stop.Target)
+	} else {
+		endPoint = steps[len(steps)-1].EndLocation
+	}
+	
 	return &Leg{
 		Distance:      FormatDistance(distance),
 		Duration:      MockupDuration(distance),
-		StartLocation: StepToPoint(start.Target),
-		EndLocation:   StepToPoint(stop.Target),
+		StartLocation: startPoint,
+		EndLocation:   endPoint,
 		Steps:         steps,
 	}
 }
