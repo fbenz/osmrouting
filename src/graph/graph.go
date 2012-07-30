@@ -47,7 +47,7 @@ type Graph interface {
 	VertexNeighbors(Vertex, bool, Transport, Metric, []Dart) []Dart
 
 	EdgeOpposite(Edge, Vertex) Vertex
-	EdgeSteps(Edge, Vertex) []geo.Coordinate
+	EdgeSteps(Edge, Vertex, []geo.Coordinate) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
 }
 

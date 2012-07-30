@@ -46,23 +46,23 @@ func EncodeStep(start Coordinate, step []Coordinate) []byte {
 	return buf[:size]
 }
 
-func DecodeStep(start Coordinate, step []byte) []Coordinate {
+func DecodeStep(start Coordinate, step []byte, buf []Coordinate) []Coordinate {
+	buf = buf[:0]
 	prevLat, prevLng := start.Encode()
-	buf := step
-	r := make([]Coordinate, 0)
+	b := step
 
-	for len(buf) > 0 {
-		dlat, n := binary.Varint(buf)
-		buf = buf[n:]
-		dlng, m := binary.Varint(buf)
-		buf = buf[m:]
+	for len(b) > 0 {
+		dlat, n := binary.Varint(b)
+		b = b[n:]
+		dlng, m := binary.Varint(b)
+		b = b[m:]
 		lat := prevLat + int32(dlat)
 		lng := prevLng + int32(dlng)
-		r = append(r, DecodeCoordinate(lat, lng))
+		buf = append(buf, DecodeCoordinate(lat, lng))
 		prevLat, prevLng = lat, lng
 	}
 
-	return r
+	return buf
 }
 
 func StepLength(steps []Coordinate) float64 {

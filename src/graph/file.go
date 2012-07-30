@@ -202,7 +202,7 @@ func (g *GraphFile) EdgeOpposite(e Edge, from Vertex) Vertex {
 	return Vertex(g.Edges[e]) ^ from
 }
 
-func (g *GraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
+func (g *GraphFile) EdgeSteps(e Edge, from Vertex, buf []geo.Coordinate) []geo.Coordinate {
 	// In order to decode the step positions we need the starting vertex.
 	// Additionally, if this vertex is not "from", we will need to reverse
 	// the steps positions before returning.
@@ -217,7 +217,7 @@ func (g *GraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
 	firstStep := g.Steps[e]
 	lastStep  := g.Steps[e+1]
 	initial   := g.VertexCoordinate(start)
-	step      := geo.DecodeStep(initial, g.StepPositions[firstStep:lastStep])
+	step      := geo.DecodeStep(initial, g.StepPositions[firstStep:lastStep], buf)
 	
 	if !forward {
 		for i, j := 0, len(step)-1; i < j; i, j = i+1, j-1 {

@@ -95,6 +95,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
+	steps := []geo.Coordinate(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
 		t.Coordinates = append(t.Coordinates, g.VertexCoordinate(vertex))
@@ -103,7 +104,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 
 		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
-			steps := g.EdgeSteps(e, vertex)
+			steps = g.EdgeSteps(e, vertex, steps)
 
 			if len(steps) > 2000 {
 				panic("steps > 2000")
@@ -125,6 +126,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
+	steps := []geo.Coordinate(nil)
 	fmt.Printf("Overlay vertex count: %d\n", g.VertexCount())
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
@@ -133,7 +135,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 
 		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
-			steps := g.EdgeSteps(e, vertex)
+			steps = g.EdgeSteps(e, vertex, steps)
 			for k, s := range steps {
 				t.Coordinates = append(t.Coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, j, k))

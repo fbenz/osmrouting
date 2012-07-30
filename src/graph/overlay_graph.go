@@ -214,11 +214,11 @@ func (g *OverlayGraphFile) EdgeOpposite(e Edge, v Vertex) Vertex {
 }
 */
 
-func (g *OverlayGraphFile) EdgeSteps(e Edge, from Vertex) []geo.Coordinate {
+func (g *OverlayGraphFile) EdgeSteps(e Edge, from Vertex, buf []geo.Coordinate) []geo.Coordinate {
 	// Return nil unless the edge is a cross partition edge.
 	// In this case, defer to the normal Graph interface.
 	if g.IsCutEdge(e) {
-		return g.GraphFile.EdgeSteps(e, from)
+		return g.GraphFile.EdgeSteps(e, from, buf)
 	}
 	return nil
 }
