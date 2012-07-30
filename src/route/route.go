@@ -127,7 +127,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					overlayRunner.AddSource(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
+					overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), endRunner.Distance(v))
 				}
 			}
 			if !reachable {
@@ -157,7 +157,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 			panic("Overlay runner found no path.")
 		}
 
-		crossvertices := make([]int,1)
+		crossvertices := make([]int,0)
 		for i := 0; i < len(vertices)-1; i++ {
 			c1, _ := g.Overlay.VertexCluster(vertices[i])
 			c2, _ := g.Overlay.VertexCluster(vertices[i+1])
@@ -267,7 +267,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 			}
 		} else {
 			for i, j := 0, 0; i < len(vertices)-1; i++ {
-				if tmplegs != nil && crossvertices[j] == i { // The path crosses a cluster
+				if tmplegs != nil && j < len(crossvertices) && crossvertices[j] == i { // The path crosses a cluster
 					leg = CombineLegs(leg, tmplegs[j])
 					j++
 				} else { // It is just an edge
