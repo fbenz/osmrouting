@@ -52,9 +52,9 @@ type Graph interface {
 	EdgeWeight(Edge, Transport, Metric) float64
 	
 	// direct access to edge attributes
-	EdgeFerry(Edge)    bool
+	EdgeFerry(Edge) bool
 	EdgeMaxSpeed(Edge) int
-	EdgeOneway(Edge)   bool
+	EdgeOneway(Edge, Transport) bool
 }
 
 type OverlayGraph interface {

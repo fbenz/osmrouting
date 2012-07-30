@@ -6,8 +6,8 @@ import (
 )
 
 type ClusterGraph struct {
-	Overlay OverlayGraph
-	Cluster []Graph
+	Overlay *OverlayGraphFile
+	Cluster []*GraphFile
 }
 
 func OpenClusterGraph(base string, loadMatrices bool) (*ClusterGraph, error) {
@@ -16,7 +16,7 @@ func OpenClusterGraph(base string, loadMatrices bool) (*ClusterGraph, error) {
 		return nil, err
 	}
 
-	cluster := make([]Graph, overlay.ClusterCount())
+	cluster := make([]*GraphFile, overlay.ClusterCount())
 	for i := range cluster {
 		clusterDir := fmt.Sprintf("/cluster%d", i+1)
 		g, err := OpenGraphFile(path.Join(base, clusterDir), false /* ignoreErrors */)

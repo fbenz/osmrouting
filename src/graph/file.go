@@ -370,7 +370,10 @@ func (g *GraphFile) EdgeMaxSpeed(e Edge) int {
 	return int(g.MaxSpeeds[e])
 }
 
-func (g *GraphFile) EdgeOneway(e Edge) bool {
+func (g *GraphFile) EdgeOneway(e Edge, t Transport) bool {
+	if t == Foot {
+		return false
+	}
 	return alg.GetBit(g.Oneway, uint(e))
 }
 

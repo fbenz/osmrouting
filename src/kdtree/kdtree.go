@@ -20,7 +20,7 @@ const (
 )
 
 type KdTree struct {
-	Graph              graph.Graph
+	Graph              *graph.GraphFile
 	EncodedSteps       []uint64
 	Coordinates        []geo.Coordinate
 	EncodedCoordinates []int32
