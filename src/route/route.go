@@ -94,7 +94,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				v := graph.Vertex(i)
 				if startRunner.Reachable(v) {
 					reachable = true
-					overlayRunner.AddSource(g.Overlay.ClusterVertex(endCluster, v), endRunner.Distance(v))
+					overlayRunner.AddSource(g.Overlay.ClusterVertex(startCluster, v), startRunner.Distance(v))
 				}
 			}
 			if !reachable {
