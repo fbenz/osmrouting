@@ -4,6 +4,7 @@ import (
 	"geo"
 	"graph"
 	"kdtree"
+	"math"
 )
 
 func Routes(g *graph.ClusterGraph, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
@@ -209,10 +210,10 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				return nil
 			}
 		case startCluster != -1 && endCluster == -1:
+			startRunner.Reset(g.Cluster[startCluster])
 			for _, t := range endWays {
 				overlayRunner.AddTarget(t.Vertex, float32(t.Length))
 			}
-			startRunner.Reset(g.Cluster[startCluster])
 			for _, e := range startWays {
 				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
 			}
@@ -231,6 +232,12 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 		case startCluster != -1 && endCluster != -1:
 			startRunner.Reset(g.Cluster[startCluster])
 			endRunner.Reset(g.Cluster[endCluster])
+			for _, e := range startWays {
+				startRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+			}
+			for _, e := range endWays {
+				endRunner.AddSource(e.Vertex, float32(e.Length)) // TODO remove cast
+			}
 			c := make(chan int, 2)
 			go func() {
 				startRunner.Run()
@@ -270,7 +277,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 		vertices, edge := overlayRunner.Path()
 
 		// No path found
-		if vertices == nil {
+		if math.IsInf(float64(overlayRunner.Distance()), 0)  {
 			return nil
 		}
 
