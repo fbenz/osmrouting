@@ -1,6 +1,7 @@
 package route
 
 import (
+	"fmt"
 	"geo"
 	"graph"
 	"kdtree"
@@ -269,6 +270,9 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 				}
 			}
 			if !reachable {
+				fmt.Printf(" * endCluster: %v\n", endCluster)
+				fmt.Printf(" * endClusterSize: %v\n", g.Overlay.ClusterSize(endCluster))
+				fmt.Printf(" * endWays: %v\n", endWays)
 				panic("No boundary vertices can reach the target.")
 			}
 		}
@@ -405,6 +409,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans 
 
 		return leg
 	}
+	panic("And in the very end, panic.")
 	return nil
 
 	// Use the Dijkatrs version using a large slice only for long routes where the map of the

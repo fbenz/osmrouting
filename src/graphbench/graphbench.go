@@ -26,6 +26,9 @@ var (
 	InputOverlay bool
 	RandomSeed   int64
 	NumRuns      int
+	Bidirected   bool
+	Forward      bool
+	Check        bool
 )
 
 func init() {
@@ -35,6 +38,9 @@ func init() {
 	flag.BoolVar(&InputOverlay, "overlay", false, "open input as overlay graph")
 	flag.Int64Var(&RandomSeed,  "seed", 1, "random seed")
 	flag.IntVar(&NumRuns,       "runs", 1000, "number of iterations")
+	flag.BoolVar(&Bidirected,   "bidi", true, "test bidirectional dijkstra")
+	flag.BoolVar(&Forward,      "forward", true, "run forward dijkstra")
+	flag.BoolVar(&Check,        "check", true, "certify dijkstra solution")
 }
 
 func OpenGraph(base string, overlay bool) graph.Graph {
@@ -55,6 +61,10 @@ func OpenGraph(base string, overlay bool) graph.Graph {
 	if err != nil {
 		println(err.Error())
 		os.Exit(1)
+	}
+	if !Bidirected && Check {
+		println("Certificates are not available for the overlay graph.")
+		Check = false
 	}
 	return g
 }
@@ -110,6 +120,56 @@ func BenchmarkBidirectional(g graph.Graph) {
 	fmt.Printf("Minimum Duration: %.2f ms\n", minMillis)
 }
 
+func BenchmarkDijkstra(g graph.Graph) {
+	router := &route.Router {
+		Transport: graph.Car,
+		Metric:    graph.Distance,
+		Forward:   Forward,
+	}
+	
+	duration := time.Duration(0)
+	minDuration := time.Duration(time.Hour)
+	maxDuration := time.Duration(0)
+	for i := 0; i < NumRuns; i++ {
+		numSources := 1+rand.Intn(MaxSources)
+		t1 := time.Now()
+		router.Reset(g)
+		for j := 0; j < numSources; j++ {
+			for {
+				k := rand.Intn(g.VertexCount())
+				if g.VertexAccessible(graph.Vertex(k), graph.Car) {
+					router.AddSource(graph.Vertex(k), rand.Float32())
+					break
+				}
+			}
+		}
+		router.Run()
+		diff := time.Since(t1)
+
+		if diff > maxDuration {
+			maxDuration = diff
+		}
+		if diff < minDuration {
+			minDuration = diff
+		}
+		duration += diff
+
+		if Check {
+			_, err := router.CertifySolution()
+			if err != nil {
+				panic(err.Error())
+			}
+		}
+	}
+	
+	millis := float64(duration) / float64(time.Millisecond)
+	maxMillis := float64(maxDuration) / float64(time.Millisecond)
+	minMillis := float64(minDuration) / float64(time.Millisecond)
+	fmt.Printf("Average Duration: %.2f ms\n", millis / float64(NumRuns))
+	fmt.Printf("Maximum Duration: %.2f ms\n", maxMillis)
+	fmt.Printf("Minimum Duration: %.2f ms\n", minMillis)
+}
+
 func main() {
 	flag.Parse()
 	
@@ -139,9 +199,13 @@ func main() {
 	}
 
 	rand.Seed(RandomSeed)
-
+	fmt.Printf("Benchmark for %v runs.\n", NumRuns)
 	g := OpenGraph(InputFile, InputOverlay)
-	BenchmarkBidirectional(g)
+	if Bidirected {
+		BenchmarkBidirectional(g)
+	} else {
+		BenchmarkDijkstra(g)
+	}
 
 	// Write a memory profile for the most recent GC run.
 	if MemProfile != "" {
