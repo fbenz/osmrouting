@@ -127,7 +127,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, config Config) *Leg {
 			path, pathedges := startRunner.Path(endvertex)
 			startWay := (*graph.Way)(nil)
 			for _, w := range startWays {
-				if w.Vertex == endvertex {
+				if w.Vertex == path[0] {
 					startWay = &w
 					break
 				}
@@ -153,7 +153,7 @@ func leg(g *graph.ClusterGraph, waypoints []Point, i int, config Config) *Leg {
 			path, pathedges := endRunner.Path(endvertex)
 			endWay := (*graph.Way)(nil)
 			for _, w := range endWays {
-				if w.Vertex == endvertex {
+				if w.Vertex == path[len(path)-1] {
 					endWay = &w
 					break
 				}
