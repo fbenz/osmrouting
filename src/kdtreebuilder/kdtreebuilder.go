@@ -89,17 +89,17 @@ func (x byLng) Less(i, j int) bool {
 func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
 	encodedSteps := make([]uint64, 0, estimatedSize)
-	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
 	bbox := geo.NewBBoxPoint(g.VertexCoordinate(graph.Vertex(0)))
 
-	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps, Coordinates: coordinates}
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps}
+	t.Coordinates = make([]geo.Coordinate, 0, estimatedSize)
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
-		coordinates = append(coordinates, g.VertexCoordinate(vertex))
+		t.Coordinates = append(t.Coordinates, g.VertexCoordinate(vertex))
 		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 		bbox = bbox.Union(geo.NewBBoxPoint(g.VertexCoordinate(vertex)))
 
@@ -112,7 +112,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 			}
 
 			for k, s := range steps {
-				coordinates = append(coordinates, s)
+				t.Coordinates = append(t.Coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, j, k))
 				bbox = bbox.Union(geo.NewBBoxPoint(s))
 			}
@@ -125,28 +125,27 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 	estimatedSize := g.VertexCount() + 2*g.EdgeCount()
 	encodedSteps := make([]uint64, 0, estimatedSize)
-	coordinates := make([]geo.Coordinate, 0, estimatedSize)
 
-	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps, Coordinates: coordinates}
+	t := &kdtree.KdTree{Graph: g, EncodedSteps: encodedSteps}
+	t.Coordinates = make([]geo.Coordinate, 0, estimatedSize)
 
 	// line up all coordinates and their encodings in the graph
 	edges := []graph.Edge(nil)
 	fmt.Printf("Vertex count: %d\n", g.VertexCount())
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
-		coordinates = append(coordinates, g.VertexCoordinate(vertex))
+		t.Coordinates = append(t.Coordinates, g.VertexCoordinate(vertex))
 		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 
 		edges = g.VertexRawEdges(vertex, edges)
 		for j, e := range edges {
 			steps := g.EdgeSteps(e, vertex)
 			for k, s := range steps {
-				coordinates = append(coordinates, s)
+				t.Coordinates = append(t.Coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, j, k))
 			}
 		}
 	}
-
 	createSubTree(t, true)
 	return t
 }

@@ -48,7 +48,7 @@ func (t *KdTree) Swap(i, j int) {
 
 func (t *KdTree) EncodedStepLen() int {
 	if t.EncodedStepsEnd > 0 {
-		return t.EncodedStepsEnd + 1
+		return t.EncodedStepsEnd - t.EncodedStepsStart + 1
 	}
 	l := (len(t.EncodedSteps) * TypeSize) / TotalBits
 	if l > 0 && t.EncodedStep(l-1) == (1<<TotalBits)-1 {
@@ -58,8 +58,8 @@ func (t *KdTree) EncodedStepLen() int {
 }
 
 func (t *KdTree) EncodedStep(i int) uint64 {
-	index := t.EncodedStepsStart + i*TotalBits/TypeSize
-	offset := i * TotalBits % TypeSize
+	index := (t.EncodedStepsStart + i) * TotalBits / TypeSize
+	offset := (t.EncodedStepsStart + i) * TotalBits % TypeSize
 	if offset+TotalBits <= TypeSize {
 		// contained in one uint64
 		mask := (uint64(1) << TotalBits) - 1
@@ -78,8 +78,8 @@ func (t *KdTree) EncodedStep(i int) uint64 {
 }
 
 func (t *KdTree) SetEncodedStep(i int, s uint64) {
-	index := t.EncodedStepsStart + i*TotalBits/TypeSize
-	offset := i * TotalBits % TypeSize
+	index := (t.EncodedStepsStart + i) * TotalBits / TypeSize
+	offset := (t.EncodedStepsStart + i) * TotalBits % TypeSize
 	if offset+TotalBits <= TypeSize {
 		// contained in one uint64
 		mask := (uint64(1) << TotalBits) - 1
