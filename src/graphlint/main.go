@@ -132,7 +132,8 @@ func ValidateBitmaps(g *graph.GraphFile) {
 		{"edge access car",  esize, len(g.AccessEdge[graph.Car])},
 		{"edge access bike", esize, len(g.AccessEdge[graph.Bike])},
 		{"edge access foot", esize, len(g.AccessEdge[graph.Foot])},
-		{"oneway", esize, len(g.Oneway)},
+		{"oneway",  esize, len(g.Oneway)},
+		{"ferries", esize, len(g.Ferries)},
 	}
 	for _, ary := range arrays {
 		if ary.actual != ary.expected {
@@ -162,24 +163,30 @@ func ValidateEdges(g *graph.GraphFile) {
 
 // An edge weight may not be 0, +-Inf, or NaN.
 func ValidateWeights(g *graph.GraphFile) {
-	dist := g.Weights[graph.Distance]
-	if len(dist) != g.EdgeCount() {
-		log.Fatalf("Distance array truncated, len is %v, should be %v.",
-			len(dist), g.EdgeCount())
-	}
-	
-	for i := 0; i < g.EdgeCount(); i++ {
-		w := dist[i]
-		
-		if alg.IsInfHalf(w) {
-			log.Fatalf("Edge %v has distance Infinity.", i)
-		} else if alg.IsNanHalf(w) {
-			log.Fatalf("Edge %v has distance NaN.", i)
+	for m := 0; m < int(graph.MetricMax); m++ {
+		dist := g.Distances
+		if m == 1 {
+			dist = g.MaxSpeeds
 		}
 		
-		d := alg.HalfToFloat32(w)
-		if d <= 0.0 {
-			log.Fatalf("Edge %v has distance %v <= 0.", i, d)
+		if len(dist) != g.EdgeCount() {
+			log.Fatalf("Distance array truncated, len is %v, should be %v.",
+				len(dist), g.EdgeCount())
+			}
+
+		for i := 0; i < g.EdgeCount(); i++ {
+			w := dist[i]
+
+			if alg.IsInfHalf(w) {
+				log.Fatalf("Edge %v has distance Infinity.", i)
+			} else if alg.IsNanHalf(w) {
+				log.Fatalf("Edge %v has distance NaN.", i)
+			}
+
+			d := alg.HalfToFloat32(w)
+			if d <= 0.0 {
+				log.Fatalf("Edge %v has distance %v <= 0.", i, d)
+			}
 		}
 	}
 }

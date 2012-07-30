@@ -18,6 +18,7 @@ type Metric int
 
 const (
 	Distance Metric = iota
+	Time
 	MetricMax
 )
 
@@ -49,6 +50,9 @@ type Graph interface {
 	EdgeOpposite(Edge, Vertex) Vertex
 	EdgeSteps(Edge, Vertex, []geo.Coordinate) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
+	
+	// true if this edge represents a ferry.
+	EdgeFerry(Edge) bool
 }
 
 type OverlayGraph interface {

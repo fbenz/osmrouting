@@ -61,7 +61,7 @@ func main() {
 
 	rand.Seed(RandomSeed)
 
-	println("Open input file.")
+	println("Open input file. " + InputFile)
 	g, _ := graph.OpenGraphFile(InputFile, true)
 	println("Pass 1/2: Find the accessible subgraph.")
 	subgraph := AccessibleRegion(g)

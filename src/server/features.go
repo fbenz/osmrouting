@@ -5,7 +5,7 @@ package main
 type Features struct {
 	TravelMode TravelMode `json:"travelmode"`
 	Metric     Metric     `json:"metric"`
-	//	Avoid Avoid				`json:"avoid"`		not supported at the moment
+	Avoid 	   Avoid	  `json:"avoid"`
 }
 
 type TravelMode struct {
@@ -15,7 +15,10 @@ type TravelMode struct {
 }
 
 type Metric struct {
+	Distance bool	`json:"distance"`
+	Time bool		`json:"time"`
 }
 
 type Avoid struct {
+	Ferries bool	`json:"ferries"`
 }

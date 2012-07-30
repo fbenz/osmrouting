@@ -8,12 +8,12 @@ import (
 	"math"
 )
 
-func Routes(g *graph.ClusterGraph, waypoints []Point, m graph.Metric, trans graph.Transport) *Result {
+func Routes(g *graph.ClusterGraph, waypoints []Point, c Config) *Result {
 	distance := 0.0
 	duration := 0.0
 	legs := make([]*Leg, len(waypoints)-1)
 	for i := 0; i < len(waypoints)-1; i++ {
-		legs[i] = leg(g, waypoints, i, m, trans)
+		legs[i] = leg(g, waypoints, i, c)
 		distance += float64(legs[i].Distance.Value)
 		duration += float64(legs[i].Duration.Value)
 	}
@@ -33,9 +33,11 @@ func Routes(g *graph.ClusterGraph, waypoints []Point, m graph.Metric, trans grap
 	return result
 }
 
-func leg(g *graph.ClusterGraph, waypoints []Point, i int, m graph.Metric, trans graph.Transport) *Leg {
+func leg(g *graph.ClusterGraph, waypoints []Point, i int, c Config) *Leg {
 	startCoord := geo.Coordinate{Lat: waypoints[i][0], Lng: waypoints[i][1]}
 	endCoord := geo.Coordinate{Lat: waypoints[i+1][0], Lng: waypoints[i+1][1]}
+	trans := c.Transport
+	m := c.Metric
 	startCluster, startWays := kdtree.NearestNeighbor(startCoord, true /* forward */, trans)
 	endCluster, endWays := kdtree.NearestNeighbor(endCoord, false /* forward */, trans)
 	

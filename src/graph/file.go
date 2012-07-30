@@ -26,12 +26,17 @@ type GraphFile struct {
 	// for edge {u,v}, this array contains u^v
 	Edges         []uint32
 	
-	// edge weights
-	Weights       [MetricMax][]uint16
+	// edge weights, distance in meter, maxspeed in m/s, both are float16.
+	Distances     []uint16
+	MaxSpeeds     []uint16
 	
 	// edge -> first step
 	Steps         []uint32
 	StepPositions []byte
+	
+	// extended osm attributes
+	Ferries       []byte
+	
 }
 
 // I/O
@@ -51,9 +56,11 @@ func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 		{"oneway.ftf",         &g.Oneway},
 		{"edges-next.ftf",     &g.NextIn},
 		{"edges.ftf",          &g.Edges},
-		{"distances.ftf",      &g.Weights[Distance]},
+		{"distances.ftf",      &g.Distances},
 		{"steps.ftf",          &g.Steps},
 		{"step_positions.ftf", &g.StepPositions},
+		{"ferries.ftf",        &g.Ferries},
+		{"maxspeeds.ftf",      &g.MaxSpeeds},
 	}
 	
 	for _, file := range files {
@@ -67,14 +74,14 @@ func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 	bitvectors := []*[]byte {
 		&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
 		&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
-		&g.Oneway,
+		&g.Oneway, &g.Ferries,
 	}
 	for _, bv := range bitvectors {
 		p := *bv
 		*bv = make([]byte, len(p))
 		copy(*bv, p)
 		err := mm.Close(&p)
-		if err != nil {
+		if err != nil && !ignoreErrors {
 			return nil, err
 		}
 	}
@@ -87,8 +94,8 @@ func CloseGraphFile(g *GraphFile) error {
 		&g.FirstOut, &g.FirstIn, &g.Coordinates,
 		//&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
 		//&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
-		//&g.Oneway,
-		&g.NextIn, &g.Edges, &g.Weights[Distance],
+		//&g.Oneway, &g.Ferries
+		&g.NextIn, &g.Edges, &g.Distances,
 		&g.Steps, &g.StepPositions,
 	}
 	for _, p := range files {
@@ -228,8 +235,44 @@ func (g *GraphFile) EdgeSteps(e Edge, from Vertex, buf []geo.Coordinate) []geo.C
 	return step
 }
 
+func (g *GraphFile) EdgeWeight32(e Edge, t Transport, m Metric) float32 {
+	dist := alg.HalfToFloat32(g.Distances[e])
+	if m == Distance {
+		return dist
+	}
+	// speed is more complicated and depends on the transport mode.
+	speed := alg.HalfToFloat32(g.MaxSpeeds[e])
+	if t == Car || g.EdgeFerry(e) {
+		// For cars and ferries the speeds are correct.
+		return dist / speed
+	} else if t == Foot {
+		// Pedestrians are markedly more limited.
+		// To be honest, the maximum speed doesn't really matter for pedestrians,
+		// but high max speed usually implies good roads. We scale the max speed
+		// from [1, 13.9 (~50km/h)] to the interval [1, 1.5] and clamp everything
+		// above or below this.
+		if speed > 13.9 {
+			speed = 1.5
+		} else if speed > 1 {
+			speed = 1 + (speed - 1) * (1.5 / 12.9)
+		}
+		return dist / speed
+	}
+	// Finally, bicycles are similarly limited to about 30 km/h. As before we scale
+	// a slightly larger interval above 24 km/h down to the last bit of range to
+	// prefer better roads. More precisely, if the maxspeed is below 6.6 m/s we don't
+	// change a thing. Otherwise we scale the interval [6.6, 13.9] to the interval
+	// [6.6, 8.4 (~30km/h)].
+	if speed > 13.9 {
+		speed = 8.4
+	} else if speed > 6.6 {
+		speed = 6.6 + (speed - 6.6) * (8.4 / 7.3)
+	}
+	return dist / speed
+}
+
 func (g *GraphFile) EdgeWeight(e Edge, t Transport, m Metric) float64 {
-	return alg.HalfToFloat64(g.Weights[m][e])
+	return float64(g.EdgeWeight32(e, t, m))
 }
 
 // Dijkstra interface
@@ -252,7 +295,7 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 				continue
 			}
 			u := Vertex(g.Edges[i]) ^ v
-			w := alg.HalfToFloat32(g.Weights[m][i])
+			w := g.EdgeWeight32(Edge(i), t, m)
 			result = append(result, Dart{u, w})
 		}
 	} else {
@@ -265,7 +308,7 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 				continue
 			}
 			u := Vertex(g.Edges[i]) ^ v
-			w := alg.HalfToFloat32(g.Weights[m][i])
+			w := g.EdgeWeight32(Edge(i), t, m)
 			result = append(result, Dart{u, w})
 		}
 	}
@@ -283,7 +326,7 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 			bit := byte(1 << (i & 7))
 			if access[index] & bit != 0 {
 				u := Vertex(g.Edges[i]) ^ v
-				w := alg.HalfToFloat32(g.Weights[m][i])
+				w := g.EdgeWeight32(Edge(i), t, m)
 				result = append(result, Dart{u, w})
 			}
 			if i == g.NextIn[i] {
@@ -299,7 +342,7 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 			bit := byte(1 << (i & 7))
 			if access[index] & bit != 0 && oneway[index] & bit == 0 {
 				u := Vertex(g.Edges[i]) ^ v
-				w := alg.HalfToFloat32(g.Weights[m][i])
+				w := g.EdgeWeight32(Edge(i), t, m)
 				result = append(result, Dart{u, w})
 			}
 			if i == g.NextIn[i] {
@@ -312,11 +355,15 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 	return result
 }
 
-// Raw Interface (used to implement other tools working with GraphFiles)
-
-func (g *GraphFile) EdgeAccessible(v Edge, t Transport) bool {
-	return alg.GetBit(g.AccessEdge[t], uint(v))
+func (g *GraphFile) EdgeAccessible(e Edge, t Transport) bool {
+	return alg.GetBit(g.AccessEdge[t], uint(e))
 }
+
+func (g *GraphFile) EdgeFerry(e Edge) bool {
+	return alg.GetBit(g.Ferries, uint(e))
+}
+
+// Raw Interface (used to implement other tools working with GraphFiles)
 
 func (g *GraphFile) VertexRawEdges(v Vertex, buf []Edge) []Edge {
 	result := buf[:0]

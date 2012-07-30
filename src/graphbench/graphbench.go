@@ -20,15 +20,21 @@ const (
 
 var (
 	// command line flags
-	InputFile    string
-	CpuProfile   string
-	MemProfile   string
-	InputOverlay bool
-	RandomSeed   int64
-	NumRuns      int
-	Bidirected   bool
-	Forward      bool
-	Check        bool
+	InputFile      string
+	CpuProfile     string
+	MemProfile     string
+	InputOverlay   bool
+	RandomSeed     int64
+	NumRuns        int
+	Bidirected     bool
+	Forward        bool
+	Check          bool
+	InputTransport string
+	InputMetric    string
+	
+	// mode
+	Transport graph.Transport
+	Metric    graph.Metric
 )
 
 func init() {
@@ -41,6 +47,8 @@ func init() {
 	flag.BoolVar(&Bidirected,   "bidi", true, "test bidirectional dijkstra")
 	flag.BoolVar(&Forward,      "forward", true, "run forward dijkstra")
 	flag.BoolVar(&Check,        "check", true, "certify dijkstra solution")
+	flag.StringVar(&InputTransport, "transport", "car", "transport mode (car, bike, foot)")
+	flag.StringVar(&InputMetric, "metric", "distance", "metric to use (distance, time)")
 }
 
 func OpenGraph(base string, overlay bool) graph.Graph {
@@ -69,10 +77,26 @@ func OpenGraph(base string, overlay bool) graph.Graph {
 	return g
 }
 
+func ParseMode() {
+	if InputTransport == "car" {
+		Transport = graph.Car
+	} else if InputTransport == "bike" {
+		Transport = graph.Bike
+	} else {
+		Transport = graph.Foot
+	}
+	
+	if InputMetric == "distance" {
+		Metric = graph.Distance
+	} else {
+		Metric = graph.Time
+	}
+}
+
 func BenchmarkBidirectional(g graph.Graph) {
 	router := &route.BidiRouter {
-		Transport: graph.Car,
-		Metric:    graph.Distance,
+		Transport: Transport,
+		Metric:    Metric,
 	}
 	
 	duration := time.Duration(0)
@@ -199,6 +223,7 @@ func main() {
 	}
 
 	rand.Seed(RandomSeed)
+	ParseMode()
 	fmt.Printf("Benchmark for %v runs.\n", NumRuns)
 	g := OpenGraph(InputFile, InputOverlay)
 	if Bidirected {

@@ -34,6 +34,7 @@ type EdgeAttributes struct {
 	
 	// edge -> distance (float16)
 	Distances  []uint16
+	MaxSpeeds  []uint16
 	// edge -> encoded steps
 	Steps      [][]byte
 	
@@ -42,6 +43,7 @@ type EdgeAttributes struct {
 	AccessCar  []byte
 	AccessFoot []byte
 	AccessBike []byte
+	Ferries    []byte
 }
 
 func EdgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
@@ -59,12 +61,12 @@ func EdgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
 	
 	w := alg.Float64ToHalf(total)
 	if alg.IsInfHalf(w) {
-		fmt.Printf("Edge length %v overflows half, rounding to %v.\n",
-			total, alg.MaxHalfFloat)
+		//fmt.Printf("Edge length %v overflows half, rounding to %v.\n",
+		//	total, alg.MaxHalfFloat)
 		w = alg.MaxHalf
 	} else if w == 0 {
-		fmt.Printf("Edge length %v underflows half, rounding to %v.\n",
-			total, alg.MinHalfFloat)
+		//fmt.Printf("Edge length %v underflows half, rounding to %v.\n",
+		//	total, alg.MinHalfFloat)
 		w = alg.MinHalf
 	}
 	return w
@@ -118,19 +120,32 @@ func SetBit(ary []byte, i uint32) {
 }
 
 func (v *EdgeAttributes) SetExtendedAttributes(way osm.Way, edge uint32) {
+	// Osm Attributes
+	// Store MaxSpeed in m/s instead of km/h, since Distances are in meters.
+	speed := osm.MaxSpeed(way) * 0.277778
+	if speed == 0 {
+		speed = 1 // Shouldn't happen, but let's be on the safe side.
+	}
+	v.MaxSpeeds[edge] = alg.Float64ToHalf(speed)
+	
+	// Bitvectors
 	if way.Attributes["oneway"] == "true" {
 		SetBit(v.Oneway, edge)
 	}
 	
 	mask := osm.AccessMask(way)
-	if mask & osm.AccessMotorcar != 0{
+	if mask & osm.AccessMotorcar != 0 {
 		SetBit(v.AccessCar, edge)
 	}
-	if mask & osm.AccessBicycle != 0{
+	if mask & osm.AccessBicycle != 0 {
 		SetBit(v.AccessBike, edge)
 	}
 	if mask & osm.AccessFoot != 0 {
 		SetBit(v.AccessFoot, edge)
+	}
+	
+	if way.Attributes["route"] == "ferry" {
+		SetBit(v.Ferries, edge)
 	}
 }
 
@@ -170,6 +185,7 @@ func NewEdgeAttributes(graph *StreetGraph, vertices []uint32) *EdgeAttributes {
 	Create("edges-next.ftf", numEdges, &attr.NextIn)
 	Create("edges.ftf", numEdges, &attr.Edges)
 	Create("distances.ftf", numEdges, &attr.Distances)
+	Create("maxspeeds.ftf", numEdges, &attr.MaxSpeeds)
 	Allocate(numEdges+1, &attr.Steps)
 	
 	bvSize := (numEdges + 7) / 8
@@ -177,6 +193,7 @@ func NewEdgeAttributes(graph *StreetGraph, vertices []uint32) *EdgeAttributes {
 	Create("access-car.ftf",  bvSize, &attr.AccessCar)
 	Create("access-bike.ftf", bvSize, &attr.AccessBike)
 	Create("access-foot.ftf", bvSize, &attr.AccessFoot)
+	Create("ferries.ftf",     bvSize, &attr.Ferries)
 	
 	for i, _ := range attr.FirstIn {
 		attr.FirstIn[i] = 0xffffffff
@@ -193,11 +210,13 @@ func WriteEdgeAttributes(attr *EdgeAttributes) {
 	Close(&attr.NextIn)
 	Close(&attr.Edges)
 	Close(&attr.Distances)
+	Close(&attr.MaxSpeeds)
 	
 	Close(&attr.Oneway)
 	Close(&attr.AccessCar)
 	Close(&attr.AccessBike)
 	Close(&attr.AccessFoot)
+	Close(&attr.Ferries)
 	
 	// Compute the step indices
 	var steps []uint32

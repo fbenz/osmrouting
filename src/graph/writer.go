@@ -107,9 +107,11 @@ func createGraphFile(base string, vertexCount, edgeCount, stepSize int) (*GraphF
 		{"oneway.ftf",         edgeBits,      &g.Oneway},
 		{"edges-next.ftf",     edgeCount,     &g.NextIn},
 		{"edges.ftf",          edgeCount,     &g.Edges},
-		{"distances.ftf",      edgeCount,     &g.Weights[Distance]},
+		{"distances.ftf",      edgeCount,     &g.Distances},
 		{"steps.ftf",          edgeCount+1,   &g.Steps},
 		{"step_positions.ftf", stepSize,      &g.StepPositions},
+		{"ferries.ftf",        edgeBits,      &g.Ferries},
+		{"maxspeeds.ftf",      edgeCount,     &g.MaxSpeeds},
 	}
 	
 	for _, file := range files {
@@ -217,9 +219,13 @@ func writeEdgeAttributes(input, output *GraphFile, edgeIndices []int) {
 				alg.SetBit(output.AccessEdge[t], uint(f))
 			}
 		}
+		if alg.GetBit(input.Ferries, uint(e)) {
+			alg.SetBit(output.Ferries, uint(f))
+		}
 		
 		// Distances
-		output.Weights[Distance][f] = input.Weights[Distance][e]
+		output.Distances[f] = input.Distances[e]
+		output.MaxSpeeds[f] = input.MaxSpeeds[f]
 	}
 }
 

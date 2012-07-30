@@ -37,6 +37,9 @@ const (
 	TravelmodeCar  = "driving"
 	TravelmodeFoot = "walking"
 	TravelmodeBike = "bicycling"
+	
+	MetricDistance = "distance"
+	MetricTime = "time"
 )
 
 var (
@@ -116,8 +119,14 @@ func setup() error {
 	}
 
 	// Create the feature response only once (no change at runtime).
-	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
-	supportedFeatures := &Features{TravelMode: supportedTravelmodes}
+	supportedTravelmodes  := TravelMode{Driving: true, Walking: true, Bicycling: true}
+	supportedMetrics      := Metric{Distance: true, Time: true}
+	supportedRestrictions := Avoid{Ferries: true}
+	supportedFeatures := &Features{
+		TravelMode: supportedTravelmodes,
+		Metric:     supportedMetrics,
+		Avoid:      supportedRestrictions,
+	}
 	if fp, err := json.Marshal(supportedFeatures); err != nil {
 		log.Fatal("Creating feature response: ", err)
 		return err
@@ -175,6 +184,31 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	transport := getTransport(travelmode)
+	
+	// Metrics
+	metric := graph.Distance
+	if urlParameter[ParameterMetric] != nil {
+		switch urlParameter[ParameterMetric][0] {
+		case MetricDistance:
+			// nothing to do here
+		case MetricTime:
+			metric = graph.Time
+		default:
+			http.Error(w, "wrong metric", http.StatusBadRequest)
+			return
+		}
+	}
+	
+	// Restrictions
+	avoidFerries := false
+	if urlParameter[ParameterAvoid] != nil {
+		if urlParameter[ParameterAvoid][0] == "ferries" {
+			avoidFerries = true
+		} else {
+			http.Error(w, "wrong avoid", http.StatusBadRequest)
+			return
+		}
+	}
 
 	cachingKey := urlParameter[ParameterWaypoints][0] + travelmode
 	if FlagCaching {
@@ -189,7 +223,12 @@ func routes(w http.ResponseWriter, r *http.Request) {
 
 	// Do the actual route computation.
 	// TODO use route.ConcurrentRoues?
-	result := route.Routes(clusterGraph, waypoints, graph.Distance, transport)
+	config := route.Config{
+		Transport:    transport,
+		Metric:       metric,
+		AvoidFerries: avoidFerries,
+	}
+	result := route.Routes(clusterGraph, waypoints, config)
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
