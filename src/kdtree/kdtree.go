@@ -20,9 +20,10 @@ const (
 )
 
 type KdTree struct {
-	Graph        graph.Graph
-	EncodedSteps []uint64
-	Coordinates  []geo.Coordinate
+	Graph              graph.Graph
+	EncodedSteps       []uint64
+	Coordinates        []geo.Coordinate
+	EncodedCoordinates []int32
 	// It is inefficient to create a sub slice of EncodedSteps due to the used encoding.
 	// Thus, we use start and end pointer instead. 
 	EncodedStepsStart int

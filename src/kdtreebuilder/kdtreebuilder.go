@@ -117,6 +117,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 			}
 		}
 	}
+
 	createSubTree(t, true)
 	return t, bbox
 }
@@ -142,6 +143,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 			}
 		}
 	}
+
 	createSubTree(t, true)
 	return t
 }
@@ -199,11 +201,11 @@ func writeToFile(t *kdtree.KdTree, baseDir string) error {
 	if err != nil {
 		return err
 	}
-	writeErr := binary.Write(output, binary.LittleEndian, t.EncodedSteps)
-	if writeErr != nil {
-		return writeErr
+	err = binary.Write(output, binary.LittleEndian, t.EncodedSteps)
+	if err != nil {
+		return err
 	}
-	return nil
+	return writeCoordinates(t, baseDir)
 }
 
 func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint64 {
@@ -224,4 +226,20 @@ func encodeCoordinate(vertexIndex, edgeOffset, stepOffset int) uint64 {
 	ec |= uint64(edgeOffset) << kdtree.StepOffsetBits
 	ec |= uint64(stepOffset)
 	return ec
+}
+
+func writeCoordinates(t *kdtree.KdTree, dir string) error {
+	var coordinates []int32
+	err := mm.Create(path.Join(dir, "coordinates.ftf"), len(t.Coordinates)*2, &coordinates)
+	if err != nil {
+		return err
+	}
+
+	for i, c := range t.Coordinates {
+		lat, lng := c.Encode()
+		coordinates[2*i] = lat
+		coordinates[2*i+1] = lng
+	}
+
+	return mm.Close(&coordinates)
 }
