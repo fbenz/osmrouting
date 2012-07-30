@@ -84,9 +84,6 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 		true /* compareLat */, trans, &edges)
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
 
-	// for debugging
-	//bestCoord := coordOverlay
-
 	// then search on all clusters where the point is inside the bounding box of the cluster
 	clusterIndex := -1
 	for i, b := range clusterKdTree.BBoxes {
@@ -100,36 +97,9 @@ func NearestNeighbor(x geo.Coordinate, forward bool, trans graph.Transport) (int
 				minDistance = dist
 				bestStepIndex = stepIndex
 				clusterIndex = i
-
-				// for debugging
-				//bestCoord = coord
 			}
 		}
 	}
-
-	// for debugging: linear search
-	/*minD := math.Inf(1)
-	minI := -1
-	minCluster := -1
-	var minC geo.Coordinate
-	for i, b := range clusterKdTree.BBoxes {
-		if b.Contains(x) {
-			kdTree := clusterKdTree.Cluster[i]
-			for j := 0; j < kdTree.EncodedStepLen(); j++ {
-				c, oki := decodeCoordinate(kdTree, j, trans, &edges)
-				dd, _ := e.To(x.Lat, x.Lng, c.Lat, c.Lng)
-				if oki && dd < minD {
-					minD = dd
-					minI = j
-					minC = c
-					minCluster = i
-				}
-			}
-		}
-	}
-	fmt.Printf("nearest neighbor for %v\n", x)
-	fmt.Printf("binary search: min distance: %v at %v in cluster %v  %v\n", minDistance, bestStepIndex, clusterIndex, bestCoord)
-	fmt.Printf("linear search: min distance: %v at %v in cluster %v  %v\n", minD, minI, minCluster, minC)*/
 
 	if clusterIndex >= 0 {
 		kdTree := clusterKdTree.Cluster[clusterIndex]
@@ -204,10 +174,8 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	distToPlane := 0.0
 	if compareLat {
-		//distToPlane, _ = e.To(middleCoord.Lat, x.Lng, x.Lat, x.Lng)
 		distToPlane = x.Distance(geo.Coordinate{middleCoord.Lat, x.Lng})
 	} else {
-		//distToPlane, _ = e.To(x.Lat, middleCoord.Lng, x.Lat, x.Lng)
 		distToPlane = x.Distance(geo.Coordinate{x.Lat, middleCoord.Lng})
 	}
 
@@ -215,7 +183,6 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 	var recCoord2 geo.Coordinate
 	recAccessible2 := false
 	// test whether the current best distance circle crosses the plane
-	//_ = distToPlane
 	if 1.5*bestDistance >= distToPlane {
 		// search on the other half
 		if !left {
@@ -229,7 +196,6 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	bestDistance2 := math.Inf(1)
 	if recAccessible2 {
-		//bestDistance2, _ = e.To(x.Lat, x.Lng, recCoord2.Lat, recCoord2.Lng)
 		bestDistance2 = x.Distance(recCoord2)
 	}
 
