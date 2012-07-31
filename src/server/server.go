@@ -55,7 +55,7 @@ var (
 
 	startupTime time.Time
 
-	clusterGraph *graph.GraphFile
+	clusterGraph *graph.ClusterGraph
 )
 
 func init() {
@@ -100,7 +100,7 @@ func setup() error {
 	// Load the cluster graphs and the overlay graph as well as the
 	// precomputed matrices for the metrics.
 	var err error
-	clusterGraph, err = graph.OpenGraphFile(FlagDir, false)
+	clusterGraph, err = graph.OpenClusterGraph(FlagDir, true /* load matrices */)
 	if err != nil {
 		return err
 	}
