@@ -95,7 +95,7 @@ func (r *RoutePlanner) UnionGraph(src, dst kdtree.Location) (*graph.UnionGraph, 
 	srcCluster := -1
 	dstCluster := -1
 	
-	//log.Printf("Create UnionGraph")
+	log.Printf("Create UnionGraph")
 	
 	if src.Cluster != -1 {
 		cluster = append(cluster, r.Graph.Cluster[src.Cluster])
@@ -176,7 +176,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	g, srcCluster, dstCluster := r.UnionGraph(src, dst)
 	
 	// Run Dijkstra on the union graph
-	//log.Printf("Dijkstra on the UnionGraph")
+	log.Printf("Dijkstra on the UnionGraph")
 	router := &BidiRouter{
 		Transport: r.Transport,
 		Metric:    r.Metric,
@@ -193,7 +193,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	router.Run()
 	
 	// Gather the result path.
-	//log.Printf("Construct the vertex path.")
+	log.Printf("Construct the vertex path.")
 	vpath    := router.VPath()
 	segments := [][]Step(nil)
 	sketches := []int(nil)
@@ -275,7 +275,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	}
 	
 	// Elaborate the result path
-	//log.Printf("Elaborate the path.")
+	log.Printf("Elaborate the path.")
 	Multiplex(len(sketches), r.ConcurrentPaths, func (i int) {
 		// Find the boundary vertices and cluster corresponding to this shortcut.
 		index := indices[i]
@@ -284,12 +284,12 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 		_, v := g.Overlay.VertexCluster(vpath[index+1])
 		
 		// Ensure that the vertices are accessible
-		//log.Printf("Routing from vertex %v to %v", u, v)
-		//log.Printf("Access[u]: %v", cluster.VertexAccessible(u, r.Transport))
-		//log.Printf("Access[v]: %v", cluster.VertexAccessible(v, r.Transport))
+		log.Printf("Routing from vertex %v to %v", u, v)
+		log.Printf("Access[u]: %v", cluster.VertexAccessible(u, r.Transport))
+		log.Printf("Access[v]: %v", cluster.VertexAccessible(v, r.Transport))
 		
 		// Run Dijkstra to find a u -> v path.
-		//log.Printf("Run Dijkstra within a cluster.")
+		log.Printf("Run Dijkstra within a cluster.")
 		router := &BidiRouter{
 			Transport: r.Transport,
 			Metric:    r.Metric,
@@ -300,7 +300,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 		router.Run()
 		
 		// Convert this path into a step array.
-		//log.Printf("Convert to step array.")
+		log.Printf("Convert to step array.")
 		vertices, edges := router.Path()
 		steps := make([]Step, len(edges))
 		for j, edge := range edges {
@@ -312,7 +312,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	})
 	
 	// Build Leg
-	//log.Printf("Build leg.")
+	log.Printf("Build leg.")
 	indexstart, indexend := -1, -1
 	var startc, stopc geo.Coordinate
 	for i, srcWay := range srcWays {
