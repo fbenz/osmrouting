@@ -358,6 +358,80 @@ func (g *GraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metri
 	return result
 }
 
+func (g *GraphFile) VertexNeighborsAppend(v Vertex, forward bool, t Transport, m Metric, result []Dart) []Dart {
+	// Add the out edges for v
+	first := g.FirstOut[v]
+	last  := g.FirstOut[v+1]
+	access := g.AccessEdge[t]
+	if forward || t == Foot {
+		// No need to consider the oneway flags
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 {
+				continue
+			}
+			u := Vertex(g.Edges[i]) ^ v
+			w := g.EdgeWeight32(Edge(i), t, m)
+			result = append(result, Dart{u, w})
+		}
+	} else {
+		// Consider the oneway flags...
+		oneway := g.Oneway
+		for i := first; i < last; i++ {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit == 0 || oneway[index] & bit != 0 {
+				continue
+			}
+			u := Vertex(g.Edges[i]) ^ v
+			w := g.EdgeWeight32(Edge(i), t, m)
+			result = append(result, Dart{u, w})
+		}
+	}
+	
+	// The in edges are stored as a linked list.
+	i := g.FirstIn[v]
+	if i == Sentinel {
+		return result
+	}
+	
+	if !forward || t == Foot {
+		// As above, no need to consider the oneway flags
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 {
+				u := Vertex(g.Edges[i]) ^ v
+				w := g.EdgeWeight32(Edge(i), t, m)
+				result = append(result, Dart{u, w})
+			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
+		}
+	} else {
+		// Need to consider the oneway flags.
+		oneway := g.Oneway
+		for {
+			index := i >> 3
+			bit := byte(1 << (i & 7))
+			if access[index] & bit != 0 && oneway[index] & bit == 0 {
+				u := Vertex(g.Edges[i]) ^ v
+				w := g.EdgeWeight32(Edge(i), t, m)
+				result = append(result, Dart{u, w})
+			}
+			if i == g.NextIn[i] {
+				break
+			}
+			i = g.NextIn[i]
+		}
+	}
+	
+	return result
+}
+
 func (g *GraphFile) EdgeAccessible(e Edge, t Transport) bool {
 	return alg.GetBit(g.AccessEdge[t], uint(e))
 }

@@ -214,7 +214,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 			if int(e) == -1 {
 				// Shortcut edge, we will have to elaborate it later.
 				log.Printf("Shortcut edge %v", len(segments))
-				log.Printf("Form vertex %v to %v", u, v)
+				log.Printf("From vertex %v to %v", u, v)
 				log.Printf("Weight:    %v", r.DartBetween(overlay, u, v))
 				log.Printf("RevWeight: %v", r.ReverseDartBetween(overlay, u, v))
 				sketches = append(sketches, len(segments))
@@ -226,11 +226,21 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 				log.Printf("Weight: %v", overlay.EdgeWeight(e, r.Transport, r.Metric))
 				steps = append(steps, r.EdgeToStep(overlay, e, u, v))
 			}
+			clusterIndexU, idU := g.Overlay.VertexCluster(u)
+			log.Printf("ClusterIndex u: %v, in cluster id: %v", clusterIndexU, idU)
+			clusterIndexV, idV := g.Overlay.VertexCluster(v)
+			log.Printf("ClusterIndex v: %v, in cluster id: %v", clusterIndexV, idV)
 			i++
 		} else {
 			// A path within a cluster. We collect all edges until we hit the
 			// next boundary vertex.
-			log.Printf("Cluster path in cluster %v", uindex)
+			clusterIndex := -1
+			if uindex == -1 {
+				clusterIndex, _ = g.Overlay.VertexCluster(u)
+			} else {
+				clusterIndex = g.Indices[uindex]
+			}
+			log.Printf("Cluster path in cluster %v", clusterIndex)
 			u, cluster := g.ToClusterVertex(u, uindex)
 			j, done := i + 1, false
 			for !done && j < len(vpath) {

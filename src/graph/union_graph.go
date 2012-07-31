@@ -1,7 +1,6 @@
 package graph
 
 import (
-	//"fmt"
 	"geo"
 )
 
@@ -57,11 +56,19 @@ func (g *UnionGraph) VertexCount() int {
 // union vertex -> union cluster id
 func (g *UnionGraph) VertexToCluster(v Vertex) int {
 	// returns -1 for a vertex in the overlay graph
+	/*
 	i := -1
 	for i < len(g.Offsets)-1 && int(v) >= g.Offsets[i+1] {
 		i++
 	}
 	return i
+	*/
+	for i := len(g.Offsets)-1; i >= 0; i-- {
+		if int(v) >= g.Offsets[i] {
+			return i
+		}
+	}
+	panic("no matching cluster found for the given vertex")
 }
 
 // former VertexCluster
@@ -115,7 +122,7 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 				cluster := g.Cluster[i]
 				current := len(buf)
 				offset := g.Overlay.ClusterSize(clusterId)
-				buf = cluster.VertexNeighbors(vertexId, forward, t, m, buf)
+				buf = cluster.VertexNeighborsAppend(vertexId, forward, t, m, buf)
 				for j := current; j < len(buf); j++ {
 					v := buf[j].Vertex
 					if int(v) > offset {
