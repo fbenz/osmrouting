@@ -1,5 +1,7 @@
 package route
 
+import "math"
+
 // Computes the union of two BoundingBox'es.
 func BoxUnion(a, b BoundingBox) BoundingBox {
 	// Ok, maybe this wasn't such a good idea after all:

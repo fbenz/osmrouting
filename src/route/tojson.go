@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"geo"
 	"graph"
-	"math"
 )
 
 // Returns a human readable string for the given distance value.
@@ -54,7 +53,7 @@ func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polylin
 }
 
 // Convert the path from start - steps - stop to a json Step
-func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed int, c Config) Step {
+func (r *RoutePlanner) PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed int) Step {
 	instruction := fmt.Sprintf(
 		"Walk from (%.4f, %.4f) to (%.4f, %.4f)",
 		start.Lat, start.Lng, stop.Lat, stop.Lng)
@@ -62,12 +61,12 @@ func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed 
 	
 	// For cars, we know how fast they can go... otherwise, we make something up.
 	duration := float64(0)
-	if c.Transport == graph.Car && maxSpeed != 0 {
+	if r.Transport == graph.Car && maxSpeed != 0 {
 		// length is in meter, maxSpeed is in km/h, duration is in seconds.
 		duration = length * (3600.0 / 1000.0) / float64(maxSpeed)
-	} else if c.Transport == graph.Car {
+	} else if r.Transport == graph.Car {
 		duration = length * 0.12 // 30 km/h
-	} else if c.Transport == graph.Foot {
+	} else if r.Transport == graph.Foot {
 		duration = length / 1.1
 	} else {
 		duration = length / 13.0
@@ -86,136 +85,71 @@ func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed 
 // Convert a Path (start - steps - stop) into a json Step structure.
 // This contains some additional information, which might or might
 // not be accurate.
-func WayToStep(steps graph.Way, start, stop geo.Coordinate, c Config) Step {
-	return PartwayToStep(steps.Steps, start, stop, 0, c)
+func (r *RoutePlanner) WayToStep(steps graph.Way, start, stop geo.Coordinate) Step {
+	return r.PartwayToStep(steps.Steps, start, stop, 0)
 }
 
 // Convert an Edge (u,v) into a json Step
-func EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex, c Config) Step {
-	step := g.EdgeSteps(edge, u, nil)
-	upos := g.VertexCoordinate(u)
-	vpos := g.VertexCoordinate(v)
+func (r *RoutePlanner) EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
+	step  := g.EdgeSteps(edge, u, nil)
+	upos  := g.VertexCoordinate(u)
+	vpos  := g.VertexCoordinate(v)
 	speed := g.EdgeMaxSpeed(edge)
-	return PartwayToStep(step, upos, vpos, speed, c)
+	return r.PartwayToStep(step, upos, vpos, speed)
 }
 
-// Convert a single path as returned by Dijkstra to a json Leg.
-func PathToLeg(g graph.Graph, vertices []graph.Vertex, edges []graph.Edge, start, stop *graph.Way, c Config) Leg {
+// Assemble a sequence of Steps into a Leg.
+func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, stopc geo.Coordinate) Leg {
 	// Determine the number of steps on this path.
 	var startPoint, endPoint Point
-	totalSteps := len(edges)
-	if start != nil && start.Length > 1e-7 {
+	totalSteps := len(steps)
+	if start.Length > 1e-7 {
 		totalSteps++
 	}
-	if stop != nil && stop.Length > 1e-7 {
+	if stop.Length > 1e-7 {
 		totalSteps++
 	}
-	steps := make([]Step, totalSteps)
+	fullsteps := make([]Step, totalSteps)
 
 	distance := 0
 	duration := 0
 
 	// Add the initial step, if present
 	i := 0
-	if start != nil && start.Length > 1e-7 {
+	if start.Length > 1e-7 {
 		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
-		step := WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]), c)
+		step := r.WayToStep(start, start.Target, startc)
 		distance += step.Distance.Value
 		duration += step.Duration.Value
-		steps[i] = step
+		fullsteps[i] = step
 		i++
 	}
 
 	// Add the intermediate steps
-	for j, edge := range edges {
-		from := vertices[j]
-		to := vertices[j+1]
-		step := EdgeToStep(g, edge, from, to, c)
+	for _, step := range steps {
 		distance += step.Distance.Value
 		duration += step.Duration.Value
-		steps[i] = step
+		fullsteps[i] = step
 		i++
 	}
 
 	// Add the final step, if present
-	if stop != nil && stop.Length > 1e-7 {
-		prev := vertices[len(vertices)-1]
-		step := WayToStep(*stop, g.VertexCoordinate(prev), stop.Target, c)
+	if stop.Length > 1e-7 {
+		step := r.WayToStep(stop, stopc, stop.Target)
 		distance += step.Distance.Value
 		duration += step.Duration.Value
-		steps[i] = step
+		fullsteps[i] = step
 		i++
 	}
 	
-	if start != nil {
-		startPoint = StepToPoint(start.Target)
-	} else {
-		startPoint = steps[0].StartLocation
-	}
-
-	if stop != nil {
-		endPoint = StepToPoint(stop.Target)
-	} else {
-		endPoint = steps[len(steps)-1].EndLocation
-	}
+	startPoint = StepToPoint(start.Target)
+	endPoint   = StepToPoint(stop.Target)
 	
 	return Leg{
 		Distance:      FormatDistance(float64(distance)),
 		Duration:      FormatDuration(float64(duration)),
 		StartLocation: startPoint,
 		EndLocation:   endPoint,
-		Steps:         steps,
+		Steps:         fullsteps,
 	}
 }
-
-
-
-// Combine two legs into one leg
-func CombineLegs(a, b *Leg) *Leg {
-	distance := a.Distance.Value + b.Distance.Value
-	duration := a.Duration.Value + b.Duration.Value
-	steps := append(a.Steps, b.Steps...)
-	start := a.StartLocation
-	end := b.EndLocation
-	return &Leg{
-		Distance:      FormatDistance(float64(distance)),
-		Duration:      FormatDuration(float64(duration)),
-		StartLocation: start,
-		EndLocation:   end,
-		Steps:         steps,
-	}
-}
-
-//Append a Step to a leg
-func AppendStep(a *Leg, b *Step) *Leg {
-	distance := a.Distance.Value + b.Distance.Value
-	duration := a.Duration.Value + b.Duration.Value
-	steps := append(a.Steps, *b)
-	start := a.StartLocation
-	end := b.EndLocation
-	return &Leg{
-		Distance:      FormatDistance(float64(distance)),
-		Duration:      FormatDuration(float64(duration)),
-		StartLocation: start,
-		EndLocation:   end,
-		Steps:         steps,
-	}
-}
-
-/*
-func WayToLeg(way *graph.Way, g graph.Graph, forward bool, target graph.Vertex) *Leg {
-	var step Step
-	if forward {
-		step = PartwayToStep(way.Steps, way.Target, g.VertexCoordinate(target), 0)
-	} else {
-		step = PartwayToStep(way.Steps, g.VertexCoordinate(target), way.Target, 0)
-	}
-	return &Leg{
-		Distance:      step.Distance,
-		Duration:      step.Duration,
-		StartLocation: step.StartLocation,
-		EndLocation:   step.EndLocation,
-		Steps:         []Step{step},
-	}
-}
-*/

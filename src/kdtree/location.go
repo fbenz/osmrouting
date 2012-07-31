@@ -30,7 +30,7 @@ func (l Location) IsVertex() bool {
 
 func (l Location) Edge() graph.Edge {
 	vertex := l.Vertex()
-	edgeoffset := l.EdgeOffset()
+	edgeOffset := l.EdgeOffset()
 	stepOffset := l.StepOffset()
 	if edgeOffset == MaxEdgeOffset && stepOffset == MaxStepOffset {
 		return graph.Edge(-1)

@@ -173,7 +173,7 @@ func (g *UnionGraph) VertexCoordinate(Vertex) geo.Coordinate {
 	return geo.Coordinate{0, 0}
 }
 
-func (g *UnionGraph) EdgeOpposite(Edge, v Vertex) Vertex {
+func (g *UnionGraph) EdgeOpposite(e Edge, v Vertex) Vertex {
 	panic("not implemented")
 	return v
 }

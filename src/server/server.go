@@ -224,13 +224,14 @@ func routes(w http.ResponseWriter, r *http.Request) {
 
 	// Do the actual route computation.
 	planner := &route.RoutePlanner {
-		Graph:          clusterGraph,
-		Waypoints:      waypoints,
-		Transport:      transport,
-		Metric:         metric,
-		AvoidFerries:   avoidFerries,
-		ConcurrentKd:   true,
-		ConcurrentLegs: true,
+		Graph:           clusterGraph,
+		Waypoints:       waypoints,
+		Transport:       transport,
+		Metric:          metric,
+		AvoidFerries:    avoidFerries,
+		ConcurrentKd:    false,
+		ConcurrentLegs:  false,
+		ConcurrentPaths: false,
 	}
 	result := planner.Run()
 
