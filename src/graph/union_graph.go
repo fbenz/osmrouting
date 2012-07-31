@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"fmt"
 	"geo"
 )
 
@@ -117,7 +118,7 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 				// Add the in cluster edges, and remember that they are offset.
 				cluster := g.Cluster[i]
 				current := len(buf)
-				offset := g.Overlay.ClusterSize(i)
+				offset := g.Overlay.ClusterSize(clusterId)
 				buf = cluster.VertexNeighbors(vertexId, forward, t, m, buf)
 				for j := current; j < len(buf); j++ {
 					v := buf[j].Vertex
@@ -142,7 +143,6 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 	clusterId := g.Indices[index]
 	cluster := g.Cluster[index]
 	offset := g.Overlay.ClusterSize(clusterId)
-	//id := Vertex(int(v) + offset)
 	id := Vertex(int(v) + offset - g.Offsets[index])
 	buf = cluster.VertexNeighbors(id, forward, t, m, buf)
 	for i := 0; i < len(buf); i++ {
