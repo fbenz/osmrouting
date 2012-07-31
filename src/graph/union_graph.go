@@ -125,7 +125,7 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 				buf = cluster.VertexNeighborsAppend(vertexId, forward, t, m, buf)
 				for j := current; j < len(buf); j++ {
 					v := buf[j].Vertex
-					if int(v) > offset {
+					if int(v) >= offset {
 						// internal vertex
 						buf[j].Vertex = Vertex(int(v) - offset + g.Offsets[i])
 					} else {
@@ -150,7 +150,7 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 	buf = cluster.VertexNeighbors(id, forward, t, m, buf)
 	for i := 0; i < len(buf); i++ {
 		v := buf[i].Vertex
-		if int(v) > offset {
+		if int(v) >= offset {
 			// internal vertex
 			buf[i].Vertex = Vertex(int(v) - offset + g.Offsets[index])
 		} else {
