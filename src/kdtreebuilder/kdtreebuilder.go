@@ -132,14 +132,15 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 	// line up all coordinates and their encodings in the graph
 	steps := []geo.Coordinate(nil)
 	fmt.Printf("Overlay vertex count: %d\n", g.VertexCount())
-	for i := 0; i < g.VertexCount(); i++ {
+	for i := 0; i < cuts.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
-		t.Coordinates = append(t.Coordinates, g.VertexCoordinate(vertex))
+		t.Coordinates = append(t.Coordinates, cuts.VertexCoordinate(vertex))
 		t.AppendEncodedStep(encodeCoordinate(i, kdtree.MaxEdgeOffset, kdtree.MaxStepOffset))
 		degree := cuts.FirstOut[i+1] - cuts.FirstOut[i]
 		for j := uint32(0); j < degree; j++ {
 			e := graph.Edge(cuts.FirstOut[i] + j)
-			steps = g.EdgeSteps(e, vertex, steps)
+			steps = cuts.EdgeSteps(e, vertex, steps)
+			
 			for k, s := range steps {
 				t.Coordinates = append(t.Coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, int(j), k))

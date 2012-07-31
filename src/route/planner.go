@@ -50,6 +50,7 @@ func Multiplex(n int, inParallel bool, f func (int)) {
 func (r *RoutePlanner) Run() *Result {
 	// Compute the closest point in the graph for each user specified waypoint.
 	count := len(r.Waypoints)
+	r.Locations = make([]kdtree.Location, count)
 	log.Printf("Planning a route containing %v legs.", count-1)
 	Multiplex(count, r.ConcurrentKd, func (i int) {
 		log.Printf("NearestNeighbor(%v, %v)", r.Waypoints[i], r.Transport)
