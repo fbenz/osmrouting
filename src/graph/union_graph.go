@@ -1,5 +1,9 @@
 package graph
 
+import (
+	"geo"
+)
+
 // Index Mapping:
 // Every vertex should exist only once in the graph. We map the overlay
 // vertices into the range [0..overlay vertex count). Now for each cluster
@@ -37,7 +41,7 @@ func NewUnionGraph(overlay *OverlayGraphFile, cluster []*GraphFile, indices []in
 	}
 	return &UnionGraph{
 		Overlay: overlay,
-		Cluster: clust,
+		Cluster: cluster,
 		Indices: indices,
 		Offsets: offsets,
 		Size:    size,
@@ -48,21 +52,26 @@ func (g *UnionGraph) VertexCount() int {
 	return g.Size
 }
 
-func (g *UnionGraph) VertexIndex(v Vertex) int {
-	i := 0
-	for i < len(g.Cluster) {
-		if v < g.Cluster[i] {
-			break
-		}
-		i++
+// former VertexIndex
+// union vertex -> union cluster id
+func (g *UnionGraph) VertexToCluster(v Vertex) int {
+	// returns -1 for a vertex in the overlay graph
+	if int(v) < g.Overlay.VertexCount() {
+		return -1
 	}
-	return i
+	for i, o := range g.Offsets {
+		if int(v) >= o {
+			return i
+		}
+	}
+	panic("no matching cluster found for the given vertex")
 }
 
-// Given a Vertex with index -1 returns the corresponding cluster vertex, or nil.
-func (g *UnionGraph) VertexCluster(v Vertex) (Vertex, *GraphFile) {
-	clusterId, vertexId := g.OverlayGraph.VertexCluster(v)
-	for i, id := g.Indices {
+// former VertexCluster
+// union vertex -> cluster vertex, cluster
+func (g *UnionGraph) ToClusterVertex(v Vertex) (Vertex, *GraphFile) {
+	clusterId, vertexId := g.Overlay.VertexCluster(v)
+	for i, id := range g.Indices {
 		if clusterId == id {
 			return vertexId, g.Cluster[i]
 		}
@@ -70,47 +79,48 @@ func (g *UnionGraph) VertexCluster(v Vertex) (Vertex, *GraphFile) {
 	return Vertex(-1), nil
 }
 
-func (g *UnionGraph) ClusterVertex(v Vertex, index int) Vertex {
+// former ClusterVertex
+// cluster vertex + union cluster id -> union vertex
+func (g *UnionGraph) ToUnionVertex(v Vertex, index int) Vertex {
 	if index != -1 {
 		clusterId := g.Indices[index]
-		cluster   := g.Cluster[index]
-		offset    := g.OverlayGraph.ClusterSize(clusterId)
-		if v > offset {
+		offset := g.Overlay.ClusterSize(clusterId)
+		if int(v) > offset {
 			// internal vertex
-			return v - offset + g.Offsets[index]
+			return Vertex(int(v) - offset + g.Offsets[index])
 		} else {
 			// boundary vertex
-			return g.OverlayGraph.ClusterVertex(clusterId, v)
+			return g.Overlay.ClusterVertex(clusterId, v)
 		}
 	}
 	return v
 }
 
 func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metric, buf []Dart) []Dart {
-	index := g.VertexIndex(v)
+	index := g.VertexToCluster(v)
 	if index == -1 {
 		// The vertex is in the overlay graph and we can always add the neighbors in the
 		// overlay graph.
-		buf = g.OverlayGraph.VertexNeighbors(v, forward, t, m, buf)
+		buf = g.Overlay.VertexNeighbors(v, forward, t, m, buf)
 
 		// It might happen, that this is the boundary vertex of some cluster that's part
 		// of this union graph. We have to iterate over the cluster indices to handle this.
-		clusterId, vertexId := g.OverlayGraph.VertexCluster(v)
+		clusterId, vertexId := g.Overlay.VertexCluster(v)
 		for i, id := range g.Indices {
 			if clusterId == id {
 				// Add the in cluster edges, and remember that they are offset.
 				cluster := g.Cluster[i]
 				current := len(buf)
-				offset  := g.OverlayGraph.ClusterSize(i)
+				offset := g.Overlay.ClusterSize(i)
 				buf = cluster.VertexNeighbors(vertexId, forward, t, m, buf)
 				for j := current; j < len(buf); j++ {
 					v := buf[j].Vertex
-					if v > offset {
+					if int(v) > offset {
 						// internal vertex
-						buf[j].Vertex = v - offset + g.Offsets[i]
+						buf[j].Vertex = Vertex(int(v) - offset + g.Offsets[i])
 					} else {
 						// boundary vertex
-						buf[j].Vertex = g.OverlayGraph.ClusterVertex(clusterId, v)
+						buf[j].Vertex = g.Overlay.ClusterVertex(clusterId, v)
 					}
 				}
 				break
@@ -119,68 +129,77 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 
 		return buf
 	}
-	
+
 	// This is a cluster vertex, we have to compute the correct id within
 	// the cluster and defer to the implementation in GraphFile.
 	// TODO: refactor into a function.
 	clusterId := g.Indices[index]
-	cluster   := g.Cluster[index]
-	offset    := g.OverlayGraph.ClusterSize(clusterId)
-	id        := v + offset
+	cluster := g.Cluster[index]
+	offset := g.Overlay.ClusterSize(clusterId)
+	id := Vertex(int(v) + offset)
 	buf = cluster.VertexNeighbors(id, forward, t, m, buf)
 	for i := 0; i < len(buf); i++ {
 		v := buf[i].Vertex
-		if v > offset {
+		if int(v) > offset {
 			// internal vertex
-			buf[i].Vertex = v - offset + g.Offsets[index]
+			buf[i].Vertex = Vertex(int(v) - offset + g.Offsets[index])
 		} else {
 			// boundary vertex
-			buf[i].Vertex = g.OverlayGraph.ClusterVertex(clusterId, v)
+			buf[i].Vertex = g.Overlay.ClusterVertex(clusterId, v)
 		}
 	}
 	return buf
 }
 
-
 // Mockups which you should never use, but which ensure that the interface is complete...
 
 func (g *UnionGraph) EdgeCount() int {
+	panic("not implemented")
 	return 0
 }
 
 func (g *UnionGraph) VertexEdges(v Vertex, forward bool, t Transport, buf []Edge) []Edge {
+	panic("not implemented")
 	return buf
 }
 
 func (g *UnionGraph) VertexAccessible(v Vertex, t Transport) bool {
+	panic("not implemented")
 	return false
 }
 
 func (g *UnionGraph) VertexCoordinate(Vertex) geo.Coordinate {
-	return geo.Coordinate{0,0}
+	panic("not implemented")
+	return geo.Coordinate{0, 0}
 }
 
 func (g *UnionGraph) EdgeOpposite(Edge, v Vertex) Vertex {
+	panic("not implemented")
 	return v
 }
 
 func (g *UnionGraph) EdgeSteps(Edge, Vertex, []geo.Coordinate) []geo.Coordinate {
+	panic("not implemented")
 	return nil
 }
 
 func (g *UnionGraph) EdgeWeight(Edge, Transport, Metric) float64 {
+	panic("not implemented")
 	return 0
 }
 
 // direct access to edge attributes
 func (g *UnionGraph) EdgeFerry(Edge) bool {
+	panic("not implemented")
 	return false
 }
 
 func (g *UnionGraph) EdgeMaxSpeed(Edge) int {
+	panic("not implemented")
 	return 0
 }
 
 func (g *UnionGraph) EdgeOneway(Edge, Transport) bool {
+	panic("not implemented")
 	return false
 }
