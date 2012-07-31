@@ -133,10 +133,10 @@ func (r *RoutePlanner) EdgeBetween(g graph.Graph, u, v graph.Vertex) graph.Edge 
 	return minEdge
 }
 
-// Compute one path segment between location[i] and location[i+1]
-func (r *RoutePlanner) ComputeLeg(i int) Leg {
-	src := r.Locations[i]
-	dst := r.Locations[i+1]
+// Compute one path segment between location[waypointIndex] and location[waypointIndex+1]
+func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
+	src := r.Locations[waypointIndex]
+	dst := r.Locations[waypointIndex+1]
 	buf := []geo.Coordinate(nil)
 	srcWays := src.Decode(true  /* forward */, r.Transport, &buf)
 	dstWays := dst.Decode(false /* forward */, r.Transport, &buf)
@@ -167,7 +167,7 @@ func (r *RoutePlanner) ComputeLeg(i int) Leg {
 	segments := [][]Step(nil)
 	sketches := []int(nil)
 	indices  := []int(nil)
-	i, prev  := 0, -1
+	i        := 0
 	for i < len(vpath)-1 {
 		u, v   := vpath[i], vpath[i+1]
 		uindex := g.VertexToCluster(u)
@@ -198,7 +198,8 @@ func (r *RoutePlanner) ComputeLeg(i int) Leg {
 			u, cluster := g.ToClusterVertex(u, uindex)
 			j, done := i + 1, false
 			for !done && j < len(vpath) {
-				v, j := vpath[j], j + 1
+				v := vpath[j]
+				j++
 				
 				// Project the vertex v onto the current cluster.
 				vindex := g.VertexToCluster(v)
