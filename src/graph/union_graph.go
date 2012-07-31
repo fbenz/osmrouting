@@ -56,19 +56,19 @@ func (g *UnionGraph) VertexCount() int {
 // union vertex -> union cluster id
 func (g *UnionGraph) VertexToCluster(v Vertex) int {
 	// returns -1 for a vertex in the overlay graph
-	/*
 	i := -1
 	for i < len(g.Offsets)-1 && int(v) >= g.Offsets[i+1] {
 		i++
 	}
 	return i
-	*/
+	/*
 	for i := len(g.Offsets)-1; i >= 0; i-- {
 		if int(v) >= g.Offsets[i] {
 			return i
 		}
 	}
 	panic("no matching cluster found for the given vertex")
+	*/
 }
 
 // former VertexCluster
