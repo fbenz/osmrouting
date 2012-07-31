@@ -1,3 +1,6 @@
+// Creates k-d trees for all clusters and the overlay graph. In addition, bounding boxes for all
+// clusters are computed and written into one file.
+
 package main
 
 import (
@@ -17,7 +20,7 @@ import (
 
 const (
 	MaxThreads = 8
-	BBoxMargin = 0.002
+	BBoxMargin = 0.002 // bounding boxes are enlarged to ensure that points on the borders are found
 )
 
 var (
@@ -93,7 +96,7 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 	t := &kdtree.KdTree{Graph: g, EncodedSteps: []uint64(nil), Coordinates: []geo.Coordinate(nil)}
 	bbox := geo.NewBBoxPoint(g.VertexCoordinate(graph.Vertex(0)))
 
-	// line up all coordinates and their encodings in the graph
+	// line up all coordinates and their encodings in the subgraph
 	steps := []geo.Coordinate(nil)
 	for i := 0; i < g.VertexCount(); i++ {
 		vertex := graph.Vertex(i)
@@ -117,19 +120,19 @@ func createKdTreeSubgraph(g *graph.GraphFile) (*kdtree.KdTree, geo.BBox) {
 		}
 	}
 
-	createSubTree(t, true)
+	sortTree(t, true)
 	return t, bbox
 }
 
 func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 	t := &kdtree.KdTree{
-		Graph: g.GraphFile,
+		Graph:        g.GraphFile,
 		EncodedSteps: []uint64(nil),
-		Coordinates: []geo.Coordinate(nil),
+		Coordinates:  []geo.Coordinate(nil),
 	}
 	cuts := g.GraphFile
 
-	// line up all coordinates and their encodings in the graph
+	// line up all coordinates and their encodings in the overlay graph
 	steps := []geo.Coordinate(nil)
 	fmt.Printf("Overlay vertex count: %d\n", g.VertexCount())
 	for i := 0; i < cuts.VertexCount(); i++ {
@@ -140,7 +143,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 		for j := uint32(0); j < degree; j++ {
 			e := graph.Edge(cuts.FirstOut[i] + j)
 			steps = cuts.EdgeSteps(e, vertex, steps)
-			
+
 			for k, s := range steps {
 				t.Coordinates = append(t.Coordinates, s)
 				t.AppendEncodedStep(encodeCoordinate(i, int(j), k))
@@ -148,7 +151,7 @@ func createKdTreeOverlay(g *graph.OverlayGraphFile) *kdtree.KdTree {
 		}
 	}
 
-	createSubTree(t, true)
+	sortTree(t, true)
 	return t
 }
 
@@ -158,7 +161,8 @@ func subKdTree(t *kdtree.KdTree, from, to int) *kdtree.KdTree {
 		EncodedStepsStart: t.EncodedStepsStart + from, EncodedStepsEnd: t.EncodedStepsStart + to - 1}
 }
 
-func createSubTree(t *kdtree.KdTree, compareLat bool) {
+// sortTree sorts the given tree by comparing either lat or long
+func sortTree(t *kdtree.KdTree, compareLat bool) {
 	if t.Len() <= 1 {
 		return
 	}
@@ -167,9 +171,10 @@ func createSubTree(t *kdtree.KdTree, compareLat bool) {
 	} else {
 		sort.Sort(byLng{t})
 	}
+	// sort recursively both halfs with the comparison alternating between lat and long
 	middle := t.Len() / 2
-	createSubTree(subKdTree(t, 0, middle), !compareLat)
-	createSubTree(subKdTree(t, middle+1, t.Len()), !compareLat)
+	sortTree(subKdTree(t, 0, middle), !compareLat)
+	sortTree(subKdTree(t, middle+1, t.Len()), !compareLat)
 }
 
 // writeKdTreeSubgraph creates and stores the k-d tree for the given cluster graph
