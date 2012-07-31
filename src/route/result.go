@@ -17,7 +17,7 @@ type Route struct {
 	Duration      Duration `json:"duration"`
 	StartLocation Point    `json:"start_location"`
 	EndLocation   Point    `json:"end_location"`
-	Legs          []*Leg   `json:"legs"`
+	Legs          []Leg    `json:"legs"`
 }
 
 type Leg struct {

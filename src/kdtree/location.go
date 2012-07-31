@@ -16,17 +16,26 @@ func (l Location) Vertex() graph.Vertex {
 	return graph.Vertex(l.EC >> (EdgeOffsetBits + StepOffsetBits))
 }
 
-func (l Location) Edge() graph.Edge {
-	vertex := l.Vertex()
-	offset := uint32((l.EC >> StepOffsetBits) & MaxEdgeOffset)
-	if offset == MaxEdgeOffset && l.EC & MaxStepOffset == MaxStepOffset {
-		return graph.Edge(-1)
-	}
-	return graph.Edge(l.Graph.FirstOut[vertex] + offset)
+func (l Location) EdgeOffset() uint32 {
+	return uint32((l.EC >> StepOffsetBits) & MaxEdgeOffset)
 }
 
 func (l Location) StepOffset() int {
 	return int(l.EC & MaxStepOffset)
+}
+
+func (l Location) IsVertex() bool {
+	return l.EdgeOffset() == MaxEdgeOffset && l.StepOffset() == MaxStepOffset
+}
+
+func (l Location) Edge() graph.Edge {
+	vertex := l.Vertex()
+	edgeoffset := l.EdgeOffset()
+	stepOffset := l.StepOffset()
+	if edgeOffset == MaxEdgeOffset && stepOffset == MaxStepOffset {
+		return graph.Edge(-1)
+	}
+	return graph.Edge(l.Graph.FirstOut[vertex] + edgeOffset)
 }
 
 func (l Location) Decode(forward bool, transport graph.Transport, steps *[]geo.Coordinate) []graph.Way {
