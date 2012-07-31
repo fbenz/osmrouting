@@ -139,8 +139,13 @@ func (r *BidiRouter) Run() {
 			curr, dist := th.Pop()
 			r.TDist[curr] = dist
 			darts = g.VertexNeighbors(curr, false /* forward */, t, m, darts)
+			if len(darts) == 0 {
+				//println("Isolated vertex?")
+			}
+			//log.Printf("curr: %v, dist: %v", curr, dist)
 			for _, d := range darts {
 				n := d.Vertex
+				//log.Printf("  * n: %v, w: %v, processed: %v", n, d.Weight, th.Processed(n))
 				if th.Processed(n) {
 					continue
 				}
@@ -170,6 +175,10 @@ func (r *BidiRouter) Run() {
 	// Record the shortest path
 	r.MeetVertex = meetVertex
 	r.MDistance = upperBound
+	
+	if meetVertex == -1 {
+		panic("Did not find a path!")
+	}
 }
 
 // Result Queries

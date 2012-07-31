@@ -137,55 +137,6 @@ func computeMatrices(g *graph.ClusterGraph, metric, trans int) {
 	fmt.Printf("Preprocessing time for metric %d: %v s\n", metric, time2.Sub(time1).Seconds())
 }
 
-func computeMatrixThread(ready chan<- int, job *Job) {
-	g := job.Graph
-	metric := job.Metric
-	trans := job.Transport
-	for i := job.Start; i < len(g.Cluster); i += job.Stride {
-		//fmt.Printf("%v, %v, Cluster: %v\n", metric, trans, i+1)
-		boundaryVertexCount := g.Overlay.ClusterSize(i)
-		job.Matrices[i] = computeMatrix(g.Cluster[i], boundaryVertexCount, int(metric), int(trans))
-	}
-	ready <- 1
-}
-
-// computeMatrix computes the metric matrix for the given subgraph and metric
-func computeMatrix(subgraph graph.Graph, boundaryVertexCount, metric, trans int) []float32 {
-	// TODO precompute the result of the metric for every edge and store the result for the graph
-	// An alternative would be an computation on-the-fly during each run of Dijkstra (preprocessing here + live query)
-	//for i := 0; i < subgraph.EdgeCount(); i++ {
-	// apply metric on edge weight and possibly other data
-	//}
-	
-	if boundaryVertexCount > subgraph.VertexCount() {
-		log.Fatalf("Wrong boundaryVertexCount: %v > %v",
-			boundaryVertexCount, subgraph.VertexCount())
-	}
-
-	matrix := make([]float32, boundaryVertexCount * boundaryVertexCount)
-
-	// Boundary vertices always have the lowest IDs. Therefore, iterating from 0 to boundaryVertexCount-1 is possible here.
-	// In addition, only the first elements returned from Dijkstra's algorithm have to be considered.
-	for i := 0; i < boundaryVertexCount; i++ {
-		// run Dijkstra starting at vertex i with the given metric
-		vertex := graph.Vertex(i)
-		s := make([]graph.Way, 1)
-		target := subgraph.VertexCoordinate(vertex)
-		s[0] = graph.Way{Length: 0, Vertex: vertex, Steps: nil, Target: target}
-
-		elements := route.DijkstraComplete(subgraph, s, graph.Metric(metric), graph.Transport(trans), true /* forward */)
-		for j, elem := range elements[:boundaryVertexCount] {
-			if elem != nil {
-				matrix[boundaryVertexCount * i + j] = elem.Weight()
-			} else {
-				matrix[boundaryVertexCount * i + j] = float32(math.Inf(1))
-			}
-		}
-	}
-
-	return matrix
-}
-
 func computeMatrixThreadRouter(ready chan<- int, job *Job) {
 	g := job.Graph
 	router := &route.Router{

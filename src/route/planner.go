@@ -136,6 +136,34 @@ func (r *RoutePlanner) EdgeBetween(g graph.Graph, u, v graph.Vertex) graph.Edge 
 	return minEdge
 }
 
+func (r *RoutePlanner) DartBetween(g graph.Graph, u, v graph.Vertex) float32 {
+	minWeight := float32(math.Inf(1))
+	for _, d := range g.VertexNeighbors(u, true, r.Transport, r.Metric, nil) {
+		if d.Vertex != v {
+			continue
+		}
+		weight := d.Weight
+		if weight < minWeight {
+			minWeight = weight
+		}
+	}
+	return minWeight
+}
+
+func (r *RoutePlanner) ReverseDartBetween(g graph.Graph, u, v graph.Vertex) float32 {
+	minWeight := float32(math.Inf(1))
+	for _, d := range g.VertexNeighbors(v, false, r.Transport, r.Metric, nil) {
+		if d.Vertex != u {
+			continue
+		}
+		weight := d.Weight
+		if weight < minWeight {
+			minWeight = weight
+		}
+	}
+	return minWeight
+}
+
 // Compute one path segment between location[waypointIndex] and location[waypointIndex+1]
 func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	src := r.Locations[waypointIndex]
@@ -186,11 +214,16 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 			if int(e) == -1 {
 				// Shortcut edge, we will have to elaborate it later.
 				log.Printf("Shortcut edge %v", len(segments))
+				log.Printf("Form vertex %v to %v", u, v)
+				log.Printf("Weight:    %v", r.DartBetween(overlay, u, v))
+				log.Printf("RevWeight: %v", r.ReverseDartBetween(overlay, u, v))
 				sketches = append(sketches, len(segments))
 				indices  = append(indices, i)
 			} else {
 				// Cut edge
 				log.Printf("Cut edge %v", len(segments))
+				log.Printf("From vertex %v to %v", u, v)
+				log.Printf("Weight: %v", overlay.EdgeWeight(e, r.Transport, r.Metric))
 				steps = append(steps, r.EdgeToStep(overlay, e, u, v))
 			}
 			i++
@@ -232,6 +265,11 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 		clusterIndex, u := g.Overlay.VertexCluster(vpath[index])
 		cluster := r.Graph.Cluster[clusterIndex]
 		_, v := g.Overlay.VertexCluster(vpath[index+1])
+		
+		// Ensure that the vertices are accessible
+		log.Printf("Routing from vertex %v to %v", u, v)
+		log.Printf("Access[u]: %v", cluster.VertexAccessible(u, r.Transport))
+		log.Printf("Access[v]: %v", cluster.VertexAccessible(v, r.Transport))
 		
 		// Run Dijkstra to find a u -> v path.
 		log.Printf("Run Dijkstra within a cluster.")
