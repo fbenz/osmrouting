@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"geo"
 )
 
@@ -60,8 +59,8 @@ func (g *UnionGraph) VertexToCluster(v Vertex) int {
 	if int(v) < g.Overlay.VertexCount() {
 		return -1
 	}
-	for i, o := range g.Offsets {
-		if int(v) >= o {
+	for i := len(g.Offsets)-1; i >= 0; i-- {
+		if int(v) >= g.Offsets[i] {
 			return i
 		}
 	}
