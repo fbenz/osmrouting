@@ -72,7 +72,7 @@ func PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed 
 	duration := float64(0)
 	if c.Transport == graph.Car && maxSpeed != 0 {
 		// length is in meter, maxSpeed is in km/h, duration is in seconds.
-		duration = length * (3600.0 / 1000.0) / maxSpeed
+		duration = length * (3600.0 / 1000.0) / float64(maxSpeed)
 	} else if c.Transport == graph.Car {
 		duration = length * 0.12 // 30 km/h
 	} else if c.Transport == graph.Foot {
@@ -127,7 +127,7 @@ func PathToLeg(g graph.Graph, vertices []graph.Vertex, edges []graph.Edge, start
 	i := 0
 	if start != nil && start.Length > 1e-7 {
 		// Our implementation of Dijkstra's algorithm ensures len(vertices) > 0
-		step := WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]))
+		step := WayToStep(*start, start.Target, g.VertexCoordinate(vertices[0]), c)
 		distance += step.Distance.Value
 		duration += step.Duration.Value
 		steps[i] = step
@@ -148,7 +148,7 @@ func PathToLeg(g graph.Graph, vertices []graph.Vertex, edges []graph.Edge, start
 	// Add the final step, if present
 	if stop != nil && stop.Length > 1e-7 {
 		prev := vertices[len(vertices)-1]
-		step := WayToStep(*stop, g.VertexCoordinate(prev), stop.Target)
+		step := WayToStep(*stop, g.VertexCoordinate(prev), stop.Target, c)
 		distance += step.Distance.Value
 		duration += step.Duration.Value
 		steps[i] = step
@@ -269,12 +269,13 @@ func AppendStep(a *Leg, b *Step) *Leg {
 	}
 }
 
+/*
 func WayToLeg(way *graph.Way, g graph.Graph, forward bool, target graph.Vertex) *Leg {
 	var step Step
 	if forward {
-		step = PartwayToStep(way.Steps, way.Target, g.VertexCoordinate(target), way.Length)
+		step = PartwayToStep(way.Steps, way.Target, g.VertexCoordinate(target), 0)
 	} else {
-		step = PartwayToStep(way.Steps, g.VertexCoordinate(target), way.Target, way.Length)
+		step = PartwayToStep(way.Steps, g.VertexCoordinate(target), way.Target, 0)
 	}
 	return &Leg{
 		Distance:      step.Distance,
@@ -284,3 +285,4 @@ func WayToLeg(way *graph.Way, g graph.Graph, forward bool, target graph.Vertex) 
 		Steps:         []Step{step},
 	}
 }
+*/

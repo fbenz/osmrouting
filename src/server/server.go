@@ -12,6 +12,7 @@ import (
 	"kdtree"
 	"log"
 	"net/http"
+	"geo"
 	"os"
 	"route"
 	"runtime"
@@ -54,7 +55,7 @@ var (
 
 	startupTime time.Time
 
-	clusterGraph *graph.ClusterGraph
+	clusterGraph *graph.GraphFile
 )
 
 func init() {
@@ -99,7 +100,7 @@ func setup() error {
 	// Load the cluster graphs and the overlay graph as well as the
 	// precomputed matrices for the metrics.
 	var err error
-	clusterGraph, err = graph.OpenClusterGraph(FlagDir, true /* loadMatrices */)
+	clusterGraph, err = graph.OpenGraphFile(FlagDir, false)
 	if err != nil {
 		return err
 	}
@@ -222,13 +223,16 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	// the implementation should not fail for unknown parameters/values
 
 	// Do the actual route computation.
-	// TODO use route.ConcurrentRoues?
-	config := route.Config{
-		Transport:    transport,
-		Metric:       metric,
-		AvoidFerries: avoidFerries,
+	planner := &route.RoutePlanner {
+		Graph:          clusterGraph,
+		Waypoints:      waypoints,
+		Transport:      transport,
+		Metric:         metric,
+		AvoidFerries:   avoidFerries,
+		ConcurrentKd:   true,
+		ConcurrentLegs: true,
 	}
-	result := route.Routes(clusterGraph, waypoints, config)
+	result := planner.Run()
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
@@ -245,13 +249,13 @@ func routes(w http.ResponseWriter, r *http.Request) {
 }
 
 // getWaypoints parses the given waypoints.
-func getWaypoints(waypointString string) ([]route.Point, error) {
+func getWaypoints(waypointString string) ([]geo.Coordinate, error) {
 	waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
 	if len(waypointStrings) < 2 {
 		return nil, errors.New("too few waypoints. at least 2 waypoints are needed")
 	}
 
-	points := make([]route.Point, len(waypointStrings))
+	points := make([]geo.Coordinate, len(waypointStrings))
 	for i, v := range waypointStrings {
 		coordinateStrings := strings.Split(v, SeparatorLatLng)
 		if len(coordinateStrings) != 2 {
@@ -265,7 +269,7 @@ func getWaypoints(waypointString string) ([]route.Point, error) {
 		if err != nil {
 			return nil, errors.New("wrong formatted number in waypoint list: " + coordinateStrings[1])
 		}
-		points[i] = route.Point{lat, lng}
+		points[i] = geo.Coordinate{lat, lng}
 	}
 	return points, nil
 }
