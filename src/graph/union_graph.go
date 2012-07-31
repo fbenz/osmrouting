@@ -69,14 +69,20 @@ func (g *UnionGraph) VertexToCluster(v Vertex) int {
 
 // former VertexCluster
 // union vertex -> cluster vertex, cluster
-func (g *UnionGraph) ToClusterVertex(v Vertex) (Vertex, *GraphFile) {
-	clusterId, vertexId := g.Overlay.VertexCluster(v)
-	for i, id := range g.Indices {
-		if clusterId == id {
-			return vertexId, g.Cluster[i]
+func (g *UnionGraph) ToClusterVertex(v Vertex, index int) (Vertex, *GraphFile) {
+	if index == -1 {
+		clusterId, vertexId := g.Overlay.VertexCluster(v)
+		for i, id := range g.Indices {
+			if clusterId == id {
+				return vertexId, g.Cluster[i]
+			}
 		}
+		return Vertex(-1), nil
 	}
-	return Vertex(-1), nil
+	// index >= 0
+	clusterId := g.Indices[index]
+	offset := g.Overlay.ClusterSize(clusterId)
+	return Vertex(int(v) - g.Offsets[index] + offset), g.Cluster[index]
 }
 
 // former ClusterVertex
