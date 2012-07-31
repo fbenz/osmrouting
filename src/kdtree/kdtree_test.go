@@ -56,9 +56,8 @@ func TestEncoding(t *testing.T) {
 
 	encodedSteps := make([]uint64, DataSetSize*TypeSize/TotalBits)
 
-	g := make([]graph.Graph, 1)
-	coordinates := make([]geo.Coordinate, 0)
-	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+	var g *graph.GraphFile
+	tree := KdTree{Graph: g, EncodedSteps: encodedSteps}
 
 	for i, _ := range data {
 		tree.SetEncodedStep(i, data[i])
@@ -81,9 +80,8 @@ func TestEncoding2(t *testing.T) {
 
 	encodedSteps := make([]uint64, DataSetSize*TypeSize/TotalBits)
 
-	g := make([]graph.Graph, 1)
-	coordinates := make([]geo.Coordinate, 0)
-	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+	var g *graph.GraphFile
+	tree := KdTree{Graph: g, EncodedSteps: encodedSteps}
 
 	for _, i := range rnd.Perm(DataSetSize) {
 		tree.SetEncodedStep(i, data[i])
@@ -101,9 +99,8 @@ func TestAppend(t *testing.T) {
 	maxNum := int64(math.Pow(2, TotalBits) - 1)
 
 	encodedSteps := make([]uint64, 0)
-	g := make([]graph.Graph, 1)
-	coordinates := make([]geo.Coordinate, 0)
-	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+	var g *graph.GraphFile
+	tree := KdTree{Graph: g, EncodedSteps: encodedSteps}
 
 	for i := 0; i < DataSetSize; i++ {
 		s := uint64(rnd.Int63n(maxNum))
@@ -127,9 +124,8 @@ func TestAppend2(t *testing.T) {
 
 	encodedSteps := make([]uint64, 0, DataSetSize*TypeSize/TotalBits)
 
-	g := make([]graph.Graph, 1)
-	coordinates := make([]geo.Coordinate, 0)
-	tree := KdTree{Graph: g[0], EncodedSteps: encodedSteps, Coordinates: coordinates}
+	var g *graph.GraphFile
+	tree := KdTree{Graph: g, EncodedSteps: encodedSteps}
 
 	for i, _ := range data {
 		tree.AppendEncodedStep(data[i])
