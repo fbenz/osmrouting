@@ -17,7 +17,7 @@ type Positions interface {
 	Set(id int64, p geo.Coordinate)
 }
 
-type FlatVector []uint64
+type FlatVector []int32
 
 // Global region allocator (since we would overflow the go heap otherwise)
 var allocator *mm.Region
@@ -26,23 +26,13 @@ func init() {
 	allocator = mm.NewRegion(0)
 }
 
-func EncodePoint(p geo.Coordinate) uint64 {
-	lat, lng := p.Encode()
-	return (uint64(lat) << 32) | uint64(lng)
-}
-
-func DecodePoint(p uint64) geo.Coordinate {
-	lat := int32(p >> 32)
-	lng := int32(p & 0xffffffff)
+func (v FlatVector) Get(key int64) geo.Coordinate {
+	lat, lng := v[2*key], v[2*key+1]
 	return geo.DecodeCoordinate(lat, lng)
 }
 
-func (v FlatVector) Get(key int64) geo.Coordinate {
-	return DecodePoint(v[key])
-}
-
 func (v FlatVector) Set(key int64, p geo.Coordinate) {
-	v[key] = EncodePoint(p)
+	v[2*key], v[2*key+1] = p.Encode()
 }
 
 type VebTree struct {
@@ -56,7 +46,7 @@ func (t *VebTree) Get(key int64) geo.Coordinate {
 		lsb := key & ((1 << t.bits) - 1)
 		return subtable.Get(lsb)
 	}
-	return DecodePoint(0)
+	return geo.Coordinate{}
 }
 
 func (t *VebTree) Set(key int64, p geo.Coordinate) {
@@ -87,8 +77,8 @@ func nextPowerOf2(v uint64) uint64 {
 
 func NewPositions(bits uint) Positions {
 	if bits <= 8 {
-		var flatv []uint64
-		allocator.Allocate(1 << bits, &flatv)
+		var flatv []int32
+		allocator.Allocate(1 << (bits+1), &flatv)
 		return FlatVector(flatv)
 	}
 	
