@@ -98,6 +98,7 @@ func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
 			kdTree := clusterKdTree.Cluster[i]
+			log.Printf("Point is in bbox %v\n", b)
 			log.Printf("binarySearch in cluster %v", i)
 			stepIndex, coord, ok := binarySearch(kdTree, x, 0, kdTree.EncodedStepLen()-1, true /* compareLat */, trans)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
