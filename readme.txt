@@ -4,7 +4,7 @@
 # - Go Version 1
 #   such that the 'go' tool is available
 # - Metis
-#   'gpmetis' has to be in the same folder as our 'metric' program
+#   'gpmetis' has to be in the same folder as our 'partition' program
 
 # parameters:
 # pbf_file: OSM PBF file
