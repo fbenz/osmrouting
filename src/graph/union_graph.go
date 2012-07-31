@@ -142,7 +142,8 @@ func (g *UnionGraph) VertexNeighbors(v Vertex, forward bool, t Transport, m Metr
 	clusterId := g.Indices[index]
 	cluster := g.Cluster[index]
 	offset := g.Overlay.ClusterSize(clusterId)
-	id := Vertex(int(v) + offset)
+	//id := Vertex(int(v) + offset)
+	id := Vertex(int(v) + offset - g.Offsets[index])
 	buf = cluster.VertexNeighbors(id, forward, t, m, buf)
 	for i := 0; i < len(buf); i++ {
 		v := buf[i].Vertex
