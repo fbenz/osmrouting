@@ -3,6 +3,9 @@
 package main
 
 import (
+	"compress/gzip"
+	"bytes"
+	
 	"encoding/json"
 	"errors"
 	"flag"
@@ -66,6 +69,31 @@ func init() {
 	flag.BoolVar(&FlagCaching, "caching", false, "enables caching of route requests")
 }
 
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	buf bytes.Buffer
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.buf.Write(b)
+}
+
+func makeGzipHandler(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			fn(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		gzw := &gzipResponseWriter{ResponseWriter: w}
+		fn(gzw, r)
+		w.Header().Set("Content-Type", http.DetectContentType(gzw.buf.Bytes()))
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		gzw.buf.WriteTo(gz)
+	}
+}
+
 func main() {
 	runtime.GOMAXPROCS(8)
 	log.Println("Starting...")
@@ -79,7 +107,7 @@ func main() {
 
 	// map URLs to functions
 	http.HandleFunc("/", root)
-	http.HandleFunc("/routes", routes)
+	http.HandleFunc("/routes", makeGzipHandler(routes))
 	http.HandleFunc("/features", features)
 	http.HandleFunc("/awesome", test)
 	http.HandleFunc("/status", status)

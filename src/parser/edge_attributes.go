@@ -61,12 +61,12 @@ func EdgeLength(steps []geo.Coordinate, e ellipsoid.Ellipsoid) uint16 {
 	
 	w := alg.Float64ToHalf(total)
 	if alg.IsInfHalf(w) {
-		//fmt.Printf("Edge length %v overflows half, rounding to %v.\n",
-		//	total, alg.MaxHalfFloat)
+		fmt.Printf("Edge length %v overflows half, rounding to %v.\n",
+			total, alg.MaxHalfFloat)
 		w = alg.MaxHalf
 	} else if w == 0 {
-		//fmt.Printf("Edge length %v underflows half, rounding to %v.\n",
-		//	total, alg.MinHalfFloat)
+		fmt.Printf("Edge length %v underflows half, rounding to %v.\n",
+			total, alg.MinHalfFloat)
 		w = alg.MinHalf
 	}
 	return w
