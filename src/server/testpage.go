@@ -79,6 +79,10 @@ function init() {
   		<option>walking</option>
   		<option>bicycling</option>
     </select>
+    <select id="metricSelect">
+  		<option>time</option>
+  		<option>distance</option>
+    </select>
     <input id="autoTestButton" type="button" name="test" value="Go" style="width: 100px"/>
     <br />
     Parameters: <input id="showParameters" type="text" readonly="readonly" size="130"/>
@@ -310,7 +314,8 @@ function placesUpdate() {
   
   var parameters = "waypoints=" + from.geometry.location.lat() + "," + from.geometry.location.lng()
   	+ "|" + to.geometry.location.lat() + "," + to.geometry.location.lng()
-  	+ "&travelmode=" + $("#travelmodeSelect").val();
+  	+ "&travelmode=" + $("#travelmodeSelect").val()
+  	+ "&metric=" + $("#metricSelect").val();
   $("#testParameters").val(parameters);
   $("#showParameters").val(parameters);
   update();
