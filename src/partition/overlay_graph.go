@@ -1,3 +1,5 @@
+// Writes the overlay graph resulting from the partitioning on disc
+
 package main
 
 import (
