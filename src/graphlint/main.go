@@ -256,7 +256,7 @@ func main() {
 		println("Validate edges.")
 		for i, g := range h.Cluster {
 			fmt.Printf("Cluster %v/%v\n", i+1, len(h.Cluster))
-			ValidateGraphFile(g.(*graph.GraphFile))
+			ValidateGraphFile(g)
 		}
 	} else {
 		println("Open graph.")

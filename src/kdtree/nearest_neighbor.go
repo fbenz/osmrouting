@@ -88,6 +88,7 @@ func LoadKdTree(clusterGraph *graph.ClusterGraph, base string) error {
 func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 	// first search on the overlay graph
 	overlay := clusterKdTree.Overlay
+	log.Printf("binarySearch in the overlay graph")
 	bestStepIndex, coordOverlay, foundPoint := binarySearch(overlay, x, 0, overlay.EncodedStepLen()-1,
 		true /* compareLat */, trans)
 	minDistance, _ := e.To(x.Lat, x.Lng, coordOverlay.Lat, coordOverlay.Lng)
@@ -97,6 +98,7 @@ func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
 			kdTree := clusterKdTree.Cluster[i]
+			log.Printf("binarySearch in cluster %v", i)
 			stepIndex, coord, ok := binarySearch(kdTree, x, 0, kdTree.EncodedStepLen()-1, true /* compareLat */, trans)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
 

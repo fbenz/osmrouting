@@ -109,6 +109,8 @@ func (r *RoutePlanner) UnionGraph(src, dst kdtree.Location) (*graph.UnionGraph, 
 		indices = append(indices, dst.Cluster)
 		dstCluster = srcCluster + 1
 		log.Printf("Cluster %v: %v\n", dstCluster, dst.Cluster)
+	} else if src.Cluster == dst.Cluster {
+		dstCluster = srcCluster
 	}
 	
 	g := graph.NewUnionGraph(overlay, cluster, indices)
@@ -226,8 +228,9 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	log.Printf("Elaborate the path.")
 	Multiplex(len(sketches), r.ConcurrentPaths, func (i int) {
 		// Find the boundary vertices and cluster corresponding to this shortcut.
-		index := sketches[i]
-		u, cluster := g.ToClusterVertex(vpath[index], -1)
+		index := indices[i]
+		clusterIndex, u := g.Overlay.VertexCluster(vpath[index])
+		cluster := r.Graph.Cluster[clusterIndex]
 		_, v := g.Overlay.VertexCluster(vpath[index+1])
 		
 		// Run Dijkstra to find a u -> v path.
@@ -250,7 +253,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 			t := vertices[j+1]
 			steps[j] = r.EdgeToStep(cluster, edge, s, t)
 		}
-		segments[indices[i]] = steps
+		segments[sketches[i]] = steps
 	})
 	
 	// Build Leg
