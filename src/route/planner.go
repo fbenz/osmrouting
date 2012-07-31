@@ -247,7 +247,6 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 			j, done := i + 1, false
 			for !done && j < len(vpath) {
 				v := vpath[j]
-				j++
 				
 				// Project the vertex v onto the current cluster.
 				vindex := g.VertexToCluster(v)
@@ -261,6 +260,7 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 					v, _ = g.ToClusterVertex(v, vindex)
 					clusterIndexV := g.Indices[vindex]
 					log.Printf("  * Cluster Vertex: %v, Cluster: %v", v, clusterIndexV)
+					j++
 				}
 				
 				// Find the matching u - v edge in the current cluster
