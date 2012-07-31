@@ -95,7 +95,6 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 	//  -niter:  defaults to 10, but we can afford to spend more time in the preprocessing if it improves the partitoning.
 	//  -ncuts:  defaults to 1, as above, we just try 4 different partitions and pick the best one.
 	cmd := exec.Command("./gpmetis", "-contig", "-niter=50", "-ncuts=4", MetisGraphFile, strconv.Itoa(pi.Count))
-	//cmd := exec.Command("./gpmetis" /* other option go here, like -niter=10 -ncuts=1 */, MetisGraphFile, strconv.Itoa(pi.Count))
 	noise, err := cmd.CombinedOutput()
 	println(string(noise))
 	//err := cmd.Run()
@@ -147,7 +146,7 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 			if pi.Table[sp] != pi.Table[ep] {
 				pi.BorderTable[sp] = pi.Table[sp]
 				pi.BorderTable[ep] = pi.Table[ep]
-				crossEdges++ // not needed
+				crossEdges++
 			}
 		}
 	}
@@ -169,25 +168,6 @@ func (pi *PartitionInfo) metisPartitioning(g *graph.GraphFile) {
 
 	time5 := time.Now()
 	fmt.Printf("Collecting border vertices: %v s\n", time5.Sub(time4).Seconds())
-
-	// just statistics
-	/*minPartSize := g.VertexCount()
-	maxPartSize := 0
-	for p := 0; p < pi.Count; p++ {
-		curSize := 0
-		for i := 0; i < g.VertexCount(); i++ {
-			if pi.Table[i] == p {
-				curSize++
-			}
-		}
-		if curSize < minPartSize {
-			minPartSize = curSize
-		}
-		if curSize > maxPartSize {
-			maxPartSize = curSize
-		}
-	}
-	fmt.Printf("Partition sizes, min: %d, max: %d (U = %v)\n", minPartSize, maxPartSize, U)*/
 }
 
 func partitionCount(nodes int, U float64) int {

@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Concurrent creation of the subgraphs
 func (pi *PartitionInfo) createSubgraphs(g *graph.GraphFile, base string) {
 	time1 := time.Now()
 
@@ -26,6 +27,7 @@ func (pi *PartitionInfo) createSubgraphs(g *graph.GraphFile, base string) {
 	fmt.Printf("Creating subgraphs: %v s\n", time2.Sub(time1).Seconds())
 }
 
+// Creates and writes pi.Count / MaxThreads subgraphs
 func (pi *PartitionInfo) createSubgraphsPartly(ready chan<- int, g *graph.GraphFile, base string, start int) {
 	vertexIndices := make([]int, g.VertexCount())
 	for p := start; p < pi.Count; p += MaxThreads {
@@ -54,12 +56,13 @@ func (pi *PartitionInfo) createSubgraphsPartly(ready chan<- int, g *graph.GraphF
 			pi.Table[x] = p
 		}
 
-		// WriteSubgraph(base string, indices, partition []int) error {
+		// create directory
 		dir := path.Join(base, fmt.Sprintf("/cluster%d", p+1))
 		err := os.Mkdir(dir, os.ModeDir|os.ModePerm)
 		if err != nil {
 			log.Fatal("Creating dir for subgraph: ", err)
 		}
+		// write graph to disk
 		err = g.WriteSubgraph(dir, vertexIndices, vertexIndices)
 		if err != nil {
 			log.Fatal("Writing the subgraph: ", err)
