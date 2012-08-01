@@ -107,7 +107,7 @@ func main() {
 
 	// map URLs to functions
 	http.HandleFunc("/", root)
-	http.HandleFunc("/routes", makeGzipHandler(routes))
+	http.HandleFunc("/routes", routes)
 	http.HandleFunc("/features", features)
 	http.HandleFunc("/awesome", test)
 	http.HandleFunc("/status", status)
@@ -257,9 +257,9 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		Transport:       transport,
 		Metric:          metric,
 		AvoidFerries:    avoidFerries,
-		ConcurrentKd:    false,
-		ConcurrentLegs:  false,
-		ConcurrentPaths: false,
+		ConcurrentKd:    true,
+		ConcurrentLegs:  true,
+		ConcurrentPaths: true,
 	}
 	result := planner.Run()
 
