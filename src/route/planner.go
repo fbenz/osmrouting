@@ -2,7 +2,7 @@
 package route
 
 import (
-	//"log"
+	"log"
 	"geo"
 	"graph"
 	"kdtree"
@@ -27,15 +27,15 @@ type RoutePlanner struct {
 }
 
 // Execute f(0), f(1), ..., f(n-1) and do so in parallel, based on the
-// corresponding flag. 
+// corresponding flag.
 func Multiplex(n int, inParallel bool, f func (int)) {
 	if inParallel && n > 0 {
 		barrier := make(chan int, n)
 		for i := 0; i < n; i++ {
-			go func() {
+			go func(i int) {
 				f(i)
 				barrier <- 1
-			}()
+			}(i)
 		}
 		for i := 0; i < n; i++ {
 			<-barrier
@@ -53,7 +53,6 @@ func (r *RoutePlanner) Run() *Result {
 	r.Locations = make([]kdtree.Location, count)
 	//log.Printf("Planning a route containing %v legs.", count-1)
 	Multiplex(count, r.ConcurrentKd, func (i int) {
-		//log.Printf("NearestNeighbor(%v, %v)", r.Waypoints[i], r.Transport)
 		r.Locations[i] = kdtree.NearestNeighbor(r.Waypoints[i], r.Transport)
 	})
 	
