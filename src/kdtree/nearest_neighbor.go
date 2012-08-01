@@ -199,7 +199,8 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 	var recCoord2 geo.Coordinate
 	recAccessible2 := false
 	// test whether the current best distance circle crosses the plane
-	if bestDistance >= distToPlane || distToPlane < 1e6 {
+	// -10m to account for possible inaccuracies
+	if bestDistance >= distToPlane-10 {
 		// search on the other half
 		if !left {
 			// left
