@@ -2,7 +2,7 @@
 package route
 
 import (
-	"log"
+	//"log"
 	"geo"
 	"graph"
 	"kdtree"
