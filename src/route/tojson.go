@@ -52,6 +52,7 @@ func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polylin
 	return polyline
 }
 
+
 // Convert the path from start - steps - stop to a json Step
 func (r *RoutePlanner) PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed int) Step {
 	instruction := fmt.Sprintf(
@@ -98,6 +99,15 @@ func (r *RoutePlanner) EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Ver
 	return r.PartwayToStep(step, upos, vpos, speed)
 }
 
+func Orientation(p, q, r Point) string {
+	s := (q[0] - p[0])*(r[1] - p[1]) - (q[1] - p[1])*(r[0] - p[0])
+	if s > 0 {
+		return " turn left"
+	}
+	return " turn right"
+}
+
+
 // Assemble a sequence of Steps into a Leg.
 func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, stopc geo.Coordinate) Leg {
 	// Determine the number of steps on this path.
@@ -127,6 +137,9 @@ func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, s
 
 	// Add the intermediate steps
 	for _, step := range steps {
+		if i > 0 {
+			step.Instruction += Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
+		}
 		distance += step.Distance.Value
 		duration += step.Duration.Value
 		fullsteps[i] = step
@@ -136,6 +149,9 @@ func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, s
 	// Add the final step, if present
 	if stop.Length > 1e-7 {
 		step := r.WayToStep(stop, stopc, stop.Target)
+		if i > 0 {
+			step.Instruction += Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
+		}
 		distance += step.Distance.Value
 		duration += step.Duration.Value
 		fullsteps[i] = step
