@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"geo"
 	"graph"
-	"log"
 	"math"
 	"mm"
 	"path"
@@ -88,7 +87,6 @@ var linear = 0
 // No fail strategy: a nearest point on the overlay graph is always returned if no point
 // is found in the clusters.
 func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
-	//log.Printf("nearest neighbor for %v\n", x)
 	// first search on the overlay graph
 	overlay := clusterKdTree.Overlay
 	bestStepIndex, coordOverlay, foundPoint := binarySearch(overlay, x, 0, overlay.EncodedStepLen()-1,
@@ -100,25 +98,8 @@ func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 	for i, b := range clusterKdTree.BBoxes {
 		if b.Contains(x) {
 			kdTree := clusterKdTree.Cluster[i]
-
-			/*minD := math.Inf(1)
-			minI := -1
-			//var minC geo.Coordinate
-			for j := 0; j < kdTree.EncodedStepLen(); j++ {
-				c, oki := decodeCoordinate(kdTree, j, trans)
-				dd, _ := e.To(x.Lat, x.Lng, c.Lat, c.Lng)
-				if oki && dd < minD {
-					minD = dd
-					minI = j
-					//minC = c
-				}
-			}
-			linear = minI*/
-
-			//log.Printf("  point is in bbox %v\n", b)
 			stepIndex, coord, ok := binarySearch(kdTree, x, 0, kdTree.EncodedStepLen()-1, true /* compareLat */, trans)
 			dist, _ := e.To(x.Lat, x.Lng, coord.Lat, coord.Lng)
-			//log.Printf("    dist %v\n", dist)
 
 			if ok && (!foundPoint || dist < minDistance) {
 				foundPoint = true
@@ -128,7 +109,6 @@ func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 			}
 		}
 	}
-	log.Printf("nearest neighbor min distance %v\n", minDistance)
 
 	if clusterIndex >= 0 {
 		kdTree := clusterKdTree.Cluster[clusterIndex]
@@ -138,7 +118,6 @@ func NearestNeighbor(x geo.Coordinate, trans graph.Transport) Location {
 			Cluster: clusterIndex,
 		}
 	}
-	log.Printf("no matching bounding box found for (%v, %v)", x.Lat, x.Lng)
 	return Location{
 		Graph:   overlay.Graph,
 		EC:      overlay.EncodedStep(bestStepIndex),
@@ -167,7 +146,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	middleDist := math.Inf(1)
 	if middleAccessible {
-		middleDist = distance(x, middleCoord) //x.Distance(middleCoord)
+		middleDist = distance(x, middleCoord)
 	}
 
 	// recursion one half and if no accessible point is returned also on the other half
@@ -198,7 +177,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 			bothHalfs = true
 		}
 	}
-	bestDistance := distance(x, recCoord) //x.Distance(recCoord)
+	bestDistance := distance(x, recCoord)
 
 	// we are finished if both have already been searched
 	if bothHalfs {
@@ -211,31 +190,14 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	distToPlane := 0.0
 	if compareLat {
-		// distance(x, geo.Coordinate{middleCoord.Lat, x.Lng})
 		distToPlane = (x.Lat - middleCoord.Lat) * (x.Lat - middleCoord.Lat)
 	} else {
-		//distance(x, geo.Coordinate{x.Lat, middleCoord.Lng})
 		distToPlane = (x.Lng - middleCoord.Lng) * (x.Lng - middleCoord.Lng)
 	}
 
 	var recIndex2 int
 	var recCoord2 geo.Coordinate
 	recAccessible2 := false
-
-	/*if bestDistance < distToPlane && distToPlane >= 1e6 {
-		isIn := false
-		if !left {
-			isIn = start <= linear && linear <= middle-1
-		} else {
-			isIn = middle+1 <= linear && linear <= end
-		}
-		if isIn {
-			linearCoord, _ := decodeCoordinate(kdTree, linear, trans)
-			linearToPlane := distance(x, linearCoord)
-			fmt.Printf("problem: [%d, %d] -> %d  x: %v, mid: %v, bestDist: %v, distToPlane: %v, linearToPlane: %v\n", start, end, linear, x, middleCoord, bestDistance, distToPlane, linearToPlane)
-		}
-	}*/
-
 	// test whether the current best distance circle crosses the plane
 	if bestDistance >= distToPlane || distToPlane < 1e6 {
 		// search on the other half
@@ -250,7 +212,7 @@ func binarySearch(kdTree *KdTree, x geo.Coordinate, start, end int, compareLat b
 
 	bestDistance2 := math.Inf(1)
 	if recAccessible2 {
-		bestDistance2 = distance(x, recCoord2) //x.Distance(recCoord2)
+		bestDistance2 = distance(x, recCoord2)
 	}
 
 	if bestDistance < bestDistance2 {
@@ -287,6 +249,7 @@ func decodeCoordinate(t *KdTree, i int, trans graph.Transport) (geo.Coordinate, 
 	return coord, edgeAccessible
 }
 
+// distance returns the squared euclidian distance
 func distance(x, y geo.Coordinate) float64 {
 	return (x.Lat-y.Lat)*(x.Lat-y.Lat) + (x.Lng-y.Lng)*(x.Lng-y.Lng)
 }
