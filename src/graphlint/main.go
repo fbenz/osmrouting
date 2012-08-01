@@ -6,19 +6,30 @@ import (
 	"fmt"
 	"geo"
 	"log"
+	"mm"
 	"os"
 	"graph"
+	"path"
 )
 
 var (
 	// command line flags
 	InputFile    string
 	InputCluster string
+	ValidateKdTree bool
 )
 
 func init() {
 	flag.StringVar(&InputFile, "i", "", "input graph file")
 	flag.StringVar(&InputCluster, "ic", "", "input graph cluster")
+	flag.BoolVar(&ValidateKdTree, "check-kdtree", true, "validate kdtree files")
+}
+
+// Helper function to ensure that a coordinate is valid.
+func ValidateCoordinate(c geo.Coordinate) {
+	if c.Lat < -90 || c.Lat > 90 || c.Lng < -180 || c.Lng > 180 {
+		log.Fatalf("Coordinate out of range: %v.", c)
+	}
 }
 
 // Ensure that the out edges are monotone, start at 0 and end at a sentinel entry
@@ -109,11 +120,7 @@ func ValidateCoordinates(g *graph.GraphFile) {
 	for i := 0; i < g.VertexCount(); i++ {
 		lat := g.Coordinates[2 * i]
 		lng := g.Coordinates[2 * i + 1]
-		c := geo.DecodeCoordinate(lat, lng)
-		if c.Lng < -180 || c.Lng > 180 || c.Lat < -90 || c.Lat > 90 {
-			log.Fatalf("Vertex %v has invalid coordinates: (%v, %v).",
-				i, c.Lat, c.Lng)
-		}
+		ValidateCoordinate(geo.DecodeCoordinate(lat, lng))
 	}
 }
 
@@ -185,12 +192,12 @@ func ValidateWeights(g *graph.GraphFile) {
 	}
 	
 	// Show a histogram with the max speed values.
-	histogram := alg.NewHistogram("max speed")
-	for i := 0; i < g.EdgeCount(); i++ {
-		w := g.MaxSpeeds[i]
-		histogram.Add(fmt.Sprintf("%d", w))
-	}
-	histogram.Print()
+	//histogram := alg.NewHistogram("max speed")
+	//for i := 0; i < g.EdgeCount(); i++ {
+	//	w := g.MaxSpeeds[i]
+	//	histogram.Add(fmt.Sprintf("%d", w))
+	//}
+	//histogram.Print()
 }
 
 // Check monotonicity for the steps array.
@@ -238,6 +245,56 @@ func ValidateGraphFile(g *graph.GraphFile) {
 	ValidateSteps(g)
 }
 
+
+func ValidateKdTreeCoordinates(base string) {
+	// For historical reasons there is no convenient way to load a kd tree,
+	// so we have to do it manually. The format is as follows:
+	// - coordinates.ftf: An array of encoded coordinates, we check that the
+	//                    range is correct.
+	// - kdtree.ftf: An bitarray of encoded points, currently unchecked.
+	var coordinates []int32
+	err := mm.Open(path.Join(base, "coordinates.ftf"), &coordinates)
+	if err != nil {
+		log.Fatalf("Could not open coordinates file: %s", err.Error())
+	}
+	
+	if len(coordinates) % 2 != 0 {
+		log.Fatalf("Coordinates array truncated, len is %v, should be even.",
+			len(coordinates))
+	}
+	
+	for i := 0; i < len(coordinates)/2; i++ {
+		lat := coordinates[2*i]
+		lng := coordinates[2*i+1]
+		ValidateCoordinate(geo.DecodeCoordinate(lat, lng))
+	}
+}
+
+func ValidateKdTreeBounds(base string) {
+	// The bounding boxes are stored as an array of encoded bboxes.
+	// Ensure that every box is non-empty and that every coordinate is
+	// in range.
+	var boxes []int32
+	err := mm.Open(path.Join(base, "bboxes.ftf"), &boxes)
+	if err != nil {
+		log.Fatalf("Could not open bboxes file: %s", err.Error())
+	}
+	
+	if len(boxes) % 4 != 0 {
+		log.Fatalf("BBoxes array truncated, len is %v, should be a multiple of 4.",
+			len(boxes))
+	}
+	
+	for i := 0; i < len(boxes)/4; i++ {
+		box := geo.DecodeBBox(boxes[4*i:4*i+4])
+		ValidateCoordinate(box.Min)
+		ValidateCoordinate(box.Max)
+		if box.Min.Lat >= box.Max.Lat || box.Min.Lng >= box.Max.Lng {
+			log.Fatalf("Empty BBox found: %v.", box)
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 	if InputCluster == "" && InputFile == "" {
@@ -253,11 +310,22 @@ func main() {
 			os.Exit(1)
 		}
 		
-		println("Validate edges.")
+		println("Validate Cluster")
 		for i, g := range h.Cluster {
 			fmt.Printf("Cluster %v/%v\n", i+1, len(h.Cluster))
 			ValidateGraphFile(g)
+			if ValidateKdTree {
+				println(" * Validate KdTree")
+				base := path.Join(InputCluster, fmt.Sprintf("cluster%v", i+1))
+				ValidateKdTreeCoordinates(base)
+			}
 		}
+		println("Validate Overlay")
+		ValidateGraphFile(h.Overlay.GraphFile)
+		println(" * Validate KdTree")
+		ValidateKdTreeCoordinates(path.Join(InputCluster, "overlay"))
+		println("Validate Bounding Boxes")
+		ValidateKdTreeBounds(InputCluster)
 	} else {
 		println("Open graph.")
 		g, err := graph.OpenGraphFile(InputFile, false)
@@ -266,5 +334,9 @@ func main() {
 			os.Exit(1)
 		}
 		ValidateGraphFile(g)
+		if ValidateKdTree {
+			println(" * Validate KdTree")
+			ValidateKdTreeCoordinates(InputFile)
+		}
 	}
 }
