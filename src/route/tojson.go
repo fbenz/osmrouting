@@ -101,6 +101,9 @@ func (r *RoutePlanner) EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Ver
 
 func Orientation(p, q, r Point) string {
 	s := (q[0] - p[0])*(r[1] - p[1]) - (q[1] - p[1])*(r[0] - p[0])
+	if s < 1e-9 && s > -1e-9 {
+		return " go straightforward"
+	}
 	if s > 0 {
 		return " turn left"
 	}
