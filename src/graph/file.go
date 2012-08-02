@@ -113,7 +113,7 @@ func CloseGraphFile(g *GraphFile) error {
 		&g.Steps, &g.StepPositions,
 		//&g.Distances, &g.MaxSpeeds,
 	}
-	for n, p := range files {
+	for _, p := range files {
 		err := mm.Close(p)
 		if err != nil {
 			return err
