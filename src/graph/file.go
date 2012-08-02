@@ -85,6 +85,18 @@ func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 			return nil, err
 		}
 	}
+	attributes := []*[]uint16 {
+		&g.Distances, &g.MaxSpeeds,
+	}
+	for _, attr := range attributes {
+		p := *attr
+		*attr = make([]uint16, len(p))
+		copy(*attr, p)
+		err := mm.Close(&p)
+		if err != nil && !ignoreErrors {
+			return nil, err
+		}
+	}
 	
 	return g, nil
 }
@@ -97,6 +109,7 @@ func CloseGraphFile(g *GraphFile) error {
 		//&g.Oneway, &g.Ferries
 		&g.NextIn, &g.Edges, &g.Distances,
 		&g.Steps, &g.StepPositions,
+		&g.Distances, &g.MaxSpeeds,
 	}
 	for _, p := range files {
 		err := mm.Close(p)
