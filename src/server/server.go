@@ -3,19 +3,19 @@
 package main
 
 import (
-	"compress/gzip"
 	"bytes"
-	
+	"compress/gzip"
+
 	"encoding/json"
 	"errors"
 	"flag"
+	"geo"
 	"graph"
 	"html/template"
 	"io"
 	"kdtree"
 	"log"
 	"net/http"
-	"geo"
 	"os"
 	"route"
 	"runtime"
@@ -23,11 +23,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	//"fmt"
 )
 
 const (
+	MaxThreads = 32
+
 	ParameterWaypoints  = "waypoints"
 	ParameterTravelmode = "travelmode"
 	ParameterMetric     = "metric"
@@ -41,9 +41,9 @@ const (
 	TravelmodeCar  = "driving"
 	TravelmodeFoot = "walking"
 	TravelmodeBike = "bicycling"
-	
+
 	MetricDistance = "distance"
-	MetricTime = "time"
+	MetricTime     = "time"
 )
 
 var (
@@ -95,7 +95,7 @@ func makeGzipHandler(fn http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
-	runtime.GOMAXPROCS(8)
+	runtime.GOMAXPROCS(MaxThreads)
 	log.Println("Starting...")
 
 	// call the command line parser
@@ -148,8 +148,8 @@ func setup() error {
 	}
 
 	// Create the feature response only once (no change at runtime).
-	supportedTravelmodes  := TravelMode{Driving: true, Walking: true, Bicycling: true}
-	supportedMetrics      := Metric{Distance: true, Time: true}
+	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
+	supportedMetrics := Metric{Distance: true, Time: true}
 	supportedRestrictions := Avoid{Ferries: true}
 	supportedFeatures := &Features{
 		TravelMode: supportedTravelmodes,
@@ -171,7 +171,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Server is up and running")
 }
 
-// routes returns routes according to the given parameters. (at the moment only one route is returned statically)
+// routes returns routes according to the given parameters
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	defer LogRequest(r, startTime)
@@ -213,7 +213,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	transport := getTransport(travelmode)
-	
+
 	// Metrics
 	metric := graph.Distance
 	if urlParameter[ParameterMetric] != nil {
@@ -227,7 +227,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	// Restrictions
 	avoidFerries := false
 	if urlParameter[ParameterAvoid] != nil {
@@ -247,11 +247,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// there is no need to handle the other parameters at the moment as
-	// the implementation should not fail for unknown parameters/values
-
 	// Do the actual route computation.
-	planner := &route.RoutePlanner {
+	planner := &route.RoutePlanner{
 		Graph:           clusterGraph,
 		Waypoints:       waypoints,
 		Transport:       transport,
