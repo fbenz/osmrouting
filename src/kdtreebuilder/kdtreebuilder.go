@@ -49,6 +49,10 @@ func main() {
 	for j := 0; j < Parts; j++ {
 		start := j * partSize
 		end := (j + 1) * partSize
+		if start >= len(clusterGraph.Cluster) {
+			// for small cluster counts
+			break
+		}
 		if end > len(clusterGraph.Cluster) {
 			end = len(clusterGraph.Cluster)
 		}
