@@ -33,14 +33,13 @@ func InitLogger() {
 }
 
 // LogRequest loggs requests in a non-blocking way. It is guaranteed that the request is logged.
-func LogRequest(r *http.Request, startTime time.Time) {
+func LogRequest(r *http.Request, startTime, endTime time.Time) {
 	if !FlagLogging {
 		return
 	}
 
 	// if the buffer is full, the request is not logged
 	if len(loggerChan) < LogBufferSize {
-		endTime := time.Now()
 		duration := endTime.Sub(startTime)
 		loggerChan <- &RequestInfo{r.URL.String(), startTime, duration}
 	}

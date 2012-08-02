@@ -29,7 +29,7 @@ type RoutePlanner struct {
 // Execute f(0), f(1), ..., f(n-1) and do so in parallel, based on the
 // corresponding flag.
 func Multiplex(n int, inParallel bool, f func (int)) {
-	if inParallel && n > 0 {
+	if inParallel && n > 1 {
 		barrier := make(chan int, n)
 		for i := 0; i < n; i++ {
 			go func(i int) {

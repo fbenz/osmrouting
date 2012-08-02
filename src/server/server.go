@@ -3,9 +3,6 @@
 package main
 
 import (
-	"compress/gzip"
-	"bytes"
-	
 	"encoding/json"
 	"errors"
 	"flag"
@@ -69,31 +66,6 @@ func init() {
 	flag.BoolVar(&FlagCaching, "caching", false, "enables caching of route requests")
 }
 
-type gzipResponseWriter struct {
-	http.ResponseWriter
-	buf bytes.Buffer
-}
-
-func (w *gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.buf.Write(b)
-}
-
-func makeGzipHandler(fn http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			fn(w, r)
-			return
-		}
-		w.Header().Set("Content-Encoding", "gzip")
-		gzw := &gzipResponseWriter{ResponseWriter: w}
-		fn(gzw, r)
-		w.Header().Set("Content-Type", http.DetectContentType(gzw.buf.Bytes()))
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-		gzw.buf.WriteTo(gz)
-	}
-}
-
 func main() {
 	runtime.GOMAXPROCS(8)
 	log.Println("Starting...")
@@ -150,7 +122,7 @@ func setup() error {
 	// Create the feature response only once (no change at runtime).
 	supportedTravelmodes  := TravelMode{Driving: true, Walking: true, Bicycling: true}
 	supportedMetrics      := Metric{Distance: true, Time: true}
-	supportedRestrictions := Avoid{Ferries: true}
+	supportedRestrictions := Avoid{Ferries: false} // not implemented yet.
 	supportedFeatures := &Features{
 		TravelMode: supportedTravelmodes,
 		Metric:     supportedMetrics,
@@ -174,7 +146,6 @@ func root(w http.ResponseWriter, r *http.Request) {
 // routes returns routes according to the given parameters. (at the moment only one route is returned statically)
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
-	defer LogRequest(r, startTime)
 
 	// profiling if enabled
 	if FlagCpuProfile != "" {
@@ -259,9 +230,12 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		AvoidFerries:    avoidFerries,
 		ConcurrentKd:    true,
 		ConcurrentLegs:  true,
-		ConcurrentPaths: true,
+		ConcurrentPaths: false,
 	}
 	result := planner.Run()
+
+	endTime := time.Now()
+	defer LogRequest(r, startTime, endTime)
 
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
@@ -318,17 +292,16 @@ func getTransport(travelmode string) graph.Transport {
 // features handles feature requests.
 func features(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
-	defer LogRequest(r, startTime)
-
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write(featureResponse)
+	LogRequest(r, startTime, time.Now())
 }
 
 // stop The server can be terminated with a request.
 func stop(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
-	LogRequest(r, startTime)
+	LogRequest(r, startTime, time.Now())
 	// wait 5 seconds so that the logger has time to write the request to file
 	time.Sleep(5 * time.Second)
 
