@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"geo"
 	"graph"
 	"html/template"
 	"io"
 	"kdtree"
 	"log"
 	"net/http"
-	"geo"
 	"os"
 	"route"
 	"runtime"
@@ -20,11 +20,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	//"fmt"
 )
 
 const (
+	MaxThreads = 32
+
 	ParameterWaypoints  = "waypoints"
 	ParameterTravelmode = "travelmode"
 	ParameterMetric     = "metric"
@@ -38,9 +38,9 @@ const (
 	TravelmodeCar  = "driving"
 	TravelmodeFoot = "walking"
 	TravelmodeBike = "bicycling"
-	
+
 	MetricDistance = "distance"
-	MetricTime = "time"
+	MetricTime     = "time"
 )
 
 var (
@@ -67,7 +67,7 @@ func init() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(8)
+	runtime.GOMAXPROCS(MaxThreads)
 	log.Println("Starting...")
 
 	// call the command line parser
@@ -143,7 +143,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Server is up and running")
 }
 
-// routes returns routes according to the given parameters. (at the moment only one route is returned statically)
+// routes returns routes according to the given parameters
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
@@ -184,7 +184,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	transport := getTransport(travelmode)
-	
+
 	// Metrics
 	metric := graph.Distance
 	if urlParameter[ParameterMetric] != nil {
@@ -198,7 +198,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	// Restrictions
 	avoidFerries := false
 	if urlParameter[ParameterAvoid] != nil {
@@ -218,11 +218,8 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// there is no need to handle the other parameters at the moment as
-	// the implementation should not fail for unknown parameters/values
-
 	// Do the actual route computation.
-	planner := &route.RoutePlanner {
+	planner := &route.RoutePlanner{
 		Graph:           clusterGraph,
 		Waypoints:       waypoints,
 		Transport:       transport,
