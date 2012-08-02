@@ -52,14 +52,10 @@ func StepsToPolyline(steps []geo.Coordinate, start, stop geo.Coordinate) Polylin
 	return polyline
 }
 
-
 // Convert the path from start - steps - stop to a json Step
 func (r *RoutePlanner) PartwayToStep(steps []geo.Coordinate, start, stop geo.Coordinate, maxSpeed int) Step {
-	instruction := fmt.Sprintf(
-		"Walk from (%.4f, %.4f) to (%.4f, %.4f)",
-		start.Lat, start.Lng, stop.Lat, stop.Lng)
 	length := geo.StepLength(append(append([]geo.Coordinate{start}, steps...), stop))
-	
+
 	// For cars, we know how fast they can go... otherwise, we make something up.
 	duration := float64(0)
 	if r.Transport == graph.Car && maxSpeed != 0 {
@@ -72,14 +68,13 @@ func (r *RoutePlanner) PartwayToStep(steps []geo.Coordinate, start, stop geo.Coo
 	} else {
 		duration = length / 13.0
 	}
-	
+
 	return Step{
 		Distance:      FormatDistance(length),
 		Duration:      FormatDuration(duration),
 		StartLocation: StepToPoint(start),
 		EndLocation:   StepToPoint(stop),
 		Polyline:      StepsToPolyline(steps, start, stop),
-		Instruction:   instruction,
 	}
 }
 
@@ -92,24 +87,23 @@ func (r *RoutePlanner) WayToStep(steps graph.Way, start, stop geo.Coordinate) St
 
 // Convert an Edge (u,v) into a json Step
 func (r *RoutePlanner) EdgeToStep(g graph.Graph, edge graph.Edge, u, v graph.Vertex) Step {
-	step  := g.EdgeSteps(edge, u, nil)
-	upos  := g.VertexCoordinate(u)
-	vpos  := g.VertexCoordinate(v)
+	step := g.EdgeSteps(edge, u, nil)
+	upos := g.VertexCoordinate(u)
+	vpos := g.VertexCoordinate(v)
 	speed := g.EdgeMaxSpeed(edge)
 	return r.PartwayToStep(step, upos, vpos, speed)
 }
 
 func Orientation(p, q, r Point) string {
-	s := (q[0] - p[0])*(r[1] - p[1]) - (q[1] - p[1])*(r[0] - p[0])
+	s := (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0])
 	if s < 1e-9 && s > -1e-9 {
-		return " go straightforward"
+		return "Continue straightforward"
 	}
 	if s > 0 {
-		return " turn left"
+		return "Turn right"
 	}
-	return " turn right"
+	return "Turn left"
 }
-
 
 // Assemble a sequence of Steps into a Leg.
 func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, stopc geo.Coordinate) Leg {
@@ -141,7 +135,7 @@ func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, s
 	// Add the intermediate steps
 	for _, step := range steps {
 		if i > 0 {
-			step.Instruction += Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
+			step.Instruction = Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
 		}
 		distance += step.Distance.Value
 		duration += step.Duration.Value
@@ -153,17 +147,20 @@ func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, s
 	if stop.Length > 1e-7 {
 		step := r.WayToStep(stop, stopc, stop.Target)
 		if i > 0 {
-			step.Instruction += Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
+			step.Instruction = Orientation(fullsteps[i-1].StartLocation, fullsteps[i-1].EndLocation, step.EndLocation)
 		}
 		distance += step.Distance.Value
 		duration += step.Duration.Value
 		fullsteps[i] = step
 		i++
 	}
-	
+
+	if totalSteps > 0 {
+		fullsteps[0].Instruction = "Start your journey"
+	}
 	startPoint = StepToPoint(start.Target)
-	endPoint   = StepToPoint(stop.Target)
-	
+	endPoint = StepToPoint(stop.Target)
+
 	return Leg{
 		Distance:      FormatDistance(float64(distance)),
 		Duration:      FormatDuration(float64(duration)),
