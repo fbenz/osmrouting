@@ -4,21 +4,18 @@
 # - Go Version 1
 #   such that the 'go' tool is available
 # - Metis
-#   'gpmetis' has to be in the same folder as our 'partition' program
+#   'gpmetis' has to be in the same folder as our 'partition' program (/bin)
 
 # parameters:
 # pbf_file: OSM PBF file
-# access_type: car, bike, foot or combinations, e.g. car,bike
-# path: the path to the graph that is produced by the parser
+# path: absolut path to the graph dir
 # port: port of the server
 
-# -help lists all available flags for each of our executabels
+# build everything
+./build.sh
 
 # preprocessing
-parser -i=pbf_file -f=access_type
-partition -dir=path
-metric -dir=path
-kdtreebuilder -dir=path
+./preprocess.sh pbf_file path
 
 # start server
-server -dir=path -port=port
+./bin/server -dir path -port port
