@@ -20,6 +20,8 @@ import (
 
 const (
 	MaxThreads = 8
+	Parts      = 10 // the construction of the k-d trees for the cluster is split into parts
+
 	BBoxMargin = 0.002 // bounding boxes are enlarged to ensure that points on the borders are found
 )
 
@@ -42,16 +44,27 @@ func main() {
 
 	fmt.Printf("Create k-d trees for the subgraphs\n")
 	bboxes := make([]geo.BBox, len(clusterGraph.Cluster))
-	ready := make(chan int, len(clusterGraph.Cluster))
-	for i, g := range clusterGraph.Cluster {
-		clusterDir := fmt.Sprintf("/cluster%d", i+1)
-		go writeKdTreeSubgraph(ready, path.Join(FlagBaseDir, clusterDir), g, bboxes, i)
-	}
-	for _, _ = range clusterGraph.Cluster {
-		<-ready
-	}
-	for _, g := range clusterGraph.Cluster {
-		graph.CloseGraphFile(g)
+
+	partSize := len(clusterGraph.Cluster)/Parts + 1
+	for j := 0; j < Parts; j++ {
+		start := j * partSize
+		end := (j + 1) * partSize
+		if end > len(clusterGraph.Cluster) {
+			end = len(clusterGraph.Cluster)
+		}
+		subCluster := clusterGraph.Cluster[start:end]
+
+		ready := make(chan int, len(subCluster))
+		for i, g := range subCluster {
+			clusterDir := fmt.Sprintf("/cluster%d", start+i+1)
+			go writeKdTreeSubgraph(ready, path.Join(FlagBaseDir, clusterDir), g, bboxes, start+i)
+		}
+		for _, _ = range subCluster {
+			<-ready
+		}
+		for _, g := range subCluster {
+			graph.CloseGraphFile(g)
+		}
 	}
 
 	// write bounding boxes to file
@@ -206,10 +219,10 @@ func writeKdTreeOverlay(baseDir string, g *graph.OverlayGraphFile) {
 // writeToFile stores the permitation created by the k-d tree
 func writeToFile(t *kdtree.KdTree, baseDir string) error {
 	output, err := os.Create(path.Join(baseDir, "kdtree.ftf"))
-	defer output.Close()
 	if err != nil {
 		return err
 	}
+	defer output.Close()
 	err = binary.Write(output, binary.LittleEndian, t.EncodedSteps)
 	if err != nil {
 		return err
