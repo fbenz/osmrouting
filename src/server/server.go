@@ -227,7 +227,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 		AvoidFerries:    avoidFerries,
 		ConcurrentKd:    true,
 		ConcurrentLegs:  true,
-		ConcurrentPaths: false,
+		ConcurrentPaths: true,
 	}
 	result := planner.Run()
 
