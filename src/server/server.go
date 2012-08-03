@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"geo"
 	"graph"
 	"html/template"
@@ -189,7 +190,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	if urlParameter[ParameterMetric] != nil {
 		switch urlParameter[ParameterMetric][0] {
 		case MetricDistance:
-			metric := graph.Distance
+			metric = graph.Distance
 		case MetricTime:
 			// nothing to do here
 		default:
