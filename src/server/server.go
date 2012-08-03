@@ -33,7 +33,7 @@ const (
 	SeparatorWaypoints = "|"
 	SeparatorLatLng    = ","
 
-	DefaultPort = 23401 // the default port number
+	DefaultPort = 23401
 
 	TravelmodeCar  = "driving"
 	TravelmodeFoot = "walking"
@@ -120,8 +120,8 @@ func setup() error {
 	}
 
 	// Create the feature response only once (no change at runtime).
-	supportedTravelmodes  := TravelMode{Driving: true, Walking: true, Bicycling: true}
-	supportedMetrics      := Metric{Distance: true, Time: true}
+	supportedTravelmodes := TravelMode{Driving: true, Walking: true, Bicycling: true}
+	supportedMetrics := Metric{Distance: true, Time: true}
 	supportedRestrictions := Avoid{Ferries: false} // not implemented yet.
 	supportedFeatures := &Features{
 		TravelMode: supportedTravelmodes,
@@ -129,7 +129,6 @@ func setup() error {
 		Avoid:      supportedRestrictions,
 	}
 	if fp, err := json.Marshal(supportedFeatures); err != nil {
-		log.Fatal("Creating feature response: ", err)
 		return err
 	} else {
 		// only assign if the creation was successful
@@ -143,7 +142,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Server is up and running")
 }
 
-// routes returns routes according to the given parameters
+// routes returns routes according to the given parameters.
 func routes(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
@@ -186,13 +185,13 @@ func routes(w http.ResponseWriter, r *http.Request) {
 	transport := getTransport(travelmode)
 
 	// Metrics
-	metric := graph.Distance
+	metric := graph.Time
 	if urlParameter[ParameterMetric] != nil {
 		switch urlParameter[ParameterMetric][0] {
 		case MetricDistance:
-			// nothing to do here
+			metric := graph.Distance
 		case MetricTime:
-			metric = graph.Time
+			// nothing to do here
 		default:
 			http.Error(w, "wrong metric", http.StatusBadRequest)
 			return
@@ -252,7 +251,7 @@ func routes(w http.ResponseWriter, r *http.Request) {
 func getWaypoints(waypointString string) ([]geo.Coordinate, error) {
 	waypointStrings := strings.Split(waypointString, SeparatorWaypoints)
 	if len(waypointStrings) < 2 {
-		return nil, errors.New("too few waypoints. at least 2 waypoints are needed")
+		return nil, errors.New("too few waypoints. at least 2 waypoints are required")
 	}
 
 	points := make([]geo.Coordinate, len(waypointStrings))
@@ -295,7 +294,7 @@ func features(w http.ResponseWriter, r *http.Request) {
 	LogRequest(r, startTime, time.Now())
 }
 
-// stop The server can be terminated with a request.
+// stop allows terminating the server a request.
 func stop(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	LogRequest(r, startTime, time.Now())
@@ -305,7 +304,8 @@ func stop(w http.ResponseWriter, r *http.Request) {
 	os.Exit(1)
 }
 
-// forward redirects the routing request to another port
+// forward redirects the routing request to another port. This is used by our test page so
+// that we can work around the same origin policy.
 func forward(w http.ResponseWriter, r *http.Request) {
 	// only extract the "port" parameter
 	urlParameter := r.URL.Query()
@@ -318,7 +318,7 @@ func forward(w http.ResponseWriter, r *http.Request) {
 	forwardParameter := ""
 	for k, v := range urlParameter {
 		if k != "port" {
-			forwardParameter += "&" + k + "=" + v[0]
+			forwardParameter += fmt.Sprintf("&%s=%s", k, v[0])
 		}
 	}
 	// remove first &
