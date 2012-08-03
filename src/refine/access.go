@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	MaxTrials = 10
-	MinSize   = 0.5
+	MaxTrials = 20
+	MinSize   = 1 << 15 // minimum size of a SCC to be considered
 )
 
 func UndirectedSanityCheck(g *graph.GraphFile) {
@@ -33,15 +33,15 @@ func UndirectedSanityCheck(g *graph.GraphFile) {
 	fmt.Printf("Base Graph:\n")
 	fmt.Printf(" - |V| = %v\n", g.VertexCount())
 	fmt.Printf(" - |E| = %v\n", edgeCount)
-	fmt.Printf(" - average degree: %.2f\n", float64(edgeCount) / float64(g.VertexCount()))
+	fmt.Printf(" - average degree: %.2f\n", float64(edgeCount)/float64(g.VertexCount()))
 	fmt.Printf(" - minimum degree: %v\n", min)
 	fmt.Printf(" - maximum degree: %v\n", max)
 }
 
 func SanityCheck(g graph.Graph, mode graph.Transport) {
 	outHistogram := alg.NewHistogram(fmt.Sprintf("out degrees %v", mode))
-	inHistogram  := alg.NewHistogram(fmt.Sprintf("in degrees %v", mode))
-	inEdgeCount  := 0
+	inHistogram := alg.NewHistogram(fmt.Sprintf("in degrees %v", mode))
+	inEdgeCount := 0
 	outEdgeCount := 0
 	edges := []graph.Edge(nil)
 	for i := 0; i < g.VertexCount(); i++ {
@@ -53,7 +53,7 @@ func SanityCheck(g graph.Graph, mode graph.Transport) {
 		outHistogram.Add(fmt.Sprintf("%v", outDegree))
 		inHistogram.Add(fmt.Sprintf("%v", inDegree))
 		outEdgeCount += outDegree
-		inEdgeCount  += inDegree
+		inEdgeCount += inDegree
 	}
 	if inEdgeCount != outEdgeCount {
 		fmt.Printf("Graph in/out edges are broken (t: %v):\n", mode)
@@ -66,13 +66,13 @@ func SanityCheck(g graph.Graph, mode graph.Transport) {
 }
 
 func Reach(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) []byte {
-	result := make([]byte, (g.VertexCount() + 7) / 8)
-	queue  := make([]graph.Vertex, 1, 128)
+	result := make([]byte, (g.VertexCount()+7)/8)
+	queue := make([]graph.Vertex, 1, 128)
 	alg.SetBit(result, uint(v))
 	queue[0] = v
-	
+
 	edges := []graph.Edge(nil)
-	
+
 	for len(queue) > 0 {
 		s := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
@@ -85,38 +85,48 @@ func Reach(g graph.Graph, v graph.Vertex, forward bool, mode graph.Transport) []
 			}
 		}
 	}
-	
+
 	return result
 }
 
 func SCC(g graph.Graph, v graph.Vertex, t graph.Transport) ([]byte, int) {
-	r0 := Reach(g, v, true,  t)
+	r0 := Reach(g, v, true, t)
 	r1 := Reach(g, v, false, t)
 	scc := alg.Intersection(r0, r1)
 	return scc, alg.Popcount(scc)
 }
 
-func RandomVertex(g graph.Graph) graph.Vertex {
-	return graph.Vertex(rand.Intn(g.VertexCount()))
-}
-
-func LargeSCC(g graph.Graph, t graph.Transport) ([]byte, int) {
-	maxSCC  := []byte(nil)
-	maxSize := 0
-	fmt.Printf("Computing a large SCC for t = %v\n", t)
-	for i := 0; i < MaxTrials; i++ {
-		scc, size := SCC(g, RandomVertex(g), t)
-		if size > maxSize {
-			maxSize = size
-			maxSCC  = scc
-			fmt.Printf(" - Found an SCC of size %v (frac: %.2f)\n",
-				size, float64(size) / float64(g.VertexCount()))
-			if size > int(MinSize * float64(g.VertexCount())) {
-				return scc, size
-			}
+// RandomVertex returns a random vertex that is not in the final graph yet
+func RandomVertex(g graph.Graph, in []byte) graph.Vertex {
+	for {
+		r := rand.Intn(g.VertexCount())
+		if !alg.GetBit(in, uint(r)) {
+			return graph.Vertex(r)
 		}
 	}
-	return maxSCC, maxSize
+	return -1
+}
+
+// LargeSCC returns the union of all large SCCs found
+func LargeSCC(g graph.Graph, t graph.Transport) ([]byte, int) {
+	in := make([]byte, g.VertexCount())
+	totalSize := 0
+	sccCount := 0
+	fmt.Printf("Computing SCCs for t = %v\n", t)
+	// Stops after MaxTrials unsuccessful trials or if it is not possible to find a SCC of sufficent size anymore
+	for i := 0; i < MaxTrials && totalSize+MinSize <= g.VertexCount(); i++ {
+		scc, size := SCC(g, RandomVertex(g, in), t)
+		if size >= MinSize {
+			i--
+			in = alg.Union(in, scc)
+			totalSize += size
+			fmt.Printf(" - Found an SCC of size %v (frac: %.2f)\n",
+				size, float64(size)/float64(g.VertexCount()))
+			sccCount++
+		}
+	}
+	fmt.Printf("Found %v SCCs with a minimum size of %v\n", sccCount, MinSize)
+	return in, totalSize
 }
 
 func AccessibleRegion(g *graph.GraphFile) []byte {
@@ -135,6 +145,6 @@ func AccessibleRegion(g *graph.GraphFile) []byte {
 	}
 	size := alg.Popcount(r)
 	fmt.Printf("Accessible: %v (frac: %.2f, trash: %v)\n",
-		size, float64(size) / float64(g.VertexCount()), g.VertexCount() - size)
+		size, float64(size)/float64(g.VertexCount()), g.VertexCount()-size)
 	return r
 }
