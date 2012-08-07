@@ -44,13 +44,13 @@ type Graph interface {
 	VertexAccessible(Vertex, Transport) bool
 	VertexCoordinate(Vertex) geo.Coordinate
 	VertexEdges(Vertex, bool, Transport, []Edge) []Edge
-	
+
 	VertexNeighbors(Vertex, bool, Transport, Metric, []Dart) []Dart
 
 	EdgeOpposite(Edge, Vertex) Vertex
 	EdgeSteps(Edge, Vertex, []geo.Coordinate) []geo.Coordinate
 	EdgeWeight(Edge, Transport, Metric) float64
-	
+
 	// direct access to edge attributes
 	EdgeFerry(Edge) bool
 	EdgeMaxSpeed(Edge) int
@@ -61,9 +61,9 @@ type OverlayGraph interface {
 	Graph
 
 	ClusterCount() int
-	ClusterSize(int) int // cluster id -> number of vertices
+	ClusterSize(int) int                // cluster id -> number of vertices
 	VertexCluster(Vertex) (int, Vertex) // vertex id -> cluster id, cluster vertex id
-	ClusterVertex(int, Vertex) Vertex // cluster id, vertex id -> vertex id
+	ClusterVertex(int, Vertex) Vertex   // cluster id, vertex id -> vertex id
 }
 
 func (t Transport) String() string {

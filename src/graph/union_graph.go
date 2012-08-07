@@ -61,14 +61,6 @@ func (g *UnionGraph) VertexToCluster(v Vertex) int {
 		i++
 	}
 	return i
-	/*
-	for i := len(g.Offsets)-1; i >= 0; i-- {
-		if int(v) >= g.Offsets[i] {
-			return i
-		}
-	}
-	panic("no matching cluster found for the given vertex")
-	*/
 }
 
 // former VertexCluster
