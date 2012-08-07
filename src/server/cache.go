@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	MaxCacheSize = 100 * 1024 * 1024 	// in bytes
-	CacheQueueSize = 100
-	CacheEvictionBorder = 0.75			// % of cache size
-	CacheEvictionPeriod = 15 * 60		// in seconds; min. distance in time between eviction passes
+	MaxCacheSize        = 100 * 1024 * 1024 // in bytes
+	CacheQueueSize      = 100
+	CacheEvictionBorder = 0.75    // % of cache size
+	CacheEvictionPeriod = 15 * 60 // in seconds; min. distance in time between eviction passes
 )
 
 var (
@@ -19,22 +19,22 @@ var (
 )
 
 type Cache struct {
-	Size 				int
-	Queue 				chan *CacheQueueElement
-	mutex				sync.Mutex
-	elements			map[string]*CacheElement
-	lastEvictionPass	time.Time
+	Size             int
+	Queue            chan *CacheQueueElement
+	mutex            sync.Mutex
+	elements         map[string]*CacheElement
+	lastEvictionPass time.Time
 }
 
 type CacheElement struct {
-	Response 		[]byte
-	HitCounter		int
-	LastAccessed 	time.Time
+	Response     []byte
+	HitCounter   int
+	LastAccessed time.Time
 }
 
 type CacheQueueElement struct {
-	Key			string
-	Response 	[]byte
+	Key      string
+	Response []byte
 }
 
 // Thread-safe access to the map of the cache
@@ -94,11 +94,11 @@ func CachePut(key string, response []byte) {
 
 func CacheHandler() {
 	for elem := range cache.Queue {
-		if _, ok := cache.Update(elem.Key); !ok && cache.Size + len(elem.Response) <= MaxCacheSize {
+		if _, ok := cache.Update(elem.Key); !ok && cache.Size+len(elem.Response) <= MaxCacheSize {
 			cache.Put(elem.Key, &CacheElement{Response: elem.Response, HitCounter: 0, LastAccessed: time.Now()})
 			cache.Size += len(elem.Response)
 		}
-		if cache.Size >= CacheEvictionBorder * MaxCacheSize {
+		if cache.Size >= CacheEvictionBorder*MaxCacheSize {
 			timeSinceLastEviction := time.Now().Sub(cache.lastEvictionPass)
 			// respect the period
 			if timeSinceLastEviction.Seconds() < CacheEvictionPeriod {
