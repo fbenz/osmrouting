@@ -1,4 +1,3 @@
-
 package kdtree
 
 import (
@@ -41,16 +40,16 @@ func (l Location) Edge() graph.Edge {
 func (l Location) Decode(forward bool, transport graph.Transport, steps *[]geo.Coordinate) []graph.Way {
 	g := l.Graph
 	vertex := l.Vertex()
-	edge   := l.Edge()
+	edge := l.Edge()
 	offset := l.StepOffset()
-	
+
 	if int(edge) == -1 {
 		// The easy case, where we hit some vertex exactly.
 		target := g.VertexCoordinate(vertex)
 		way := graph.Way{Length: 0, Vertex: vertex, Steps: nil, Target: target}
 		return []graph.Way{way}
 	}
-	
+
 	oneway := g.EdgeOneway(edge, transport)
 	t1 := vertex                       // start vertex
 	t2 := g.EdgeOpposite(edge, vertex) // end vertex
