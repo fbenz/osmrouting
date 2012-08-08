@@ -106,12 +106,8 @@ func OpenGraphFile(base string, ignoreErrors bool) (*GraphFile, error) {
 func CloseGraphFile(g *GraphFile) error {
 	files := []interface{}{
 		&g.FirstOut, &g.FirstIn, &g.Coordinates,
-		//&g.Access[Car], &g.Access[Bike], &g.Access[Foot],
-		//&g.AccessEdge[Car], &g.AccessEdge[Bike], &g.AccessEdge[Foot],
-		//&g.Oneway, &g.Ferries
 		&g.NextIn, &g.Edges,
 		&g.Steps, &g.StepPositions,
-		//&g.Distances, &g.MaxSpeeds,
 	}
 	for _, p := range files {
 		err := mm.Close(p)

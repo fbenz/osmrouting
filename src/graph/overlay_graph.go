@@ -119,13 +119,6 @@ func (g *OverlayGraphFile) EdgeCount() int {
 	return g.GraphFile.EdgeCount() + g.ClusterEdgeCount
 }
 
-/*
-func (g *OverlayGraphFile) VertexEdges(v Vertex, forward bool, t Transport, buf []Edge) []Edge {
-	// This only returns the cut edges, because shortcuts lack most edge attributes.
-	return g.GraphFile.VertexEdges(v, forward, t, buf)
-}
-*/
-
 func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, m Metric, buf []Dart) []Dart {
 	result := g.GraphFile.VertexNeighbors(v, forward, t, m, buf)
 	// Add the shortcuts
@@ -135,17 +128,17 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 	clusterIndex := int(g.Cluster[cluster])
 	matrix := g.Matrices[t][m]
 	inf := float32(math.Inf(1))
-	
+
 	// ensure that the result slice has sufficient capacity
 	writeIndex := len(result)
-	if cap(result) >= clusterSize + len(result) {
+	if cap(result) >= clusterSize+len(result) {
 		result = result[:len(result)+clusterSize]
 	} else {
-		realloc := make([]Dart, len(result) + clusterSize)
+		realloc := make([]Dart, len(result)+clusterSize)
 		copy(realloc, result)
 		result = realloc
 	}
-	
+
 	if forward {
 		// out edges
 		outEdges := clusterStart + int(indexInCluster)*clusterSize
@@ -154,7 +147,7 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 			w := matrix[outEdges]
 			clusterIndex++
 			outEdges++
-			
+
 			if i == int(indexInCluster) || w == inf {
 				continue
 			}
@@ -172,7 +165,7 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 			w := matrix[inEdges]
 			clusterIndex++
 			inEdges += clusterSize
-			
+
 			if i == int(indexInCluster) || w == inf {
 				continue
 			}
@@ -189,30 +182,6 @@ func (g *OverlayGraphFile) VertexNeighbors(v Vertex, forward bool, t Transport, 
 func (g *OverlayGraphFile) IsCutEdge(e Edge) bool {
 	return int(e) < g.GraphFile.EdgeCount()
 }
-
-/*
-func (g *OverlayGraphFile) EdgeOpposite(e Edge, v Vertex) Vertex {
-	if g.IsCutEdge(e) {
-		return g.GraphFile.EdgeOpposite(e, v)
-	}
-	// binary search for cluster id
-	cluster := sort.Search(g.ClusterCount(), func(i int) bool { return int(e) < g.EdgeCounts[i+1] })
-	clusterSize := g.ClusterSize(cluster)
-
-	e = e - Edge(g.EdgeCounts[cluster])
-	vCheck := int(e) / clusterSize
-	if int(v) != vCheck {
-		// in edge of v
-		if int(e)%clusterSize != int(v) {
-			panic("index of v is not as expected")
-		}
-		return Vertex(vCheck)
-	}
-	// out edge of v
-	u := int(e) % clusterSize
-	return Vertex(u)
-}
-*/
 
 func (g *OverlayGraphFile) EdgeSteps(e Edge, from Vertex, buf []geo.Coordinate) []geo.Coordinate {
 	// Return nil unless the edge is a cross partition edge.
