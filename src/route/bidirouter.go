@@ -34,7 +34,6 @@ func (r *BidiRouter) Reset(g graph.Graph) {
 	// the array to the identity (corresponding to n self loops).
 	// This makes it easy to recognize root nodes later on.
 	if r.SParent == nil || cap(r.SParent) < vertexCount {
-		//fmt.Printf("Reallocating the Parent Array with capacity %v.\n", vertexCount)
 		r.SParent = make([]graph.Vertex, vertexCount)
 		r.TParent = make([]graph.Vertex, vertexCount)
 	} else {
@@ -49,7 +48,6 @@ func (r *BidiRouter) Reset(g graph.Graph) {
 	// The distance array is only valid if a vertex is already
 	// processed, so there is no need to initialize it.
 	if r.SDist == nil || cap(r.SDist) < vertexCount {
-		//fmt.Printf("Reallocating the Distance Array with capacity %v.\n", vertexCount)
 		r.SDist = make([]float32, vertexCount)
 		r.TDist = make([]float32, vertexCount)
 	} else {
@@ -88,11 +86,11 @@ func (r *BidiRouter) AddTarget(v graph.Vertex, distance float32) {
 // Dijkstra
 
 func (r *BidiRouter) Run() {
-	g      := r.Graph
+	g := r.Graph
 	sh, th := &r.SHeap, &r.THeap
-	t, m   := r.Transport, r.Metric
-	darts  := []graph.Dart(nil)
-	
+	t, m := r.Transport, r.Metric
+	darts := []graph.Dart(nil)
+
 	// Maintain an upper bound on the optimal distance.
 	upperBound := r.MDistance
 	meetVertex := r.MeetVertex
@@ -114,7 +112,7 @@ func (r *BidiRouter) Run() {
 				if sh.Processed(n) {
 					continue
 				}
-				
+
 				tmpDist := dist + d.Weight
 				if sh.Update(n, tmpDist) {
 					r.SParent[n] = curr
@@ -139,17 +137,12 @@ func (r *BidiRouter) Run() {
 			curr, dist := th.Pop()
 			r.TDist[curr] = dist
 			darts = g.VertexNeighbors(curr, false /* forward */, t, m, darts)
-			if len(darts) == 0 {
-				//println("Isolated vertex?")
-			}
-			//log.Printf("curr: %v, dist: %v", curr, dist)
 			for _, d := range darts {
 				n := d.Vertex
-				//log.Printf("  * n: %v, w: %v, processed: %v", n, d.Weight, th.Processed(n))
 				if th.Processed(n) {
 					continue
 				}
-				
+
 				tmpDist := dist + d.Weight
 				if th.Update(n, tmpDist) {
 					r.TParent[n] = curr
@@ -175,7 +168,7 @@ func (r *BidiRouter) Run() {
 	// Record the shortest path
 	r.MeetVertex = meetVertex
 	r.MDistance = upperBound
-	
+
 	if meetVertex == -1 {
 		panic("Did not find a path!")
 	}
@@ -278,8 +271,8 @@ func (r *BidiRouter) Path() ([]graph.Vertex, []graph.Edge) {
 // Convenience function to find a forward edge (of minimum weight) from
 // vertex u to vertex v. Useful for reconstructing cut edges.
 func (r *BidiRouter) EdgeBetween(u, v graph.Vertex) graph.Edge {
-	g         := r.Graph
-	minEdge   := graph.Edge(-1)
+	g := r.Graph
+	minEdge := graph.Edge(-1)
 	minWeight := math.Inf(1)
 	for _, e := range g.VertexEdges(u, true, r.Transport, nil) {
 		n := g.EdgeOpposite(e, u)

@@ -9,8 +9,7 @@ import (
 )
 
 type Router struct {
-	Graph graph.Graph
-	//Graph     *graph.GraphFile
+	Graph     graph.Graph
 	Parent    []graph.Vertex
 	Dist      []float32
 	Heap      Heap
@@ -30,7 +29,6 @@ func (r *Router) Reset(g graph.Graph) {
 	// the array to the identity (corresponding to n self loops).
 	// This makes it easy to recognize root nodes later on.
 	if r.Parent == nil || cap(r.Parent) < vertexCount {
-		//fmt.Printf("Reallocating the Parent Array with capacity %v.\n", vertexCount)
 		r.Parent = make([]graph.Vertex, vertexCount)
 	} else {
 		r.Parent = r.Parent[:vertexCount]
@@ -42,7 +40,6 @@ func (r *Router) Reset(g graph.Graph) {
 	// The distance array is only valid if a vertex is already
 	// processed, so there is no need to initialize it.
 	if r.Dist == nil || cap(r.Dist) < vertexCount {
-		//fmt.Printf("Reallocating the Distance Array with capacity %v.\n", vertexCount)
 		r.Dist = make([]float32, vertexCount)
 	} else {
 		r.Dist = r.Dist[:vertexCount]
@@ -60,11 +57,11 @@ func (r *Router) AddSource(v graph.Vertex, distance float32) {
 // Dijkstra
 
 func (r *Router) Run() {
-	g, h    := r.Graph, &r.Heap
-	t, m    := r.Transport, r.Metric
+	g, h := r.Graph, &r.Heap
+	t, m := r.Transport, r.Metric
 	forward := r.Forward
-	darts   := []graph.Dart(nil)
-	
+	darts := []graph.Dart(nil)
+
 	for !h.Empty() {
 		curr, dist := h.Pop()
 		r.Dist[curr] = dist
@@ -74,8 +71,8 @@ func (r *Router) Run() {
 			if h.Processed(n) {
 				continue
 			}
-			
-			if h.Update(n, dist + d.Weight) {
+
+			if h.Update(n, dist+d.Weight) {
 				r.Parent[n] = curr
 			}
 		}
