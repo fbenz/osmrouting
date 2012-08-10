@@ -2,6 +2,11 @@
 
 package route
 
+const (
+	StatusOk      = "OK"
+	StatusNoRoute = "No route found"
+)
+
 type Result struct {
 	BoundingBox BoundingBox `json:"boundingBox"`
 	Routes      []Route     `json:"routes"`

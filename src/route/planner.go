@@ -64,9 +64,15 @@ func (r *RoutePlanner) Run() *Result {
 	// Format the results.
 	distance := 0
 	duration := 0
-	for _, leg := range legs {
+	for i, leg := range legs {
 		distance += leg.Distance.Value
 		duration += leg.Duration.Value
+
+		if leg.Status != StatusOk {
+			leg.StartLocation[0], leg.StartLocation[1] = r.Waypoints[i].Lat, r.Waypoints[i].Lng
+			leg.EndLocation[0], leg.EndLocation[1] = r.Waypoints[i+1].Lat, r.Waypoints[i+1].Lng
+			log.Printf("%v for waypoints %v and %v.\n", leg.Status, leg.StartLocation, leg.EndLocation)
+		}
 	}
 
 	route := Route{
@@ -156,13 +162,11 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 
 	// Return the empty route from start to end point in case no path was found.
 	if !router.PathFound() {
-		log.Printf("Did not find a route between %v and %v.\n", srcWays[0].Target, dstWays[0].Target)
 		srcWays[0].Length = 0
 		srcWays[0].Steps = []geo.Coordinate(nil)
 		dstWays[0].Length = 0
 		dstWays[0].Steps = []geo.Coordinate(nil)
-		dummySteps := make([]Step, 0)
-		return r.StepsToLeg("No route found", dummySteps, srcWays[0], dstWays[0], srcWays[0].Target, dstWays[0].Target)
+		return r.StepsToLeg(StatusNoRoute, []Step(nil), srcWays[0], dstWays[0], srcWays[0].Target, dstWays[0].Target)
 	}
 
 	// Gather the result path.
@@ -273,5 +277,5 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	for _, segment := range segments {
 		steps = append(steps, segment...)
 	}
-	return r.StepsToLeg("OK", steps, srcWays[indexstart], dstWays[indexend], startc, stopc)
+	return r.StepsToLeg(StatusOk, steps, srcWays[indexstart], dstWays[indexend], startc, stopc)
 }
