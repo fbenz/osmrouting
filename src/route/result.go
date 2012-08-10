@@ -21,6 +21,7 @@ type Route struct {
 }
 
 type Leg struct {
+	Status        string   `json:"status"`
 	Distance      Distance `json:"distance"`
 	Duration      Duration `json:"duration"`
 	StartLocation Point    `json:"start_location"`

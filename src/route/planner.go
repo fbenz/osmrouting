@@ -4,6 +4,7 @@ import (
 	"geo"
 	"graph"
 	"kdtree"
+	"log"
 	"math"
 )
 
@@ -153,6 +154,17 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	}
 	router.Run()
 
+	// Return the empty route from start to end point in case no path was found.
+	if !router.PathFound() {
+		log.Printf("Did not find a route between %v and %v.\n", srcWays[0].Target, dstWays[0].Target)
+		srcWays[0].Length = 0
+		srcWays[0].Steps = []geo.Coordinate(nil)
+		dstWays[0].Length = 0
+		dstWays[0].Steps = []geo.Coordinate(nil)
+		dummySteps := make([]Step, 0)
+		return r.StepsToLeg("No route found", dummySteps, srcWays[0], dstWays[0], srcWays[0].Target, dstWays[0].Target)
+	}
+
 	// Gather the result path.
 	vpath := router.VPath()
 	segments := [][]Step(nil)
@@ -261,5 +273,5 @@ func (r *RoutePlanner) ComputeLeg(waypointIndex int) Leg {
 	for _, segment := range segments {
 		steps = append(steps, segment...)
 	}
-	return r.StepsToLeg(steps, srcWays[indexstart], dstWays[indexend], startc, stopc)
+	return r.StepsToLeg("OK", steps, srcWays[indexstart], dstWays[indexend], startc, stopc)
 }

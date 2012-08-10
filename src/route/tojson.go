@@ -106,7 +106,7 @@ func Orientation(p, q, r Point) string {
 }
 
 // Assemble a sequence of Steps into a Leg.
-func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, stopc geo.Coordinate) Leg {
+func (r *RoutePlanner) StepsToLeg(status string, steps []Step, start, stop graph.Way, startc, stopc geo.Coordinate) Leg {
 	// Determine the number of steps on this path.
 	var startPoint, endPoint Point
 	totalSteps := len(steps)
@@ -162,6 +162,7 @@ func (r *RoutePlanner) StepsToLeg(steps []Step, start, stop graph.Way, startc, s
 	endPoint = StepToPoint(stop.Target)
 
 	return Leg{
+		Status:        status,
 		Distance:      FormatDistance(float64(distance)),
 		Duration:      FormatDuration(float64(duration)),
 		StartLocation: startPoint,

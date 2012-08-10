@@ -41,6 +41,9 @@ const testTemplateHTML = `
       .menu_hide {
         color: #00C;
       }
+      .no_path {
+      	color: #FF0000;
+      }
     </style>
   
   <script type="text/javascript">
@@ -127,25 +130,30 @@ function routeSuccess(data) {
   $("#routeOverview").append("Total: " + data.routes[0].duration.text + ", " + data.routes[0].distance.text);
     
   var route = data.routes[0];
-  $.each(route.legs, function(i, leg){
-    $.each(leg.steps, function(i, step){
-      $("#routeInfo").append("<li>" + step.instruction + " (" + step.duration.text + ", " + step.distance.text + ")</li>");
+  $.each(route.legs, function(i, leg) {
+    if (leg.status == "OK") {
+      $.each(leg.steps, function(i, step) {
+        $("#routeInfo").append("<li>" + step.instruction + " (" + step.duration.text + ", " + step.distance.text + ")</li>");
   
-      var lineColor = "red";
-      if (i % 2 ==  0) {
-        lineColor = "blue";
-      }
-      if (i == 0) {
-      	lineColor = "olive"
-      }
-      var line = []
-      $.each(step.polyline, function(i, point) {
-        line[i] = new CM.LatLng(point[0], point[1]);
+        var lineColor = "red";
+        if (i % 2 ==  0) {
+          lineColor = "blue";
+        }
+        if (i == 0) {
+      	  lineColor = "olive"
+        }
+        var line = []
+        $.each(step.polyline, function(i, point) {
+          line[i] = new CM.LatLng(point[0], point[1]);
+        });
+        var polygon = new CM.Polyline(line, lineColor, 5, 0.7);
+        map.addOverlay(polygon);
+        oldOverlays.push(polygon);
       });
-      var polygon = new CM.Polyline(line, lineColor, 5, 0.7);
-      map.addOverlay(polygon);
-      oldOverlays.push(polygon);
-    });
+     } else {
+       $("#routeInfo").append("<li class=\"no_path\">No route found between (" + leg.start_location[0] + ", " + leg.start_location[1] + ") and ("
+         + leg.end_location[0] + ", " + leg.end_location[1] + ")</li>");
+     }
   });
   
   var start = new CM.LatLng(floats[0], floats[1]);

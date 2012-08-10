@@ -168,13 +168,13 @@ func (r *BidiRouter) Run() {
 	// Record the shortest path
 	r.MeetVertex = meetVertex
 	r.MDistance = upperBound
-
-	if meetVertex == -1 {
-		panic("Did not find a path!")
-	}
 }
 
 // Result Queries
+
+func (r *BidiRouter) PathFound() bool {
+	return r.MeetVertex != -1
+}
 
 func (r *BidiRouter) Distance() float32 {
 	return r.MDistance
