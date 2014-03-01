@@ -14,15 +14,15 @@ Running Tests
 
 To build everything, use:
 
-  build.sh
+    build.sh
 
 To execute the preprocessing steps, use:
 
-  preprocess.sh pbf_file path
+    preprocess.sh pbf_file path
 
 To start up the server, use:
 
-  bin/server -dir path -port port
+    bin/server -dir path -port port
 
 The following parameters occur in the commands above:
 * pbf_file: OSM PBF file
