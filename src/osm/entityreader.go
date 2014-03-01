@@ -66,9 +66,9 @@ func parsePrimitiveBlock(block *Block) (*pbf.PrimitiveBlock, error) {
 // Internally, the encoding of coordinates depends on the context.
 // This function maps between raw lat/long values and Coordinates.
 func parseLocation(rawlat, rawlng int64, block *pbf.PrimitiveBlock) geo.Coordinate {
-	granularity := int64(proto.GetInt32(block.Granularity))
-	latOffset := proto.GetInt64(block.LatOffset)
-	lngOffset := proto.GetInt64(block.LonOffset)
+	granularity := int64(block.GetGranularity())
+	latOffset := block.GetLatOffset()
+	lngOffset := block.GetLonOffset()
 	lat := float64(latOffset + granularity*rawlat) / 1000000000.0
 	lng := float64(lngOffset + granularity*rawlng) / 1000000000.0
 	return geo.Coordinate{lat, lng}
@@ -89,10 +89,10 @@ func parseAttributes(keys, vals []uint32, block *pbf.PrimitiveBlock) map[string]
 
 // Parse a node in the standard format.
 func visitNode(node *pbf.Node, block *pbf.PrimitiveBlock, client Visitor) {
-	rawlat := proto.GetInt64(node.Lat)
-	rawlon := proto.GetInt64(node.Lon)
+	rawlat := node.GetLat()
+	rawlon := node.GetLon()
 	n := Node{
-		Id:         proto.GetInt64(node.Id),
+		Id:         node.GetId(),
 		Position:   parseLocation(rawlat, rawlon, block),
 		Attributes: parseAttributes(node.Keys, node.Vals, block),
 	}
@@ -138,7 +138,7 @@ func visitDenseNodes(group *pbf.PrimitiveGroup, block *pbf.PrimitiveBlock, clien
 
 func visitWay(way *pbf.Way, block *pbf.PrimitiveBlock, client Visitor) {
 	w := Way{
-		Id:         proto.GetInt64(way.Id),
+		Id:         way.GetId(),
 		Nodes:      make([]int64, len(way.Refs)),
 		Attributes: parseAttributes(way.Keys, way.Vals, block),
 	}
@@ -154,7 +154,7 @@ func visitWay(way *pbf.Way, block *pbf.PrimitiveBlock, client Visitor) {
 
 func visitRelation(relation *pbf.Relation, block *pbf.PrimitiveBlock, client Visitor) {
 	r := Relation{
-		Id:         proto.GetInt64(relation.Id),
+		Id:         relation.GetId(),
 		Members:    make([]RelationMember, len(relation.Memids)),
 		Attributes: parseAttributes(relation.Keys, relation.Vals, block),
 	}

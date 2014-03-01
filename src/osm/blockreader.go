@@ -79,7 +79,7 @@ func readBlobHeader(stream io.Reader) (*pbf.BlobHeader, error) {
 
 // Parse the blob type
 func blobType(header *pbf.BlobHeader) (BlockType, error) {
-	t := proto.GetString(header.Type)
+	t := header.GetType()
 	switch t {
 	case "OSMHeader":
 		return OSMHeader, nil
@@ -91,7 +91,7 @@ func blobType(header *pbf.BlobHeader) (BlockType, error) {
 
 // Read a pbf Blob, without decompressing it
 func readBlobData(stream io.Reader, header *pbf.BlobHeader) (*pbf.Blob, error) {
-	blobSize := proto.GetInt32(header.Datasize)
+	blobSize := header.GetDatasize()
 	if blobSize < 0 || blobSize > MaxBlobSize {
 		return nil, errors.New("Invalid blob size")
 	}
