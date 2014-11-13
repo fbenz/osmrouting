@@ -11,7 +11,7 @@ Bernhard Schommer
 
 Requirements
 ---------
-* Go version 1.0 or above (tested with 1.0 and 1.2)
+* Go version 1.0 or above (tested with 1.0, 1.2, and 1.3)
 * Metis: 'gpmetis' has to be available for the preprocessing
 
 Running
